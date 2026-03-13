@@ -1,0 +1,172 @@
+// VitaScan - Prisma Schema
+// PostgreSQL adatbázis, Docker konténerben fut
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(uuid())
+  username     String    @unique
+  email        String    @unique
+  passwordHash String    // Argon2id
+  reputation   Int       @default(0)
+  role         Role      @default(USER)
+
+  logs         DailyLog[]
+  createdFoods Food[]
+  votes        Vote[]
+  profile      UserProfile?
+  refreshTokens RefreshToken[]
+  waterLogs    WaterLog[]
+
+  deletedAt    DateTime? // Soft delete (GDPR - 30 napos türelmi idő)
+  createdAt    DateTime  @default(now())
+}
+
+model UserProfile {
+  id               String        @id @default(uuid())
+  userId           String        @unique
+  user             User          @relation(fields: [userId], references: [id])
+
+  birthYear        Int?
+  heightCm         Float?
+  weightKg         Float?
+  gender           Gender?
+  activityLevel    ActivityLevel @default(SEDENTARY)
+  goal             Goal          @default(MAINTAIN)
+  dailyKcalGoal    Float?        // Kiszámított TDEE, felülírható
+  dailyWaterGoalMl Int?          // ml/nap, default: testsúly * 30
+
+  tier             Tier          @default(FREE) // Freemium
+}
+
+model Food {
+  id          String   @id @default(uuid())
+  name        String
+  brand       String?
+  barcode     String?  @unique
+  kcal        Float
+  protein     Float    // g / 100g
+  carbs       Float    // g / 100g
+  fat         Float    // g / 100g
+  fiber       Float?   // g / 100g (rost)
+  sugar       Float?   // g / 100g (cukor)
+  servingSize Float?   // pl. 30 (gramm)
+  servingUnit String?  // pl. 'adag', 'db', 'ek'
+
+  status      Status   @default(UNVERIFIED)
+  tier        Tier     @default(FREE) // Freemium
+
+  creatorId   String
+  creator     User     @relation(fields: [creatorId], references: [id])
+  votes       Vote[]
+
+  createdAt   DateTime @default(now())
+}
+
+model Vote {
+  id      String @id @default(uuid())
+  value   Int    // +1 (upvote) vagy -1 (downvote)
+
+  userId  String
+  foodId  String
+  user    User   @relation(fields: [userId], references: [id])
+  food    Food   @relation(fields: [foodId], references: [id])
+
+  @@unique([userId, foodId]) // Egy user csak egyszer szavazhat egy ételre
+}
+
+model DailyLog {
+  id        String   @id @default(uuid())
+  userId    String
+
+  foodName  String
+  kcal      Float
+  protein   Float
+  carbs     Float
+  fat       Float
+  fiber     Float?
+  sugar     Float?
+  amount    Float    // gramm
+
+  mealType  MealType @default(OTHER)
+  source    String   @default("MANUAL") // MANUAL | SCAN | SEARCH
+
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+
+  expiresAt DateTime
+  revokedAt DateTime? // Token rotation / kijelentkezés
+
+  createdAt DateTime  @default(now())
+}
+
+model WaterLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  amountMl  Int      // ivott víz ml-ben
+  createdAt DateTime @default(now())
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Status {
+  UNVERIFIED
+  VERIFIED
+  BANNED
+}
+
+enum Tier {
+  FREE
+  PREMIUM
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum Goal {
+  LOSE
+  MAINTAIN
+  GAIN
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+  OTHER
+}
+
+enum ActivityLevel {
+  SEDENTARY
+  LIGHT
+  MODERATE
+  ACTIVE
+  VERY_ACTIVE
+}
+
+enum Role {
+  USER
+  ADMIN
+}
