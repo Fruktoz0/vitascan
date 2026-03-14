@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
-import { authApi, onboardingApi, setAccessToken } from '../services/api';
+import { authApi, onboardingApi, profileApi, setAccessToken } from '../services/api';
 
 interface User {
   id: string;
@@ -23,6 +23,8 @@ interface AuthState {
   setOnboardingCompleted: (value: boolean) => void;
 }
 
+const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3005';
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isLoading: true,
@@ -35,7 +37,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     setAccessToken(accessToken);
     await SecureStore.setItemAsync('refreshToken', refreshToken);
 
-    // Onboarding státusz lekérése
     let onboardingCompleted = false;
     try {
       const status = await onboardingApi.getStatus();
@@ -47,7 +48,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   register: async (username, email, password) => {
     await authApi.register({ username, email, password, acceptedTerms: true });
-    // Regisztráció után automatikus login
     await get().login(email, password);
   },
 
@@ -72,14 +72,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       // Token frissítése
-      const res = await fetch(
-        `${process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3005'}/auth/refresh`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken }),
-        }
-      );
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
 
       if (!res.ok) {
         await SecureStore.deleteItemAsync('refreshToken');
@@ -87,11 +84,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      const { accessToken, refreshToken: newRefresh, user } = await res.json();
-      // FONTOS: a refresh endpointnak vissza kell adni a user-t is
-      // Ha nem adja vissza, profile/me-t kell hívni
+      const { accessToken, refreshToken: newRefresh } = await res.json();
       setAccessToken(accessToken);
       await SecureStore.setItemAsync('refreshToken', newRefresh);
+
+      // /auth/refresh nem ad vissza user objektumot, ezért külön lekérjük
+      let user: User | null = null;
+      try {
+        const profile = await profileApi.getMe();
+        user = {
+          id: profile.id,
+          username: profile.username,
+          email: profile.email,
+          role: profile.role,
+        };
+      } catch {
+        // Ha a profile lekérés sikertelen, kijelentkeztetjük
+        await SecureStore.deleteItemAsync('refreshToken');
+        setAccessToken(null);
+        set({ isLoading: false });
+        return;
+      }
 
       // Onboarding státusz
       let onboardingCompleted = false;

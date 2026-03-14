@@ -8,11 +8,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 
-import { adminApi } from '../../src/services/api';
-import { GlassCardSimple } from '../../src/components/ui/GlassCard';
-import { PrimaryButton, GhostButton } from '../../src/components/ui/Button';
-import { ExpertBadge, getReputationLevel } from '../../src/components/badge/ExpertBadge';
-import { Colors, Gradients, Radius, Spacing, Typography } from '../../src/design/tokens';
+import { adminApi } from '../../services/api';
+import { GlassCardSimple } from '../../components/ui/GlassCard';
+import { PrimaryButton, GhostButton } from '../../components/ui/Button';
+import { ExpertBadge, getReputationLevel } from '../../components/badge/ExpertBadge';
+import { Colors, Gradients, Radius, Spacing, Typography } from '../../design/tokens';
 
 // ─── Típusok ──────────────────────────────────────────────────────────────────
 
@@ -100,7 +100,6 @@ function DashboardTab() {
       contentContainerStyle={styles.tabContent}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetch(); }} tintColor={Colors.primary} />}
     >
-      {/* Stat grid */}
       <Text style={styles.sectionTitle}>Áttekintés</Text>
       <View style={styles.statRow}>
         <StatBox emoji="👥" label="Felhasználók" value={s?.totalUsers ?? 0} color="#4A90D9"
@@ -118,7 +117,6 @@ function DashboardTab() {
           sub="bejegyzés" />
       </View>
 
-      {/* Top közreműködők */}
       {data?.topContributors?.length > 0 && (
         <>
           <Text style={styles.sectionTitle}>🏆 Top közreműködők</Text>
@@ -156,7 +154,7 @@ function FoodsTab() {
   const [query, setQuery] = useState('');
   const debounce = useRef<ReturnType<typeof setTimeout>>();
 
-  const fetch = useCallback(async (q = query, f = filter) => {
+  const fetchFoods = useCallback(async (q = query, f = filter) => {
     setLoading(true);
     try {
       const res = await adminApi.getFoods({ status: f as any, q: q || undefined, limit: 40 });
@@ -165,12 +163,12 @@ function FoodsTab() {
     } catch {} finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetch(); }, [filter]);
+  useEffect(() => { fetchFoods(); }, [filter]);
 
   const handleSearch = (t: string) => {
     setQuery(t);
     clearTimeout(debounce.current);
-    debounce.current = setTimeout(() => fetch(t), 400);
+    debounce.current = setTimeout(() => fetchFoods(t), 400);
   };
 
   const handleSetStatus = async (food: any, status: FoodStatus) => {
@@ -185,7 +183,7 @@ function FoodsTab() {
             try {
               await adminApi.setFoodStatus(food.id, status);
               await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              fetch();
+              fetchFoods();
             } catch (e: any) { Alert.alert('Hiba', e.message); }
           },
         },
@@ -205,7 +203,7 @@ function FoodsTab() {
             try {
               await adminApi.deleteFood(food.id);
               await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-              fetch();
+              fetchFoods();
             } catch (e: any) { Alert.alert('Hiba', e.message); }
           },
         },
@@ -217,7 +215,6 @@ function FoodsTab() {
 
   return (
     <View style={{ flex: 1 }}>
-      {/* Szűrők + keresés */}
       <View style={styles.filterBar}>
         <View style={styles.searchRow}>
           <TextInput
@@ -262,7 +259,6 @@ function FoodsTab() {
                 <StatusBadge status={item.status} />
               </View>
 
-              {/* Akció gombok */}
               <View style={styles.foodActions}>
                 {item.status !== 'VERIFIED' && (
                   <Pressable style={[styles.actionBtn, styles.actionVerify]}
@@ -308,7 +304,7 @@ function UsersTab() {
   const [repReason, setRepReason] = useState('');
   const debounce = useRef<ReturnType<typeof setTimeout>>();
 
-  const fetch = useCallback(async (q = query) => {
+  const fetchUsers = useCallback(async (q = query) => {
     setLoading(true);
     try {
       const res = await adminApi.getUsers({ q: q || undefined, limit: 40 });
@@ -317,12 +313,12 @@ function UsersTab() {
     } catch {} finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetch(); }, []);
+  useEffect(() => { fetchUsers(); }, []);
 
   const handleSearch = (t: string) => {
     setQuery(t);
     clearTimeout(debounce.current);
-    debounce.current = setTimeout(() => fetch(t), 400);
+    debounce.current = setTimeout(() => fetchUsers(t), 400);
   };
 
   const handleRoleToggle = (user: any) => {
@@ -338,7 +334,7 @@ function UsersTab() {
             try {
               await adminApi.setUserRole(user.id, newRole);
               await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              fetch();
+              fetchUsers();
             } catch (e: any) { Alert.alert('Hiba', e.message); }
           },
         },
@@ -359,7 +355,7 @@ function UsersTab() {
             try {
               await adminApi.setUserTier(user.id, newTier);
               await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              fetch();
+              fetchUsers();
             } catch (e: any) { Alert.alert('Hiba', e.message); }
           },
         },
@@ -377,7 +373,7 @@ function UsersTab() {
       setRepModalVisible(false);
       setRepDelta('');
       setRepReason('');
-      fetch();
+      fetchUsers();
     } catch (e: any) { Alert.alert('Hiba', e.message); }
   };
 
@@ -392,7 +388,7 @@ function UsersTab() {
           onPress: async () => {
             try {
               await adminApi.softDeleteUser(user.id);
-              fetch();
+              fetchUsers();
             } catch (e: any) { Alert.alert('Hiba', e.message); }
           },
         },
@@ -426,7 +422,6 @@ function UsersTab() {
             const isDeleted = !!item.deletedAt;
             return (
               <View style={[styles.userCard, isDeleted && styles.userCardDeleted]}>
-                {/* Fejléc */}
                 <View style={styles.userHeader}>
                   <View style={[styles.userAvatar, item.role === 'ADMIN' && styles.userAvatarAdmin]}>
                     <Text style={styles.userAvatarText}>
@@ -453,7 +448,6 @@ function UsersTab() {
                   </View>
                 </View>
 
-                {/* Akció gombok */}
                 {!isDeleted && (
                   <View style={styles.userActions}>
                     <Pressable
@@ -492,7 +486,6 @@ function UsersTab() {
         />
       )}
 
-      {/* Reputáció módosítás modal */}
       <Modal visible={repModalVisible} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setRepModalVisible(false)}>
         <View style={styles.repModal}>
           <Text style={styles.repModalTitle}>
@@ -538,7 +531,6 @@ export default function AdminPanelScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
       <SafeAreaView style={{ flex: 1 }}>
-        {/* Fejléc */}
         <LinearGradient
           colors={['#1A1A2E', '#2D2D4E']}
           style={styles.header}
@@ -551,7 +543,6 @@ export default function AdminPanelScreen() {
             </View>
           </View>
 
-          {/* Tab bar */}
           <View style={styles.tabBar}>
             {TABS.map((tab) => (
               <Pressable
@@ -568,7 +559,6 @@ export default function AdminPanelScreen() {
           </View>
         </LinearGradient>
 
-        {/* Tab tartalom */}
         <View style={{ flex: 1 }}>
           {activeTab === 'dashboard' && <DashboardTab />}
           {activeTab === 'foods'     && <FoodsTab />}

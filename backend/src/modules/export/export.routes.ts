@@ -1,7 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import { authenticate } from '../../middleware/authenticate';
 import { requirePremium } from '../../middleware/tierGuard';
-import { buildExportWorkbook } from '../../services/exportService';
+import { generateExport } from '../../services/exportService';
 
 const exportRoutes: FastifyPluginAsync = async (fastify) => {
 
@@ -65,7 +65,7 @@ const exportRoutes: FastifyPluginAsync = async (fastify) => {
     if (!user) return reply.status(404).send({ error: 'Felhasználó nem található.' });
 
     // Excel generálása az exportService segítségével
-    const buffer = await buildExportWorkbook({
+    const buffer = await generateExport({
       logs,
       waterLogs,
       user: {
