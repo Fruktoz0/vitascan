@@ -1,63 +1,49 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View, ViewStyle, StyleProp } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, StyleSheet, Animated, ViewStyle, StyleProp } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
-interface AnimatedMeshBackgroundProps {
+interface Props {
+  colors?: string[];
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
-  colors?: string[];
-  speed?: 'slow' | 'medium' | 'fast';
+  animate?: boolean;
 }
 
-// Egy lassan mozgó, "lélegző" mesh gradiens háttér
-// Két LinearGradient réteg animált opacity-val váltakozik
 export default function AnimatedMeshBackground({
+  colors = ['#FF9A6C', '#FFD4B8', '#A8EDBC', '#7EC8E3'],
   children,
   style,
-  colors = ['#FF9A6C', '#FFD4B8', '#A8EDBC', '#7EC8E3'],
-  speed = 'slow',
-}: AnimatedMeshBackgroundProps) {
-  const opacity = useRef(new Animated.Value(0)).current;
-
-  const duration = speed === 'slow' ? 6000 : speed === 'medium' ? 3000 : 1500;
+  animate = true,
+}: Props) {
+  const shift = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const anim = Animated.loop(
+    if (!animate) return;
+    Animated.loop(
       Animated.sequence([
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          toValue: 0,
-          duration,
-          useNativeDriver: true,
-        }),
+        Animated.timing(shift, { toValue: 1, duration: 8000, useNativeDriver: false }),
+        Animated.timing(shift, { toValue: 0, duration: 8000, useNativeDriver: false }),
       ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, []);
+    ).start();
+  }, [animate]);
 
-  // Alternatív gradiens kis eltolással a "mozgás" érzetéhez
-  const altColors = [...colors].reverse();
+  // Kis pozíció-eltolás az animációhoz
+  const translateX = shift.interpolate({ inputRange: [0, 1], outputRange: [0, 15] });
+  const translateY = shift.interpolate({ inputRange: [0, 1], outputRange: [0, -10] });
 
   return (
     <View style={[styles.container, style]}>
-      {/* Alap gradiens */}
-      <LinearGradient
-        colors={colors as any}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
-      {/* Animált felső réteg */}
-      <Animated.View style={[StyleSheet.absoluteFillObject, { opacity }]}>
+      <Animated.View
+        style={[
+          StyleSheet.absoluteFillObject,
+          { transform: [{ translateX }, { translateY }] },
+        ]}
+        pointerEvents="none"
+      >
         <LinearGradient
-          colors={altColors as any}
-          start={{ x: 1, y: 0 }}
-          end={{ x: 0, y: 1 }}
+          colors={colors as any}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFillObject}
         />
       </Animated.View>
@@ -66,27 +52,9 @@ export default function AnimatedMeshBackground({
   );
 }
 
-// Statikus verzió — egyszerűbb esetekre
-export function MeshBackground({
-  children,
-  style,
-  colors = ['#FF9A6C', '#FFD4B8', '#A8EDBC', '#7EC8E3'],
-  start = { x: 0, y: 0 },
-  end = { x: 1, y: 1 },
-}: {
-  children: React.ReactNode;
-  style?: StyleProp<ViewStyle>;
-  colors?: string[];
-  start?: { x: number; y: number };
-  end?: { x: number; y: number };
-}) {
-  return (
-    <LinearGradient colors={colors as any} start={start} end={end} style={[styles.container, style]}>
-      {children}
-    </LinearGradient>
-  );
-}
-
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: {
+    flex: 1,
+    overflow: 'hidden',
+  },
 });

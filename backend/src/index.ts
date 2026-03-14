@@ -12,7 +12,9 @@ import waterRoutes from './modules/water/water.routes';
 import profileRoutes from './modules/profile/profile.routes';
 import adminRoutes from './modules/admin/admin.routes';
 import premiumRoutes from './modules/premium/premium.routes';
-fastify.register(premiumRoutes);
+import statsRoutes from './modules/stats/stats.routes';
+import onboardingRoutes from './modules/onboarding/onboarding.routes';
+import exportRoutes from './modules/export/export.routes';
 
 const fastify = Fastify({
   logger: {
@@ -49,26 +51,29 @@ async function bootstrap() {
     docs: 'https://github.com/vitascan/api',
   }));
 
-  // Health check (Docker healthcheck endpoint)
   fastify.get('/health', async () => ({
     status: 'ok',
     timestamp: new Date().toISOString(),
   }));
 
-  await fastify.register(authRoutes, { prefix: '/auth' });
-  await fastify.register(foodRoutes, { prefix: '/foods' });
-  await fastify.register(logRoutes, { prefix: '/logs' });
-  await fastify.register(waterRoutes, { prefix: '/water' });
-  await fastify.register(profileRoutes, { prefix: '/profile' });
+  await fastify.register(authRoutes,       { prefix: '/auth' });
+  await fastify.register(foodRoutes,       { prefix: '/foods' });
+  await fastify.register(logRoutes,        { prefix: '/logs' });
+  await fastify.register(waterRoutes,      { prefix: '/water' });
+  await fastify.register(profileRoutes,    { prefix: '/profile' });
+  await fastify.register(statsRoutes,      { prefix: '/stats' });
+  await fastify.register(onboardingRoutes, { prefix: '/onboarding' });
+  await fastify.register(exportRoutes,     { prefix: '/export' });
+  await fastify.register(premiumRoutes);
+  await fastify.register(adminRoutes,      { prefix: '/admin' });
 
-  // Scanner rate limit: 20 req/perc/user (a /foods/barcode endpoint előtt)
+  // ─── Scanner rate-limited endpoint ───────────────────────────────────────
   await fastify.register(
     async (instance) => {
       await instance.register(rateLimit, {
         max: 20,
         timeWindow: '1 minute',
         keyGenerator: (req) => {
-          // Rate limit per user if authenticated, else per IP
           const auth = req.headers.authorization;
           if (auth?.startsWith('Bearer ')) return `scan_${auth.slice(7, 30)}`;
           return `scan_ip_${req.ip}`;
@@ -89,12 +94,11 @@ async function bootstrap() {
     { prefix: '/scanner' }
   );
 
-  await fastify.register(adminRoutes, { prefix: '/admin' });
-
   // ─── Start ───────────────────────────────────────────────────────────────
   try {
-    await fastify.listen({ port: 3000, host: '0.0.0.0' });
-    console.log('🚀 VitaScan API fut a 3000-es porton (kívül: 3005)');
+    const port = parseInt(process.env.PORT ?? '3000');
+    await fastify.listen({ port, host: '0.0.0.0' });
+    console.log(`🚀 VitaScan API fut a ${port}-es porton`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

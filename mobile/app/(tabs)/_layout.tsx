@@ -16,12 +16,12 @@ const tabStyles = StyleSheet.create({
   iconWrap: {
     alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-    minWidth: 56,
+    minWidth: 52,
   },
   iconWrapActive: {
     backgroundColor: 'rgba(255, 107, 53, 0.12)',
   },
-  emoji: { fontSize: 22 },
+  emoji: { fontSize: 20 },
   label: { fontSize: 10, fontWeight: '700', color: '#FF6B35', marginTop: 2 },
 });
 
@@ -48,11 +48,7 @@ export default function TabsLayout() {
         },
         tabBarBackground: () =>
           Platform.OS === 'ios' ? (
-            <BlurView
-              intensity={80}
-              style={StyleSheet.absoluteFill}
-              tint="light"
-            />
+            <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
           ) : null,
         tabBarActiveTintColor: '#FF6B35',
         tabBarInactiveTintColor: '#AAA',
@@ -87,6 +83,14 @@ export default function TabsLayout() {
         options={{
           tabBarIcon: ({ focused }) => (
             <TabIcon emoji="📊" label={t('dataVault')} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon emoji="👤" label={t('profile')} focused={focused} />
           ),
         }}
       />

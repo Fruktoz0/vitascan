@@ -1,47 +1,109 @@
 import { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
 import { authenticate } from '../../middleware/authenticate';
-import { OnboardingSchema } from './onboarding.schema';
-import { completeOnboarding, getOnboardingStatus } from './onboarding.service';
+import { calculateTDEE, calculateWaterGoal } from '../../utils/tdee';
+
+const OnboardingCompleteSchema = z.object({
+  birthYear:      z.number().int().min(1920).max(new Date().getFullYear() - 10).optional(),
+  heightCm:       z.number().min(50).max(300).optional(),
+  weightKg:       z.number().min(20).max(500).optional(),
+  gender:         z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
+  activityLevel:  z.enum(['SEDENTARY', 'LIGHT', 'MODERATE', 'ACTIVE', 'VERY_ACTIVE']).optional(),
+  goal:           z.enum(['LOSE', 'MAINTAIN', 'GAIN']).optional(),
+  dailyKcalGoal:  z.number().min(500).max(10000).optional(),
+  acceptedTerms:  z.literal(true),
+});
 
 const onboardingRoutes: FastifyPluginAsync = async (fastify) => {
-  // GET /onboarding/status — ellenőrzi, hogy kész-e az onboarding
-  // A mobilapp ezt hívja induláskor: ha completed=false → onboarding screen
+
+  // GET /onboarding/status — onboarding állapot lekérése
   fastify.get('/status', { preHandler: authenticate }, async (request, reply) => {
-    const status = await getOnboardingStatus(fastify.prisma, request.user.userId);
-    return reply.send(status);
+    const userId = request.user.userId;
+
+    const profile = await fastify.prisma.userProfile.findUnique({ where: { userId } });
+
+    // Onboarding befejezettnek tekintjük, ha van profil és van kalória-cél
+    const completed = !!(profile && profile.dailyKcalGoal);
+
+    return reply.send({
+      completed,
+      steps: {
+        profileCreated: !!profile,
+        goalsSet:       !!(profile?.dailyKcalGoal),
+        waterGoalSet:   !!(profile?.dailyWaterGoalMl),
+      },
+    });
   });
 
-  // POST /onboarding/complete — az összes lépés adatát egyszerre menti
+  // POST /onboarding/complete — onboarding adatok mentése
   fastify.post('/complete', { preHandler: authenticate }, async (request, reply) => {
-    const parsed = OnboardingSchema.safeParse(request.body);
+    const parsed = OnboardingCompleteSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.errors[0].message });
     }
 
-    try {
-      const result = await completeOnboarding(
-        fastify.prisma,
-        request.user.userId,
-        parsed.data
-      );
-      return reply.status(201).send(result);
-    } catch (err: any) {
-      return reply.status(500).send({ error: err.message });
+    const userId = request.user.userId;
+    const data = parsed.data;
+
+    // TDEE kiszámítása ha van elég adat
+    let calculatedKcalGoal: number | undefined;
+    if (data.weightKg && data.heightCm && data.birthYear && data.gender && data.activityLevel && data.goal) {
+      calculatedKcalGoal = calculateTDEE({
+        weightKg:      data.weightKg,
+        heightCm:      data.heightCm,
+        birthYear:     data.birthYear,
+        gender:        data.gender,
+        activityLevel: data.activityLevel,
+        goal:          data.goal,
+      });
     }
+
+    const dailyKcalGoal    = data.dailyKcalGoal ?? calculatedKcalGoal ?? 2000;
+    const dailyWaterGoalMl = data.weightKg ? calculateWaterGoal(data.weightKg) : 2000;
+
+    const profile = await fastify.prisma.userProfile.upsert({
+      where: { userId },
+      create: {
+        userId,
+        birthYear:      data.birthYear,
+        heightCm:       data.heightCm,
+        weightKg:       data.weightKg,
+        gender:         data.gender,
+        activityLevel:  data.activityLevel ?? 'SEDENTARY',
+        goal:           data.goal ?? 'MAINTAIN',
+        dailyKcalGoal,
+        dailyWaterGoalMl,
+        tier: 'FREE',
+      },
+      update: {
+        birthYear:      data.birthYear,
+        heightCm:       data.heightCm,
+        weightKg:       data.weightKg,
+        gender:         data.gender,
+        activityLevel:  data.activityLevel ?? 'SEDENTARY',
+        goal:           data.goal ?? 'MAINTAIN',
+        dailyKcalGoal,
+        dailyWaterGoalMl,
+      },
+    });
+
+    return reply.send({
+      success: true,
+      profile,
+      calculatedKcalGoal,
+      message: 'Onboarding sikeresen befejezve!',
+    });
   });
 
-  // POST /onboarding/preview-tdee — TDEE előnézet mentés nélkül (5. lépés UI-hoz)
+  // POST /onboarding/preview-tdee — TDEE előnézet mentés nélkül
   fastify.post('/preview-tdee', async (request, reply) => {
-    const { calculateTDEE, calculateWaterGoal } = await import('../../utils/tdee');
-    const { z } = await import('zod');
-
     const schema = z.object({
-      weightKg: z.number().min(20).max(500),
-      heightCm: z.number().min(50).max(300),
-      birthYear: z.number().int().min(1920).max(new Date().getFullYear() - 10),
-      gender: z.enum(['MALE', 'FEMALE', 'OTHER']),
+      weightKg:      z.number().min(20).max(500),
+      heightCm:      z.number().min(50).max(300),
+      birthYear:     z.number().int().min(1920).max(new Date().getFullYear() - 10),
+      gender:        z.enum(['MALE', 'FEMALE', 'OTHER']),
       activityLevel: z.enum(['SEDENTARY', 'LIGHT', 'MODERATE', 'ACTIVE', 'VERY_ACTIVE']),
-      goal: z.enum(['LOSE', 'MAINTAIN', 'GAIN']),
+      goal:          z.enum(['LOSE', 'MAINTAIN', 'GAIN']),
     });
 
     const parsed = schema.safeParse(request.body);
@@ -49,42 +111,10 @@ const onboardingRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: parsed.error.errors[0].message });
     }
 
-    const dailyKcalGoal = calculateTDEE(parsed.data);
+    const dailyKcalGoal    = calculateTDEE(parsed.data);
     const dailyWaterGoalMl = calculateWaterGoal(parsed.data.weightKg);
 
-    // Breakdown megjelenítéshez
-    const age = new Date().getFullYear() - parsed.data.birthYear;
-    const BMR =
-      parsed.data.gender === 'MALE'
-        ? 10 * parsed.data.weightKg + 6.25 * parsed.data.heightCm - 5 * age + 5
-        : 10 * parsed.data.weightKg + 6.25 * parsed.data.heightCm - 5 * age - 161;
-
-    const TDEE_MULTIPLIERS: Record<string, number> = {
-      SEDENTARY: 1.2,
-      LIGHT: 1.375,
-      MODERATE: 1.55,
-      ACTIVE: 1.725,
-      VERY_ACTIVE: 1.9,
-    };
-
-    const tdee = Math.round(BMR * TDEE_MULTIPLIERS[parsed.data.activityLevel]);
-
-    return reply.send({
-      dailyKcalGoal,
-      dailyWaterGoalMl,
-      breakdown: {
-        bmr: Math.round(BMR),
-        tdee,
-        adjustment:
-          parsed.data.goal === 'LOSE' ? -500 : parsed.data.goal === 'GAIN' ? 300 : 0,
-        goalLabel:
-          parsed.data.goal === 'LOSE'
-            ? 'Fogyás (-500 kcal/nap)'
-            : parsed.data.goal === 'GAIN'
-            ? 'Tömegnövelés (+300 kcal/nap)'
-            : 'Szinten tartás',
-      },
-    });
+    return reply.send({ dailyKcalGoal, dailyWaterGoalMl });
   });
 };
 
