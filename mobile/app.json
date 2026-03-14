@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "VitaScan",
+    "slug": "vitascan",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FF9A6C"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "hu.vitascan.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "A VitaScan vonalkód-szkenneréhez szükséges.",
+        "NSPhotoLibraryUsageDescription": "Profilképed feltöltéséhez szükséges."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FF9A6C"
+      },
+      "package": "hu.vitascan.app",
+      "permissions": [
+        "CAMERA"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "A VitaScan vonalkód-szkenneréhez szükséges."
+        }
+      ],
+      "expo-sharing"
+    ],
+    "scheme": "vitascan",
+    "extra": {
+      "eas": {
+        "projectId": "your-eas-project-id"
+      }
+    }
+  }
+}

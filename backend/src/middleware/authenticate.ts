@@ -7,6 +7,7 @@ declare module 'fastify' {
   }
 }
 
+// Hitelesítés
 export async function authenticate(request: FastifyRequest, reply: FastifyReply) {
   const authHeader = request.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -21,6 +22,7 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
   }
 }
 
+// Admin jogosultság
 export async function requireAdmin(request: FastifyRequest, reply: FastifyReply) {
   if (request.user?.role !== 'ADMIN') {
     return reply.status(403).send({ error: 'Nincs jogosultsága ehhez a művelethez.' });

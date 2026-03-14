@@ -11,6 +11,8 @@ import logRoutes from './modules/log/log.routes';
 import waterRoutes from './modules/water/water.routes';
 import profileRoutes from './modules/profile/profile.routes';
 import adminRoutes from './modules/admin/admin.routes';
+import premiumRoutes from './modules/premium/premium.routes';
+fastify.register(premiumRoutes);
 
 const fastify = Fastify({
   logger: {
