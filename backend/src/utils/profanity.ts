@@ -5,13 +5,13 @@ const BLACKLIST = [
   'fuck', 'shit', 'bitch', 'cunt', 'nigger', 'faggot',
 ];
 
-export function containsProfanity(text: string): boolean {
+export function checkProfanity(text: string): boolean {
   const lower = text.toLowerCase().trim();
   return BLACKLIST.some((word) => lower.includes(word));
 }
 
 export function assertNoProfanity(text: string, fieldName = 'Név'): void {
-  if (containsProfanity(text)) {
+  if (checkProfanity(text)) {
     throw new Error(`${fieldName} nem tartalmazhat sértő szavakat.`);
   }
 }
