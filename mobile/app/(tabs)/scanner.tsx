@@ -1,23 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, Pressable, ActivityIndicator,
 } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
+// JAVÍTÁS: A hibaüzenetnek megfelelően kizárólag a safe-area-context-et használjuk
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSequence } from 'react-native-reanimated';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  withSequence
+} from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 
-import { foodApi, Food } from '../../src/services/api';
-import { ApiError } from '../../src/services/api';
+import { foodApi, Food, ApiError } from '../../src/services/api';
 import FoodDetailModal from '../../src/components/food/FoodDetailModal';
 import AddFoodManualModal from '../../src/components/food/AddFoodManualModal';
-import { Colors, Gradients, Radius, Spacing, Typography } from '../../src/design/tokens';
+import { Colors, Radius, Spacing, Typography } from '../../src/design/tokens';
 
 type ScanState = 'idle' | 'scanning' | 'found' | 'not_found' | 'error';
 
-export default function ScannerScreen() {
+/**
+ * VitaScan Magic Scanner
+ * Ebben a verzióban minden boolean prop-ot és exportot a New Architecture-re (Fabric) optimalizáltunk.
+ */
+function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const router = useRouter();
 
@@ -28,9 +38,10 @@ export default function ScannerScreen() {
   const [manualVisible, setManualVisible] = useState(false);
   const [lastBarcode, setLastBarcode] = useState('');
 
-  // Scan-vonal animáció (Reanimated)
+  // ─── Animációk ─────────────────────────────────────────────────────────────
   const scanY = useSharedValue(0);
-  React.useEffect(() => {
+
+  useEffect(() => {
     scanY.value = withRepeat(
       withSequence(
         withTiming(1, { duration: 2000 }),
@@ -39,12 +50,14 @@ export default function ScannerScreen() {
       -1
     );
   }, []);
+
   const scanLineStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: scanY.value * 140 }],
+    transform: [{ translateY: scanY.value * 180 }],
   }));
 
-  const handleBarcode = async ({ data: barcode }: { data: string }) => {
-    if (scanState === 'scanning' || barcode === lastBarcode) return;
+  // ─── Vonalkód logika ──────────────────────────────────────────────────────
+  const handleBarcode = async ({ data: barcode }: BarcodeScanningResult) => {
+    if (scanState !== 'idle' || barcode === lastBarcode) return;
 
     setLastBarcode(barcode);
     setScannedBarcode(barcode);
@@ -53,6 +66,7 @@ export default function ScannerScreen() {
     try {
       const food = await foodApi.getByBarcode(barcode);
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
       setFoundFood(food as Food);
       setScanState('found');
       setDetailVisible(true);
@@ -73,17 +87,18 @@ export default function ScannerScreen() {
     setFoundFood(null);
   };
 
-  // ── Engedély megtagadva ──────────────────────────────────────────────────────
-  if (!permission) return <View style={{ flex: 1, backgroundColor: '#000' }} />;
+  if (!permission) return <View style={styles.blackBg} />;
 
   if (!permission.granted) {
     return (
-      <LinearGradient colors={['#1A1A2E', '#2D2D4E']} style={styles.permContainer}>
+      <LinearGradient colors={['#1A1A2E', '#2D2D4E']} style={styles.flex1}>
         <SafeAreaView style={styles.permInner}>
           <View style={styles.permCard}>
             <Text style={styles.permEmoji}>📷</Text>
             <Text style={styles.permTitle}>Kamera szükséges</Text>
-            <Text style={styles.permDesc}>A vonalkód-szkennerhez kamera hozzáférés kell.</Text>
+            <Text style={styles.permDesc}>
+              Engedélyezd a kamerát a vonalkódok beolvasásához.
+            </Text>
             <Pressable style={styles.permBtn} onPress={requestPermission}>
               <Text style={styles.permBtnText}>Engedélyezés</Text>
             </Pressable>
@@ -93,53 +108,45 @@ export default function ScannerScreen() {
     );
   }
 
-  // ── Kamera UI ────────────────────────────────────────────────────────────────
   return (
-    <View style={{ flex: 1, backgroundColor: '#000' }}>
+    <View style={styles.blackBg}>
       <CameraView
         style={StyleSheet.absoluteFillObject}
         facing="back"
         onBarcodeScanned={scanState === 'idle' ? handleBarcode : undefined}
-        barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'qr', 'code128'] }}
       />
 
-      {/* Sötétítő overlay */}
       <View style={styles.overlay} pointerEvents="box-none">
-        {/* Top sötétítő */}
         <View style={styles.dimTop} />
 
-        {/* Középső sor */}
         <View style={styles.middleRow}>
           <View style={styles.dimSide} />
 
-          {/* Szkenner keret */}
           <View style={styles.scanFrame}>
-            {/* Sarok dekorátorok */}
-            {([
+            {[
               { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 12 },
               { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 12 },
               { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 12 },
               { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 12 },
-            ] as any[]).map((s, i) => (
-              <View key={i} style={[styles.corner, s, { borderColor: scanState === 'found' ? '#2ECC71' : scanState === 'not_found' ? '#E74C3C' : Colors.primary }]} />
+            ].map((s, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.corner,
+                  s as any,
+                  { borderColor: scanState === 'found' ? '#2ECC71' : scanState === 'not_found' ? '#E74C3C' : Colors.primary }
+                ]}
+              />
             ))}
 
-            {/* Scan vonal (idle állapotban) */}
             {scanState === 'idle' && (
               <Animated.View style={[styles.scanLine, scanLineStyle, { backgroundColor: Colors.primary }]} />
             )}
 
-            {/* Állapot overlay a keret belsejében */}
             {scanState === 'scanning' && (
               <View style={styles.stateOverlay}>
                 <ActivityIndicator color="#fff" size="large" />
-                <Text style={styles.stateText}>Keresés...</Text>
-              </View>
-            )}
-            {scanState === 'found' && (
-              <View style={styles.stateOverlay}>
-                <Text style={styles.stateEmoji}>✅</Text>
-                <Text style={[styles.stateText, { color: '#2ECC71' }]}>Megtalálva!</Text>
+                <Text style={styles.stateText}>Elemzés...</Text>
               </View>
             )}
           </View>
@@ -147,53 +154,32 @@ export default function ScannerScreen() {
           <View style={styles.dimSide} />
         </View>
 
-        {/* Bottom panel */}
         <View style={styles.bottomPanel}>
           <Text style={styles.scanHint}>
-            {scanState === 'idle' ? 'Tartsd a vonalkód fölé' :
-              scanState === 'scanning' ? `Vonalkód: ${scannedBarcode}` :
-              scanState === 'found' ? 'Étel megtalálva!' :
-              scanState === 'not_found' ? 'Nem található az adatbázisban' :
-              'Hiba történt'}
+            {scanState === 'idle' ? 'Irányítsd a kamerát a vonalkódra' : 'Folyamatban...'}
           </Text>
 
-          {/* Not found gomb-sor */}
           {scanState === 'not_found' && (
-            <View style={styles.notFoundActions}>
-              <Pressable
-                style={styles.actionBtn}
-                onPress={() => { setManualVisible(true); }}
-              >
+            <View style={styles.actionRow}>
+              <Pressable style={styles.actionBtn} onPress={() => setManualVisible(true)}>
                 <Text style={styles.actionBtnEmoji}>✏️</Text>
-                <Text style={styles.actionBtnText}>Manuális hozzáadás</Text>
+                <Text style={styles.actionBtnText}>Új étel</Text>
               </Pressable>
               <Pressable style={styles.actionBtn} onPress={resetScan}>
                 <Text style={styles.actionBtnEmoji}>🔄</Text>
-                <Text style={styles.actionBtnText}>Újrapróbálás</Text>
+                <Text style={styles.actionBtnText}>Mégse</Text>
               </Pressable>
             </View>
           )}
 
-          {/* Error gomb-sor */}
-          {scanState === 'error' && (
-            <Pressable style={[styles.actionBtn, { alignSelf: 'center' }]} onPress={resetScan}>
-              <Text style={styles.actionBtnText}>🔄 Újra</Text>
-            </Pressable>
-          )}
-
-          {/* Kézi keresés link */}
           {scanState === 'idle' && (
-            <Pressable
-              style={styles.manualSearchBtn}
-              onPress={() => router.push('/(tabs)/food-library')}
-            >
-              <Text style={styles.manualSearchText}>🔍 Inkább kézzel keresek</Text>
+            <Pressable style={styles.manualLink} onPress={() => router.push('/(tabs)/food-library')}>
+              <Text style={styles.manualLinkText}>🔍 Kézi keresés</Text>
             </Pressable>
           )}
         </View>
       </View>
 
-      {/* Étel részlet modal */}
       <FoodDetailModal
         food={foundFood}
         visible={detailVisible}
@@ -202,7 +188,6 @@ export default function ScannerScreen() {
         logSource="SCAN"
       />
 
-      {/* Manuális hozzáadás modal */}
       <AddFoodManualModal
         visible={manualVisible}
         prefillBarcode={scannedBarcode}
@@ -216,63 +201,79 @@ export default function ScannerScreen() {
   );
 }
 
+// HIBA JAVÍTÁS: Explicit default export
+export default ScannerScreen;
+
 const styles = StyleSheet.create({
-  // Overlay
-  overlay: { flex: 1 },
-  dimTop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' },
+  flex1: { flex: 1 },
+  blackBg: { flex: 1, backgroundColor: '#000' },
+  overlay: { ...StyleSheet.absoluteFillObject },
+  dimTop: { flex: 1.2, backgroundColor: 'rgba(0,0,0,0.6)' },
   middleRow: { flexDirection: 'row', height: 200 },
-  dimSide: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' },
+  dimSide: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
   scanFrame: { width: 280, height: 200, position: 'relative', overflow: 'hidden' },
-  corner: { position: 'absolute', width: 28, height: 28 },
+  corner: { position: 'absolute', width: 30, height: 30 },
   scanLine: {
-    position: 'absolute', left: 16, right: 16,
-    height: 2.5, borderRadius: 2, opacity: 0.9,
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    height: 3,
+    borderRadius: 2,
   },
   stateOverlay: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: 'center', justifyContent: 'center',
-    gap: Spacing.sm, backgroundColor: 'rgba(0,0,0,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
-  stateEmoji: { fontSize: 40 },
-  stateText: { color: '#fff', fontSize: 16, fontWeight: '800' },
-
-  // Bottom panel
+  stateText: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginTop: 10 },
   bottomPanel: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center', paddingTop: Spacing.xl, gap: Spacing.lg,
+    flex: 1.5,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    paddingTop: Spacing.xl,
     paddingHorizontal: Spacing['2xl'],
+    gap: Spacing.lg,
   },
-  scanHint: { color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: '600', textAlign: 'center' },
-  notFoundActions: { flexDirection: 'row', gap: Spacing.md },
+  scanHint: { color: '#fff', fontSize: 15, fontWeight: '600', opacity: 0.9 },
+  actionRow: { flexDirection: 'row', gap: Spacing.md, width: '100%' },
   actionBtn: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: Radius.xl, padding: Spacing.md,
-    alignItems: 'center', gap: 6, flex: 1,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: Radius.xl,
+    padding: Spacing.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
-  actionBtnEmoji: { fontSize: 26 },
-  actionBtnText: { color: '#fff', fontSize: 13, fontWeight: '700', textAlign: 'center' },
-  manualSearchBtn: {
+  actionBtnEmoji: { fontSize: 24 },
+  actionBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  manualLink: {
+    marginTop: Spacing.md,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
     backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: Radius.full, paddingVertical: 10, paddingHorizontal: 20,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+    borderRadius: Radius.full,
   },
-  manualSearchText: { color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '600' },
-
-  // Permission
-  permContainer: { flex: 1 },
-  permInner: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing['2xl'] },
+  manualLinkText: { color: '#fff', fontSize: 13, fontWeight: '600', opacity: 0.8 },
+  permInner: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
   permCard: {
-    backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: Radius['3xl'],
-    padding: Spacing['3xl'], alignItems: 'center', gap: Spacing.md,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: Radius['3xl'],
+    padding: Spacing['3xl'],
+    alignItems: 'center',
+    gap: Spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
-  permEmoji: { fontSize: 60 },
-  permTitle: { ...Typography.title, color: '#fff', textAlign: 'center' },
-  permDesc: { ...Typography.body, color: 'rgba(255,255,255,0.7)', textAlign: 'center', lineHeight: 22 },
+  permEmoji: { fontSize: 64 },
+  permTitle: { ...Typography.title, color: '#fff' },
+  permDesc: { ...Typography.body, color: 'rgba(255,255,255,0.7)', textAlign: 'center' },
   permBtn: {
-    backgroundColor: Colors.primary, borderRadius: Radius.full,
-    paddingVertical: 14, paddingHorizontal: 32, marginTop: Spacing.sm,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.full,
+    paddingVertical: 14,
+    paddingHorizontal: 36,
   },
-  permBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  permBtnText: { color: '#fff', fontWeight: 'bold' },
 });

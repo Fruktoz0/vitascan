@@ -3,14 +3,18 @@ import { useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuthStore } from '../src/stores/authStore';
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // Ignoráljuk a hibát, ha a SplashScreen nem létezik (pl. web, vagy fast refresh)
+});
 
 export default function RootLayout() {
   const { restoreSession, isLoading } = useAuthStore();
 
   useEffect(() => {
     restoreSession().finally(() => {
-      SplashScreen.hideAsync();
+      SplashScreen.hideAsync().catch(() => {
+        // Ignoráljuk a hibát, ha a SplashScreen nem létezik (pl. web, vagy fast refresh)
+      });
     });
   }, []);
 
