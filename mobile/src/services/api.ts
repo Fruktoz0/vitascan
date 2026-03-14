@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3005';
+const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://newhomeproject.ddns.net:3005';
 
 let accessToken: string | null = null;
 export function setAccessToken(token: string | null) { accessToken = token; }
@@ -11,15 +11,43 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
     ...(options.headers as Record<string, string>),
   };
   if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
-  const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
-  if (response.status === 401 && retry) {
-    const refreshed = await tryRefreshToken();
-    if (refreshed) return request<T>(path, options, false);
-    throw new ApiError(401, 'Lejárt munkamenet.');
+
+  const url = `${API_BASE}${path}`;
+  console.log(`[API Debug] Indítás: ${options.method || 'GET'} ${url}`);
+
+  try {
+    const response = await fetch(url, { ...options, headers });
+    console.log(`[API Debug] Státusz: ${response.status}`);
+
+    if (response.status === 401 && retry) {
+      console.log('[API Debug] 401 hiba, refresh próbálkozás...');
+      const refreshed = await tryRefreshToken();
+      if (refreshed) return request<T>(path, options, false);
+      throw new ApiError(401, 'Lejárt munkamenet.');
+    }
+
+    // Először szövegként olvassuk be, hátha nem JSON-t küld a szerver (pl. hálózati hibaoldal)
+    const responseText = await response.text();
+    console.log(`[API Debug] Nyers válasz:`, responseText);
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      console.error('[API Debug] Nem JSON válasz érkezett!');
+      throw new ApiError(response.status, 'Szerver hiba (nem érvényes JSON).');
+    }
+
+    if (!response.ok) {
+      throw new ApiError(response.status, data.error ?? 'Ismeretlen hiba.');
+    }
+    return data as T;
+
+  } catch (error) {
+    // Itt kapod el, ha DNS hiba, timeout vagy "Connection Refused" van
+    console.error(`[API Debug] HÁLÓZATI HIBA:`, error);
+    throw error;
   }
-  const data = await response.json();
-  if (!response.ok) throw new ApiError(response.status, data.error ?? 'Ismeretlen hiba.');
-  return data as T;
 }
 
 async function tryRefreshToken(): Promise<boolean> {
@@ -153,7 +181,7 @@ export const exportApi = {
   },
   // A tényleges letöltés FileSystem.downloadAsync-kal történik az ExportEngine-ben
   getDownloadUrl: (from?: string, to?: string) => {
-    const base = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3005';
+    const base = process.env.EXPO_PUBLIC_API_URL ?? 'http://newhomeproject.ddns.net:3005';
     const p = new URLSearchParams();
     if (from) p.set('from', from);
     if (to) p.set('to', to);

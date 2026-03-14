@@ -8,8 +8,10 @@ import { useOnboardingStore } from '../../stores/onboardingStore';
 import { useAuthStore } from '../../stores/authStore';
 import { onboardingApi } from '../../services/api';
 import OnboardingProgressBar from '../../components/onboarding/OnboardingProgressBar';
+import { useRouter } from 'expo-router';
 
 export default function OnboardingStep7Finish() {
+  const router = useRouter();
   const store = useOnboardingStore();
   const setOnboardingCompleted = useAuthStore((s) => s.setOnboardingCompleted);
   const [loading, setLoading] = useState(false);
@@ -31,8 +33,17 @@ export default function OnboardingStep7Finish() {
       // Sikeres haptic visszajelzés
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+      // 1. Jelzzük az AuthStore-nak, hogy kész az onboarding
       setOnboardingCompleted(true);
-      store.reset();
+
+      // 2. Azonnali navigáció a főoldalra, hogy ne látszódjon a reset hatása
+      router.replace('/(tabs)/home');
+
+      // 3. Rövid késleltetéssel töröljük az ideiglenes adatokat a store-ból
+      setTimeout(() => {
+        store.reset();
+      }, 500);
+
     } catch (err: any) {
       Alert.alert('Hiba', err.message ?? 'Nem sikerült menteni. Próbáld újra!');
     } finally {

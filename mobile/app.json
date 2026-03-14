@@ -4,10 +4,10 @@
     "slug": "vitascan",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#FF9A6C"
     },
@@ -21,7 +21,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#FF9A6C"
       },
       "package": "hu.vitascan.app",
@@ -38,7 +38,9 @@
           "cameraPermission": "A VitaScan vonalkód-szkenneréhez szükséges."
         }
       ],
-      "expo-sharing"
+      "expo-font",
+      "expo-localization",
+      "expo-web-browser"
     ],
     "scheme": "vitascan",
     "extra": {

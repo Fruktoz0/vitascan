@@ -31,7 +31,7 @@ const VoteSchema = z.object({
 export default async function foodRoutes(fastify: FastifyInstance) {
 
   // GET /foods — keresés (saját DB + opcionálisan OFF fallback)
-  fastify.get('/foods', {
+  fastify.get('/', {
     preHandler: [authenticate],
   }, async (req, reply) => {
     const { q = '', status, limit = '20', offset = '0', includeOFF = 'false' } =
@@ -89,8 +89,8 @@ export default async function foodRoutes(fastify: FastifyInstance) {
     });
   });
 
-  // GET /foods/barcode/:barcode — vonalkód keresés + OFF fallback
-  fastify.get('/foods/barcode/:barcode', {
+  // GET /barcode/:barcode — vonalkód keresés + OFF fallback
+  fastify.get('/barcode/:barcode', {
     preHandler: [authenticate, scanLimitGuard],
   }, async (req, reply) => {
     const { barcode } = req.params as { barcode: string };
@@ -149,7 +149,7 @@ export default async function foodRoutes(fastify: FastifyInstance) {
   });
 
   // POST /foods — manuális étel beküldés
-  fastify.post('/foods', {
+  fastify.post('/', {
     preHandler: [authenticate],
   }, async (req, reply) => {
     const user = (req as any).user;
@@ -170,7 +170,7 @@ export default async function foodRoutes(fastify: FastifyInstance) {
   });
 
   // PATCH /foods/:id — saját étel szerkesztése
-  fastify.patch('/foods/:id', {
+  fastify.patch('/:id', {
     preHandler: [authenticate],
   }, async (req, reply) => {
     const user = (req as any).user;
@@ -189,7 +189,7 @@ export default async function foodRoutes(fastify: FastifyInstance) {
   });
 
   // POST /foods/:id/vote — szavazás (+1 / -1)
-  fastify.post('/foods/:id/vote', {
+  fastify.post('/:id/vote', {
     preHandler: [authenticate],
   }, async (req, reply) => {
     const user = (req as any).user;
@@ -238,8 +238,8 @@ export default async function foodRoutes(fastify: FastifyInstance) {
     return reply.send({ action: 'added', score, earnedExpertBadge });
   });
 
-  // GET /foods/:id — részletek + szavazatok
-  fastify.get('/foods/:id', {
+  // GET /:id — részletek + szavazatok
+  fastify.get('/:id', {
     preHandler: [authenticate],
   }, async (req, reply) => {
     const user = (req as any).user;

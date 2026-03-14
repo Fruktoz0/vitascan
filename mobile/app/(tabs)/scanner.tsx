@@ -3,7 +3,6 @@ import {
   View, Text, StyleSheet, Pressable, ActivityIndicator,
 } from 'react-native';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
-// JAVÍTÁS: A hibaüzenetnek megfelelően kizárólag a safe-area-context-et használjuk
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -15,6 +14,7 @@ import Animated, {
   withSequence
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 
 import { foodApi, Food, ApiError } from '../../src/services/api';
 import FoodDetailModal from '../../src/components/food/FoodDetailModal';
@@ -25,9 +25,10 @@ type ScanState = 'idle' | 'scanning' | 'found' | 'not_found' | 'error';
 
 /**
  * VitaScan Magic Scanner
- * Ebben a verzióban minden boolean prop-ot és exportot a New Architecture-re (Fabric) optimalizáltunk.
+ * Optimalizált verzió useIsFocused használatával a túlmelegedés megelőzésére.
  */
 function ScannerScreen() {
+  const isFocused = useIsFocused();
   const [permission, requestPermission] = useCameraPermissions();
   const router = useRouter();
 
@@ -42,14 +43,18 @@ function ScannerScreen() {
   const scanY = useSharedValue(0);
 
   useEffect(() => {
-    scanY.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 2000 }),
-        withTiming(0, { duration: 0 })
-      ),
-      -1
-    );
-  }, []);
+    if (isFocused) {
+      scanY.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 2000 }),
+          withTiming(0, { duration: 0 })
+        ),
+        -1
+      );
+    } else {
+      scanY.value = 0;
+    }
+  }, [isFocused]);
 
   const scanLineStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: scanY.value * 180 }],
@@ -110,11 +115,14 @@ function ScannerScreen() {
 
   return (
     <View style={styles.blackBg}>
-      <CameraView
-        style={StyleSheet.absoluteFillObject}
-        facing="back"
-        onBarcodeScanned={scanState === 'idle' ? handleBarcode : undefined}
-      />
+      {/* CSAK AKKOR AKTIVÁLJUK A KAMERÁT, HA A FELHASZNÁLÓ EZEN A LAPON VAN */}
+      {isFocused && (
+        <CameraView
+          style={StyleSheet.absoluteFillObject}
+          facing="back"
+          onBarcodeScanned={scanState === 'idle' ? handleBarcode : undefined}
+        />
+      )}
 
       <View style={styles.overlay} pointerEvents="box-none">
         <View style={styles.dimTop} />
@@ -139,7 +147,7 @@ function ScannerScreen() {
               />
             ))}
 
-            {scanState === 'idle' && (
+            {scanState === 'idle' && isFocused && (
               <Animated.View style={[styles.scanLine, scanLineStyle, { backgroundColor: Colors.primary }]} />
             )}
 
@@ -201,7 +209,6 @@ function ScannerScreen() {
   );
 }
 
-// HIBA JAVÍTÁS: Explicit default export
 export default ScannerScreen;
 
 const styles = StyleSheet.create({

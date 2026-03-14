@@ -27,7 +27,7 @@ async function bootstrap() {
   await fastify.register(helmet, { contentSecurityPolicy: false });
 
   await fastify.register(cors, {
-    origin: process.env.CORS_ORIGIN?.split(',') ?? ['http://localhost:8081'],
+    origin: '*',
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     credentials: true,
   });
@@ -56,16 +56,16 @@ async function bootstrap() {
     timestamp: new Date().toISOString(),
   }));
 
-  await fastify.register(authRoutes,       { prefix: '/auth' });
-  await fastify.register(foodRoutes,       { prefix: '/foods' });
-  await fastify.register(logRoutes,        { prefix: '/logs' });
-  await fastify.register(waterRoutes,      { prefix: '/water' });
-  await fastify.register(profileRoutes,    { prefix: '/profile' });
-  await fastify.register(statsRoutes,      { prefix: '/stats' });
+  await fastify.register(authRoutes, { prefix: '/auth' });
+  await fastify.register(foodRoutes, { prefix: '/foods' });
+  await fastify.register(logRoutes, { prefix: '/logs' });
+  await fastify.register(waterRoutes, { prefix: '/water' });
+  await fastify.register(profileRoutes, { prefix: '/profile' });
+  await fastify.register(statsRoutes, { prefix: '/stats' });
   await fastify.register(onboardingRoutes, { prefix: '/onboarding' });
-  await fastify.register(exportRoutes,     { prefix: '/export' });
+  await fastify.register(exportRoutes, { prefix: '/export' });
   await fastify.register(premiumRoutes);
-  await fastify.register(adminRoutes,      { prefix: '/admin' });
+  await fastify.register(adminRoutes, { prefix: '/admin' });
 
   // ─── Scanner rate-limited endpoint ───────────────────────────────────────
   await fastify.register(
@@ -96,7 +96,7 @@ async function bootstrap() {
 
   // ─── Start ───────────────────────────────────────────────────────────────
   try {
-    const port = parseInt(process.env.PORT ?? '3000');
+    const port = parseInt(process.env.PORT ?? '3005');
     await fastify.listen({ port, host: '0.0.0.0' });
     console.log(`🚀 VitaScan API fut a ${port}-es porton`);
   } catch (err) {
