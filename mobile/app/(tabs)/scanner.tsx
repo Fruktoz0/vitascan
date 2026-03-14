@@ -25,7 +25,7 @@ type ScanState = 'idle' | 'scanning' | 'found' | 'not_found' | 'error';
 
 /**
  * VitaScan Magic Scanner
- * Optimalizált verzió useIsFocused használatával a túlmelegedés megelőzésére.
+ * Ultra-optimalizált verzió: a kamera leáll, ha modális ablak van nyitva vagy elnavigálunk.
  */
 function ScannerScreen() {
   const isFocused = useIsFocused();
@@ -39,11 +39,14 @@ function ScannerScreen() {
   const [manualVisible, setManualVisible] = useState(false);
   const [lastBarcode, setLastBarcode] = useState('');
 
+  // A kamera csak akkor aktív, ha fókuszban vagyunk ÉS nincs nyitva semmilyen modális ablak
+  const isCameraActive = isFocused && !detailVisible && !manualVisible;
+
   // ─── Animációk ─────────────────────────────────────────────────────────────
   const scanY = useSharedValue(0);
 
   useEffect(() => {
-    if (isFocused) {
+    if (isCameraActive) {
       scanY.value = withRepeat(
         withSequence(
           withTiming(1, { duration: 2000 }),
@@ -54,7 +57,7 @@ function ScannerScreen() {
     } else {
       scanY.value = 0;
     }
-  }, [isFocused]);
+  }, [isCameraActive]);
 
   const scanLineStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: scanY.value * 180 }],
@@ -115,8 +118,8 @@ function ScannerScreen() {
 
   return (
     <View style={styles.blackBg}>
-      {/* CSAK AKKOR AKTIVÁLJUK A KAMERÁT, HA A FELHASZNÁLÓ EZEN A LAPON VAN */}
-      {isFocused && (
+      {/* A kamera hardveresen leáll, ha bármelyik feltétel hamis */}
+      {isCameraActive && (
         <CameraView
           style={StyleSheet.absoluteFillObject}
           facing="back"
@@ -147,7 +150,7 @@ function ScannerScreen() {
               />
             ))}
 
-            {scanState === 'idle' && isFocused && (
+            {scanState === 'idle' && isCameraActive && (
               <Animated.View style={[styles.scanLine, scanLineStyle, { backgroundColor: Colors.primary }]} />
             )}
 
