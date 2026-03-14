@@ -219,7 +219,7 @@ export default function ExportEngine({ visible, onClose }: Props) {
       // Fájl letöltése
       const url = `${API_BASE}/export?from=${from}&to=${to}`;
       const filename = `vitascan_export_${from}_${to}.xlsx`;
-      const fileUri = FileSystem.documentDirectory + filename;
+      const fileUri = (FileSystem as any).documentDirectory + filename;
 
       const result = await FileSystem.downloadAsync(url, fileUri, {
         headers: { Authorization: `Bearer ${_token}` },
