@@ -121,6 +121,23 @@ export const Colors = {
     tabBg: '#fcf9f8', // surface
     tabActive: '#eadecc', // secondary-container
     tabInactive: '#434844', // on-surface-variant
+
+    // Bento specific
+    surfaceContainerLow: '#f6f3f2',
+    surfaceContainer: '#f0eded',
+    surfaceContainerHigh: '#eae7e7',
+    surfaceContainerHighest: '#e5e2e1',
+    onSurfaceVariant: '#434844',
+    outlineVariant: '#c3c8c2',
+    tertiaryFixed: '#d2e6ef',
+    primaryFixed: '#d9e6da',
+    errorContainer: '#ffdad6',
+    secondaryContainer: '#eadecc',
+
+    // Extra tokens
+    page: '#fcf9f8',
+    card: '#ffffff',
+    shadowHard: '#1c1b1b',
   },
 } as const;
 
@@ -197,6 +214,8 @@ export const Spacing = {
   '2xl': 24,
   '3xl': 32,
   '4xl': 40,
+  '5xl': 48,
+  '6xl': 64,
 } as const;
 
 export const Typography = {
