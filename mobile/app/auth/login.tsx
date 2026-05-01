@@ -85,7 +85,7 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     if (!email.trim() || !password) {
       shake();
-      Alert.alert('Hiányzó adatok', 'Add meg az email-t és a jelszót.');
+      Alert.alert(t('auth.missingDataTitle'), t('auth.loginMissingData'));
       return;
     }
     setLoading(true);
@@ -95,7 +95,7 @@ export default function LoginScreen() {
     } catch (err) {
       shake();
       const msg = err instanceof ApiError ? err.message : t('unknownError');
-      Alert.alert('Sikertelen bejelentkezés', msg);
+      Alert.alert(t('auth.loginFailedTitle'), msg);
     } finally {
       setLoading(false);
     }
@@ -122,7 +122,7 @@ export default function LoginScreen() {
                 <Text style={styles.logoEmoji}>🥗</Text>
               </LinearGradient>
               <Text style={styles.appName}>VitaScan</Text>
-              <Text style={styles.tagline}>Üdv újra! 👋</Text>
+              <Text style={styles.tagline}>{t('auth.welcomeBack')}</Text>
             </View>
 
             {/* Kártya */}
@@ -134,19 +134,19 @@ export default function LoginScreen() {
                 radius={Radius['3xl']}
                 style={styles.card}
               >
-                <Text style={styles.cardTitle}>Bejelentkezés</Text>
+                <Text style={styles.cardTitle}>{t('auth.loginTitle')}</Text>
 
                 <View style={styles.fields}>
                   <GlassInput
-                    label="Email cím"
+                    label={t('email')}
                     value={email}
                     onChange={setEmail}
-                    placeholder="pelda@email.com"
+                    placeholder={t('auth.emailPlaceholder')}
                     keyboardType="email-address"
                     autoComplete="email"
                   />
                   <GlassInput
-                    label="Jelszó"
+                    label={t('password')}
                     value={password}
                     onChange={setPassword}
                     placeholder="••••••••"
@@ -156,7 +156,7 @@ export default function LoginScreen() {
                 </View>
 
                 <PrimaryButton
-                  label="Bejelentkezés"
+                  label={t('login')}
                   onPress={handleLogin}
                   loading={loading}
                   style={styles.btn}
@@ -166,10 +166,10 @@ export default function LoginScreen() {
 
             {/* Regisztráció link */}
             <View style={styles.footer}>
-              <Text style={styles.footerText}>Még nincs fiókod? </Text>
+              <Text style={styles.footerText}>{t('auth.noAccount')} </Text>
               <Link href="/auth/register" asChild>
                 <Pressable hitSlop={8}>
-                  <Text style={styles.footerLink}>Regisztráció →</Text>
+                  <Text style={styles.footerLink}>{t('auth.registerLink')}</Text>
                 </Pressable>
               </Link>
             </View>

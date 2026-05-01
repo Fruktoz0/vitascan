@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { useOnboardingStore } from '../../stores/onboardingStore';
 import { onboardingApi } from '../../services/api';
 import OnboardingProgressBar from '../../components/onboarding/OnboardingProgressBar';
 
 export default function OnboardingStep5KcalGoal() {
+  const { t } = useTranslation();
   const store = useOnboardingStore();
   const [loading, setLoading] = useState(false);
   const [breakdown, setBreakdown] = useState<{
@@ -55,7 +57,7 @@ export default function OnboardingStep5KcalGoal() {
       <View style={styles.inner}>
         <OnboardingProgressBar step={5} total={7} />
         <View style={styles.card}>
-          <Text style={styles.title}>Napi kalória-célod</Text>
+          <Text style={styles.title}>{t('onboarding.kcalGoalTitle')}</Text>
 
           {loading ? (
             <ActivityIndicator size="large" color="#FF6B35" style={{ marginVertical: 20 }} />
@@ -64,15 +66,15 @@ export default function OnboardingStep5KcalGoal() {
               {/* Fő szám */}
               <View style={styles.kcalDisplay}>
                 <Text style={styles.kcalNumber}>{store.dailyKcalGoal}</Text>
-                <Text style={styles.kcalUnit}>kcal / nap</Text>
-                {isManual && <Text style={styles.manualBadge}>✏️ Egyéni</Text>}
+                <Text style={styles.kcalUnit}>{t('onboarding.kcalPerDay')}</Text>
+                {isManual && <Text style={styles.manualBadge}>✏️ {t('onboarding.custom')}</Text>}
               </View>
 
               {/* Breakdown */}
               {breakdown && (
                 <View style={styles.breakdown}>
-                  <Row label="Alap anyagcsere (BMR)" value={`${breakdown.bmr} kcal`} />
-                  <Row label="Aktivitással (TDEE)" value={`${breakdown.tdee} kcal`} />
+                  <Row label={t('onboarding.bmr')} value={`${breakdown.bmr} kcal`} />
+                  <Row label={t('onboarding.tdee')} value={`${breakdown.tdee} kcal`} />
                   <Row
                     label={breakdown.goalLabel}
                     value={`${breakdown.adjustment > 0 ? '+' : ''}${breakdown.adjustment} kcal`}
@@ -82,35 +84,35 @@ export default function OnboardingStep5KcalGoal() {
               )}
 
               {/* Manuális felülírás */}
-              <Text style={styles.overrideLabel}>Felülírhatod:</Text>
+              <Text style={styles.overrideLabel}>{t('onboarding.override')}</Text>
               <View style={styles.overrideRow}>
                 <TextInput
                   style={styles.overrideInput}
                   value={manualInput}
                   onChangeText={setManualInput}
                   keyboardType="number-pad"
-                  placeholder="kcal"
+                  placeholder={t('kcal')}
                 />
                 <Pressable style={styles.applyBtn} onPress={handleApplyManual}>
-                  <Text style={styles.applyText}>Alkalmaz</Text>
+                  <Text style={styles.applyText}>{t('onboarding.apply')}</Text>
                 </Pressable>
               </View>
             </>
           ) : (
             <View style={styles.noDataBox}>
               <Text style={styles.noDataText}>
-                💡 Személyes adatok nélkül is folytathatod — az alapértelmezett cél 2000 kcal/nap lesz.
+                💡 {t('onboarding.defaultKcalInfo')}
               </Text>
               <TextInput
                 style={styles.overrideInput}
                 value={manualInput}
                 onChangeText={setManualInput}
                 keyboardType="number-pad"
-                placeholder="Adj meg manuálisan (pl. 1800)"
+                placeholder={t('onboarding.manualKcalPlaceholder')}
               />
               {manualInput ? (
                 <Pressable style={[styles.applyBtn, { marginTop: 8 }]} onPress={handleApplyManual}>
-                  <Text style={styles.applyText}>Beállítom</Text>
+                  <Text style={styles.applyText}>{t('onboarding.set')}</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -119,14 +121,14 @@ export default function OnboardingStep5KcalGoal() {
 
         <View style={styles.buttonRow}>
           <Pressable style={styles.skipBtn} onPress={store.nextStep}>
-            <Text style={styles.skipText}>Kihagyom</Text>
+            <Text style={styles.skipText}>{t('onboarding.skip')}</Text>
           </Pressable>
           <Pressable style={styles.nextBtn} onPress={store.nextStep}>
-            <Text style={styles.nextText}>Tovább →</Text>
+            <Text style={styles.nextText}>{t('onboarding.next')}</Text>
           </Pressable>
         </View>
         <Pressable onPress={store.prevStep} style={styles.backBtn}>
-          <Text style={styles.backText}>← Vissza</Text>
+          <Text style={styles.backText}>{t('onboarding.back')}</Text>
         </Pressable>
       </View>
     </LinearGradient>

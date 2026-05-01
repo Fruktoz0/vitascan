@@ -48,7 +48,7 @@ export default function MacroBar({
     outputRange: ['0%', '100%'],
   });
 
-  const isOver = goal && value > goal;
+  const isOver = !!goal && value > goal;
   const mainColor = Colors.macro[type];
 
   return (

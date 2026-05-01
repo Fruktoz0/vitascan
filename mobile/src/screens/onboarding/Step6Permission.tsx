@@ -3,10 +3,12 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Camera } from 'expo-camera';
+import { useTranslation } from 'react-i18next';
 import { useOnboardingStore } from '../../stores/onboardingStore';
 import OnboardingProgressBar from '../../components/onboarding/OnboardingProgressBar';
 
 export function OnboardingStep6Permission() {
+  const { t } = useTranslation();
   const store = useOnboardingStore();
   const [granted, setGranted] = useState(false);
 
@@ -16,9 +18,9 @@ export function OnboardingStep6Permission() {
       setGranted(true);
     } else {
       Alert.alert(
-        'Kamera engedély',
-        'A vonalkód-szkennerhez kamera hozzáférés szükséges. A beállításokban engedélyezheted.',
-        [{ text: 'Értem', onPress: store.nextStep }]
+        t('onboarding.cameraPermissionTitle'),
+        t('onboarding.cameraPermissionDesc'),
+        [{ text: t('onboarding.gotIt'), onPress: store.nextStep }]
       );
     }
   };
@@ -29,19 +31,18 @@ export function OnboardingStep6Permission() {
         <OnboardingProgressBar step={6} total={7} />
         <View style={styles.card}>
           <Text style={styles.emoji}>📷</Text>
-          <Text style={styles.title}>Kamera hozzáférés</Text>
+          <Text style={styles.title}>{t('onboarding.cameraAccessTitle')}</Text>
           <Text style={styles.desc}>
-            A Magic Scanner funkcióhoz szükséges, hogy engedélyezd a kamera használatát.
-            Ezzel pillanatok alatt beolvashatod bármelyik termék vonalkódját.
+            {t('onboarding.cameraAccessBody')}
           </Text>
 
           {granted ? (
             <View style={styles.successBox}>
-              <Text style={styles.successText}>✅ Kamera engedélyezve!</Text>
+              <Text style={styles.successText}>✅ {t('onboarding.cameraEnabled')}</Text>
             </View>
           ) : (
             <Pressable style={styles.permBtn} onPress={requestPermission}>
-              <Text style={styles.permText}>📸 Kamera engedélyezése</Text>
+              <Text style={styles.permText}>📸 {t('onboarding.enableCamera')}</Text>
             </Pressable>
           )}
         </View>
@@ -51,12 +52,12 @@ export function OnboardingStep6Permission() {
           onPress={store.nextStep}
         >
           <Text style={[styles.nextText, !granted && styles.nextTextSecondary]}>
-            {granted ? 'Tovább →' : 'Kihagyom (később is beállítható)'}
+            {granted ? t('onboarding.next') : t('onboarding.skipCameraLater')}
           </Text>
         </Pressable>
 
         <Pressable onPress={store.prevStep} style={styles.backBtn}>
-          <Text style={styles.backText}>← Vissza</Text>
+          <Text style={styles.backText}>{t('onboarding.back')}</Text>
         </Pressable>
       </View>
     </LinearGradient>

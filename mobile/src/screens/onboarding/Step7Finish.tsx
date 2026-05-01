@@ -9,12 +9,26 @@ import { useAuthStore } from '../../stores/authStore';
 import { onboardingApi } from '../../services/api';
 import OnboardingProgressBar from '../../components/onboarding/OnboardingProgressBar';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 
 export default function OnboardingStep7Finish() {
+  const { t } = useTranslation();
   const router = useRouter();
   const store = useOnboardingStore();
   const setOnboardingCompleted = useAuthStore((s) => s.setOnboardingCompleted);
   const [loading, setLoading] = useState(false);
+  const activityLabels: Record<string, string> = {
+    SEDENTARY: t('onboarding.activitySedentary'),
+    LIGHT: t('onboarding.activityLight'),
+    MODERATE: t('onboarding.activityModerate'),
+    ACTIVE: t('onboarding.activityActive'),
+    VERY_ACTIVE: t('onboarding.activityVeryActive'),
+  };
+  const goalLabels: Record<string, string> = {
+    LOSE: t('onboarding.goalLose'),
+    MAINTAIN: t('onboarding.goalMaintain'),
+    GAIN: t('onboarding.goalGain'),
+  };
 
   const handleFinish = async () => {
     setLoading(true);
@@ -45,7 +59,7 @@ export default function OnboardingStep7Finish() {
       }, 500);
 
     } catch (err: any) {
-      Alert.alert('Hiba', err.message ?? 'Nem sikerült menteni. Próbáld újra!');
+      Alert.alert(t('food.errorTitle'), err.message ?? t('onboarding.saveFailed'));
     } finally {
       setLoading(false);
     }
@@ -63,32 +77,32 @@ export default function OnboardingStep7Finish() {
 
         <View style={styles.card}>
           <Text style={styles.confetti}>🎉</Text>
-          <Text style={styles.title}>Készen állsz!</Text>
+          <Text style={styles.title}>{t('onboarding.readyTitle')}</Text>
           <Text style={styles.subtitle}>
-            Minden be van állítva. Kezdheted a naplózást — az első bejegyzés a legjobb lépés!
+            {t('onboarding.readySubtitle')}
           </Text>
 
           {/* Összefoglaló */}
           <View style={styles.summary}>
             <SummaryRow
               icon="🎯"
-              label="Napi kalória-cél"
-              value={store.dailyKcalGoal ? `${store.dailyKcalGoal} kcal` : '2000 kcal (alap)'}
+              label={t('onboarding.dailyKcalGoal')}
+              value={store.dailyKcalGoal ? `${store.dailyKcalGoal} kcal` : t('onboarding.defaultKcalValue')}
             />
             <SummaryRow
               icon="💧"
-              label="Vízfogyasztás cél"
-              value={store.dailyWaterGoalMl ? `${store.dailyWaterGoalMl} ml` : '2000 ml (alap)'}
+              label={t('onboarding.waterGoal')}
+              value={store.dailyWaterGoalMl ? `${store.dailyWaterGoalMl} ml` : t('onboarding.defaultWaterValue')}
             />
             <SummaryRow
               icon="🏃"
-              label="Aktivitás"
-              value={store.activityLevel ? ACTIVITY_LABELS[store.activityLevel] : 'Nincs megadva'}
+              label={t('onboarding.activity')}
+              value={store.activityLevel ? activityLabels[store.activityLevel] : t('profile.notProvided')}
             />
             <SummaryRow
               icon="📊"
-              label="Cél"
-              value={store.goal ? GOAL_LABELS[store.goal] : 'Nincs megadva'}
+              label={t('onboarding.goal')}
+              value={store.goal ? goalLabels[store.goal] : t('profile.notProvided')}
             />
           </View>
         </View>
@@ -101,12 +115,12 @@ export default function OnboardingStep7Finish() {
           {loading ? (
             <ActivityIndicator color="#FF6B35" />
           ) : (
-            <Text style={styles.startText}>🚀 Kezdjük el!</Text>
+            <Text style={styles.startText}>🚀 {t('onboarding.letsStart')}</Text>
           )}
         </Pressable>
 
         <Pressable onPress={store.prevStep} style={styles.backBtn}>
-          <Text style={styles.backText}>← Vissza</Text>
+          <Text style={styles.backText}>{t('onboarding.back')}</Text>
         </Pressable>
       </View>
     </LinearGradient>
@@ -129,20 +143,6 @@ const summaryStyles = StyleSheet.create({
   label: { flex: 1, fontSize: 13, color: '#666' },
   value: { fontSize: 13, fontWeight: '700', color: '#1A1A2E' },
 });
-
-const ACTIVITY_LABELS: Record<string, string> = {
-  SEDENTARY: 'Ülő életmód',
-  LIGHT: 'Könnyű aktivitás',
-  MODERATE: 'Közepes aktivitás',
-  ACTIVE: 'Aktív',
-  VERY_ACTIVE: 'Nagyon aktív',
-};
-
-const GOAL_LABELS: Record<string, string> = {
-  LOSE: 'Fogyás',
-  MAINTAIN: 'Szinten tartás',
-  GAIN: 'Tömegnövelés',
-};
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

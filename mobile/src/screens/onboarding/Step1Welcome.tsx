@@ -1,10 +1,18 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { useOnboardingStore } from '../../stores/onboardingStore';
 
 export default function OnboardingStep1Welcome() {
+  const { t } = useTranslation();
   const nextStep = useOnboardingStore((s) => s.nextStep);
+  const features = [
+    { icon: '📸', text: t('onboarding.welcomeFeatureScanner') },
+    { icon: '📊', text: t('onboarding.welcomeFeatureMacros') },
+    { icon: '💧', text: t('onboarding.welcomeFeatureWater') },
+    { icon: '🏆', text: t('onboarding.welcomeFeatureCommunity') },
+  ];
 
   return (
     <LinearGradient
@@ -19,19 +27,14 @@ export default function OnboardingStep1Welcome() {
           <Text style={styles.logoEmoji}>🥗</Text>
         </View>
 
-        <Text style={styles.title}>Üdvözöl a VitaScan!</Text>
+        <Text style={styles.title}>{t('onboarding.welcomeTitle')}</Text>
 
         <Text style={styles.subtitle}>
-          Okos tápanyagnaplód, amely segít megérteni, mit eszel — és miért számít.
+          {t('onboarding.welcomeSubtitle')}
         </Text>
 
         <View style={styles.features}>
-          {[
-            { icon: '📸', text: 'Vonalkód-szkenner azonnal' },
-            { icon: '📊', text: 'Makrók és kalória nyomon követve' },
-            { icon: '💧', text: 'Vízfogyasztás és napi célok' },
-            { icon: '🏆', text: 'Közösségi étel-adatbázis' },
-          ].map((f) => (
+          {features.map((f) => (
             <View key={f.text} style={styles.featureRow}>
               <Text style={styles.featureIcon}>{f.icon}</Text>
               <Text style={styles.featureText}>{f.text}</Text>
@@ -41,7 +44,7 @@ export default function OnboardingStep1Welcome() {
       </View>
 
       <Pressable style={styles.button} onPress={nextStep}>
-        <Text style={styles.buttonText}>Kezdjük el →</Text>
+        <Text style={styles.buttonText}>{t('onboarding.letsStartArrow')}</Text>
       </Pressable>
     </LinearGradient>
   );

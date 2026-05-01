@@ -1,30 +1,31 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { useOnboardingStore, ActivityLevel } from '../../stores/onboardingStore';
 import OnboardingProgressBar from '../../components/onboarding/OnboardingProgressBar';
 
-const LEVELS: { value: ActivityLevel; label: string; desc: string; icon: string }[] = [
-  { value: 'SEDENTARY', label: 'Ülő életmód', desc: 'Irodai munka, alig mozgás', icon: '🪑' },
-  { value: 'LIGHT', label: 'Könnyű aktivitás', desc: 'Heti 1-3x könnyű mozgás', icon: '🚶' },
-  { value: 'MODERATE', label: 'Közepes aktivitás', desc: 'Heti 3-5x mérsékelt edzés', icon: '🏃' },
-  { value: 'ACTIVE', label: 'Aktív', desc: 'Heti 6-7x intenzív edzés', icon: '💪' },
-  { value: 'VERY_ACTIVE', label: 'Nagyon aktív', desc: 'Fizikai munka + napi sport', icon: '🏋️' },
-];
-
 export default function OnboardingStep4Activity() {
+  const { t } = useTranslation();
   const store = useOnboardingStore();
+  const levels: { value: ActivityLevel; label: string; desc: string; icon: string }[] = [
+    { value: 'SEDENTARY', label: t('onboarding.activitySedentary'), desc: t('onboarding.activitySedentaryDesc'), icon: '🪑' },
+    { value: 'LIGHT', label: t('onboarding.activityLight'), desc: t('onboarding.activityLightDesc'), icon: '🚶' },
+    { value: 'MODERATE', label: t('onboarding.activityModerate'), desc: t('onboarding.activityModerateDesc'), icon: '🏃' },
+    { value: 'ACTIVE', label: t('onboarding.activityActive'), desc: t('onboarding.activityActiveDesc'), icon: '💪' },
+    { value: 'VERY_ACTIVE', label: t('onboarding.activityVeryActive'), desc: t('onboarding.activityVeryActiveDesc'), icon: '🏋️' },
+  ];
 
   return (
     <LinearGradient colors={['#FF9A6C', '#A8EDBC', '#7EC8E3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <OnboardingProgressBar step={4} total={7} />
         <View style={styles.card}>
-          <Text style={styles.title}>Mozgásszinted</Text>
-          <Text style={styles.subtitle}>Az aktivitási szorzó befolyásolja a TDEE-t.</Text>
+          <Text style={styles.title}>{t('onboarding.activityTitle')}</Text>
+          <Text style={styles.subtitle}>{t('onboarding.activitySubtitle')}</Text>
 
           <View style={styles.options}>
-            {LEVELS.map((l) => (
+            {levels.map((l) => (
               <Pressable
                 key={l.value}
                 style={[styles.option, store.activityLevel === l.value && styles.optionActive]}
@@ -44,18 +45,18 @@ export default function OnboardingStep4Activity() {
 
         <View style={styles.buttonRow}>
           <Pressable style={styles.skipBtn} onPress={store.nextStep}>
-            <Text style={styles.skipText}>Kihagyom</Text>
+            <Text style={styles.skipText}>{t('onboarding.skip')}</Text>
           </Pressable>
           <Pressable
             style={[styles.nextBtn, !store.activityLevel && styles.nextBtnDisabled]}
             onPress={store.nextStep}
             disabled={!store.activityLevel}
           >
-            <Text style={styles.nextText}>Tovább →</Text>
+            <Text style={styles.nextText}>{t('onboarding.next')}</Text>
           </Pressable>
         </View>
         <Pressable onPress={store.prevStep} style={styles.backBtn}>
-          <Text style={styles.backText}>← Vissza</Text>
+          <Text style={styles.backText}>{t('onboarding.back')}</Text>
         </Pressable>
       </ScrollView>
     </LinearGradient>

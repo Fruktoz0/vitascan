@@ -2,28 +2,29 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { useOnboardingStore, Goal } from '../../stores/onboardingStore';
 import OnboardingProgressBar from '../../components/onboarding/OnboardingProgressBar';
 
-const GOALS: { value: Goal; label: string; desc: string; icon: string; color: string }[] = [
-  { value: 'LOSE', label: 'Fogyás', desc: '-500 kcal/nap a céloktól', icon: '📉', color: '#FF6B6B' },
-  { value: 'MAINTAIN', label: 'Szinten tartás', desc: 'Tartsd a jelenlegi súlyod', icon: '⚖️', color: '#4ECDC4' },
-  { value: 'GAIN', label: 'Tömegnövelés', desc: '+300 kcal/nap a céloktól', icon: '📈', color: '#45B7D1' },
-];
-
 export default function OnboardingStep3Goal() {
+  const { t } = useTranslation();
   const store = useOnboardingStore();
+  const goals: { value: Goal; label: string; desc: string; icon: string; color: string }[] = [
+    { value: 'LOSE', label: t('onboarding.goalLose'), desc: t('onboarding.goalLoseDesc'), icon: '📉', color: '#FF6B6B' },
+    { value: 'MAINTAIN', label: t('onboarding.goalMaintain'), desc: t('onboarding.goalMaintainDesc'), icon: '⚖️', color: '#4ECDC4' },
+    { value: 'GAIN', label: t('onboarding.goalGain'), desc: t('onboarding.goalGainDesc'), icon: '📈', color: '#45B7D1' },
+  ];
 
   return (
     <LinearGradient colors={['#FF9A6C', '#A8EDBC', '#7EC8E3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.container}>
       <View style={styles.inner}>
         <OnboardingProgressBar step={3} total={7} />
         <View style={styles.card}>
-          <Text style={styles.title}>Mi a célod?</Text>
-          <Text style={styles.subtitle}>A napi kalória-célod erre épül.</Text>
+          <Text style={styles.title}>{t('onboarding.goalQuestion')}</Text>
+          <Text style={styles.subtitle}>{t('onboarding.goalSubtitle')}</Text>
 
           <View style={styles.options}>
-            {GOALS.map((g) => (
+            {goals.map((g) => (
               <Pressable
                 key={g.value}
                 style={[styles.option, store.goal === g.value && { borderColor: g.color, borderWidth: 2.5 }]}
@@ -46,18 +47,18 @@ export default function OnboardingStep3Goal() {
 
         <View style={styles.buttonRow}>
           <Pressable style={styles.skipBtn} onPress={store.nextStep}>
-            <Text style={styles.skipText}>Kihagyom</Text>
+            <Text style={styles.skipText}>{t('onboarding.skip')}</Text>
           </Pressable>
           <Pressable
             style={[styles.nextBtn, !store.goal && styles.nextBtnDisabled]}
             onPress={store.nextStep}
             disabled={!store.goal}
           >
-            <Text style={styles.nextText}>Tovább →</Text>
+            <Text style={styles.nextText}>{t('onboarding.next')}</Text>
           </Pressable>
         </View>
         <Pressable onPress={store.prevStep} style={styles.backBtn}>
-          <Text style={styles.backText}>← Vissza</Text>
+          <Text style={styles.backText}>{t('onboarding.back')}</Text>
         </Pressable>
       </View>
     </LinearGradient>

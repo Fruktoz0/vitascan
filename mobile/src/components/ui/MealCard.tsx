@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, Pressable, LayoutAnimation, Platform, UIManager,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Colors, Radius, Shadows, Typography } from '../../design/tokens';
 import { GlassCardSimple } from './GlassCard';
 
@@ -9,12 +10,12 @@ if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
 }
 
-const MEAL_META: Record<string, { emoji: string; label: string; color: string; bgColor: string }> = {
-  BREAKFAST: { emoji: '🌅', label: 'Reggeli',   color: '#F5A623', bgColor: '#FFF8EC' },
-  LUNCH:     { emoji: '☀️', label: 'Ebéd',       color: '#2ECC71', bgColor: '#F0FFF4' },
-  DINNER:    { emoji: '🌙', label: 'Vacsora',    color: '#9B59B6', bgColor: '#F8F0FF' },
-  SNACK:     { emoji: '🍎', label: 'Snack',      color: '#FF6B35', bgColor: '#FFF0EA' },
-  OTHER:     { emoji: '🍽️', label: 'Egyéb',     color: '#4A90D9', bgColor: '#EBF4FF' },
+const MEAL_META_BASE: Record<string, { emoji: string; color: string; bgColor: string }> = {
+  BREAKFAST: { emoji: '🌅', color: '#F5A623', bgColor: '#FFF8EC' },
+  LUNCH: { emoji: '☀️', color: '#2ECC71', bgColor: '#F0FFF4' },
+  DINNER: { emoji: '🌙', color: '#9B59B6', bgColor: '#F8F0FF' },
+  SNACK: { emoji: '🍎', color: '#FF6B35', bgColor: '#FFF0EA' },
+  OTHER: { emoji: '🍽️', color: '#4A90D9', bgColor: '#EBF4FF' },
 };
 
 interface LogEntry {
@@ -34,8 +35,17 @@ interface MealCardProps {
 }
 
 export default function MealCard({ mealType, logs, onDeleteLog }: MealCardProps) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(true);
-  const meta = MEAL_META[mealType] ?? MEAL_META.OTHER;
+  const labels: Record<string, string> = {
+    BREAKFAST: t('food.breakfast'),
+    LUNCH: t('food.lunch'),
+    DINNER: t('food.dinner'),
+    SNACK: t('food.snack'),
+    OTHER: t('food.other'),
+  };
+  const metaBase = MEAL_META_BASE[mealType] ?? MEAL_META_BASE.OTHER;
+  const meta = { ...metaBase, label: labels[mealType] ?? labels.OTHER };
 
   const totalKcal = logs.reduce((sum, l) => sum + l.kcal, 0);
 
@@ -58,7 +68,7 @@ export default function MealCard({ mealType, logs, onDeleteLog }: MealCardProps)
         </View>
         <View style={styles.headerText}>
           <Text style={styles.mealLabel}>{meta.label}</Text>
-          <Text style={styles.mealCount}>{logs.length} tétel</Text>
+          <Text style={styles.mealCount}>{logs.length} {t('mealCard.items')}</Text>
         </View>
         <View style={styles.headerRight}>
           <Text style={[styles.mealKcal, { color: meta.color }]}>
@@ -84,7 +94,7 @@ export default function MealCard({ mealType, logs, onDeleteLog }: MealCardProps)
                   {log.foodName}
                 </Text>
                 <Text style={styles.entryMacros}>
-                  F: {Math.round(log.protein)}g · Sz: {Math.round(log.carbs)}g · Zs: {Math.round(log.fat)}g
+                  {t('mealCard.proteinShort')}: {Math.round(log.protein)}g · {t('mealCard.carbsShort')}: {Math.round(log.carbs)}g · {t('mealCard.fatShort')}: {Math.round(log.fat)}g
                 </Text>
               </View>
               <View style={styles.entryRight}>

@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 
 import { useAuthStore } from '../../src/stores/authStore';
 import { statsApi, profileApi, premiumApi } from '../../src/services/api';
@@ -86,6 +87,7 @@ const statStyles = StyleSheet.create({
 
 // ─── Főképernyő ───────────────────────────────────────────────────────────────
 export default function DataVaultScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user, logout } = useAuthStore();
 
@@ -123,9 +125,9 @@ export default function DataVaultScreen() {
   const isPremium = tierStatus?.tier === 'PREMIUM';
 
   const handleLogout = () =>
-    Alert.alert('Kijelentkezés', 'Biztosan ki szeretnél jelentkezni?', [
-      { text: 'Mégse', style: 'cancel' },
-      { text: 'Kijelentkezés', style: 'destructive', onPress: logout },
+    Alert.alert(t('profile.logoutTitle'), t('profile.logoutConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('profile.logout'), style: 'destructive', onPress: logout },
     ]);
 
   if (loading) {
@@ -147,7 +149,7 @@ export default function DataVaultScreen() {
         >
           {/* ── Fejléc ──────────────────────────────────────────────────── */}
           <LinearGradient
-            colors={isPremium ? ['#1A1A2E', '#2D2D4E', '#4A3F6B'] : Gradients.meshVault}
+            colors={isPremium ? (['#1A1A2E', '#2D2D4E', '#4A3F6B'] as const) : (Gradients.meshVault as any)}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
             style={styles.header}
           >
@@ -160,9 +162,9 @@ export default function DataVaultScreen() {
                 <Text style={styles.username}>{user?.username}</Text>
                 <Text style={styles.email}>{user?.email}</Text>
                 {isPremium
-                  ? <View style={styles.premiumBadge}><Text style={styles.premiumBadgeText}>⭐ Premium tag</Text></View>
+                  ? <View style={styles.premiumBadge}><Text style={styles.premiumBadgeText}>⭐ {t('dataVault.premiumMember')}</Text></View>
                   : <Pressable style={styles.freeBadge} onPress={() => setUpsellVisible(true)}>
-                      <Text style={styles.freeBadgeText}>Ingyenes → Upgrade?</Text>
+                      <Text style={styles.freeBadgeText}>{t('dataVault.freeUpgrade')}</Text>
                     </Pressable>
                 }
               </View>
@@ -170,7 +172,7 @@ export default function DataVaultScreen() {
               {(profile?.reputation ?? 0) >= 10 && (
                 <View style={styles.expertBadge}>
                   <Text style={styles.expertText}>🏆</Text>
-                  <Text style={styles.expertLabel}>Szakértő</Text>
+                  <Text style={styles.expertLabel}>{t('dataVault.expert')}</Text>
                 </View>
               )}
             </View>
@@ -180,7 +182,7 @@ export default function DataVaultScreen() {
             {/* ── Napi limitek (csak FREE-nek) ─────────────────────────── */}
             {!isPremium && tierStatus && (
               <GlassCardSimple backgroundColor="rgba(255,107,53,0.05)" borderColor="rgba(255,107,53,0.15)">
-                <Text style={styles.sectionTitle}>Mai felhasználás</Text>
+                <Text style={styles.sectionTitle}>{t('dataVault.todayUsage')}</Text>
                 <View style={{ gap: Spacing.sm }}>
                   <DailyLimitBar
                     type="logs"
@@ -218,8 +220,8 @@ export default function DataVaultScreen() {
                 >
                   <Text style={styles.adminCardEmoji}>🛡️</Text>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.adminCardTitle}>Admin Panel</Text>
-                    <Text style={styles.adminCardSub}>Moderáció, felhasználók, badge-ek</Text>
+                    <Text style={styles.adminCardTitle}>{t('dataVault.adminPanel')}</Text>
+                    <Text style={styles.adminCardSub}>{t('dataVault.adminSubtitle')}</Text>
                   </View>
                   <Text style={styles.adminCardArrow}>→</Text>
                 </LinearGradient>
@@ -235,7 +237,7 @@ export default function DataVaultScreen() {
               >
                 <Text style={styles.streakEmoji}>🔥</Text>
                 <View>
-                  <Text style={styles.streakCount}>{streak.streak} napos sorozat</Text>
+                  <Text style={styles.streakCount}>{t('streakDays', { count: streak.streak })}</Text>
                   <Text style={styles.streakMsg}>{streak.message}</Text>
                 </View>
               </LinearGradient>
@@ -245,19 +247,19 @@ export default function DataVaultScreen() {
             {weekly && (
               <View style={styles.statsRow}>
                 <StatCard
-                  icon="🔥" label="Átlag kcal"
+                  icon="🔥" label={t('dataVault.avgKcal')}
                   value={String(weekly.averages?.kcal ?? 0)}
-                  sub="/nap" color={Colors.primary}
+                  sub={t('dataVault.perDay')} color={Colors.primary}
                 />
                 <StatCard
-                  icon="💪" label="Átlag fehérje"
+                  icon="💪" label={t('dataVault.avgProtein')}
                   value={`${weekly.averages?.protein ?? 0}g`}
                   color={Colors.macro.protein}
                 />
                 <StatCard
-                  icon="💧" label="Naplózott nap"
+                  icon="💧" label={t('dataVault.loggedDays')}
                   value={String(weekly.days?.filter((d: any) => d.kcal > 0).length ?? 0)}
-                  sub="/ 7"
+                  sub={t('dataVault.of7')}
                 />
               </View>
             )}
@@ -266,20 +268,20 @@ export default function DataVaultScreen() {
             {weekly && (
               <GlassCardSimple>
                 <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Heti kalória</Text>
+                  <Text style={styles.sectionTitle}>{t('dataVault.weeklyCalories')}</Text>
                   {!isPremium && (
                     <Pressable onPress={() => setUpsellVisible(true)}>
-                      <Text style={styles.seeMoreLink}>Több hét →</Text>
+                      <Text style={styles.seeMoreLink}>{t('dataVault.moreWeeks')}</Text>
                     </Pressable>
                   )}
                 </View>
                 <WeeklyBarChart days={weekly.days ?? []} goal={dailyKcalGoal} />
                 <View style={styles.chartLegend}>
                   <View style={[styles.legendDot, { backgroundColor: Colors.primary }]} />
-                  <Text style={styles.legendText}>Ma</Text>
+                  <Text style={styles.legendText}>{t('dataVault.today')}</Text>
                   <View style={[styles.legendDot, { backgroundColor: '#A8EDBC', marginLeft: Spacing.sm }]} />
-                  <Text style={styles.legendText}>Többi nap</Text>
-                  <Text style={styles.legendGoal}>Cél: {dailyKcalGoal} kcal</Text>
+                  <Text style={styles.legendText}>{t('dataVault.otherDays')}</Text>
+                  <Text style={styles.legendGoal}>{t('dataVault.goalKcal', { kcal: dailyKcalGoal })}</Text>
                 </View>
               </GlassCardSimple>
             )}
@@ -288,7 +290,7 @@ export default function DataVaultScreen() {
             <PremiumLockOverlay feature="monthly_stats" locked={!isPremium}>
               <GlassCardSimple>
                 <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Havi összesítő</Text>
+                  <Text style={styles.sectionTitle}>{t('dataVault.monthlySummary')}</Text>
                   {isPremium && <PremiumBadge />}
                 </View>
                 <View style={styles.mockMonthly}>
@@ -309,15 +311,14 @@ export default function DataVaultScreen() {
                 borderColor="rgba(46,204,113,0.2)"
               >
                 <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>📤 Adatok exportálása</Text>
+                  <Text style={styles.sectionTitle}>📤 {t('dataVault.exportTitle')}</Text>
                   {isPremium && <PremiumBadge />}
                 </View>
                 <Text style={styles.exportDesc}>
-                  Töltsd le az összes naplóbejegyzésedet Excel formátumban,
-                  beleértve a vízfogyasztást és a makrókat is.
+                  {t('dataVault.exportDesc')}
                 </Text>
                 <PrimaryButton
-                  label="📥  Letöltés XLSX"
+                  label={`📥  ${t('dataVault.downloadXlsx')}`}
                   onPress={() => setExportVisible(true)}
                   size="md"
                 />
@@ -334,9 +335,9 @@ export default function DataVaultScreen() {
                 >
                   <Text style={styles.upsellEmoji}>⭐</Text>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.upsellTitle}>Válts Premiumra!</Text>
+                    <Text style={styles.upsellTitle}>{t('dataVault.upgradeTitle')}</Text>
                     <Text style={styles.upsellSub}>
-                      Korlátlan naplózás, export, havi statisztikák és több.
+                      {t('dataVault.upgradeDesc')}
                     </Text>
                   </View>
                   <Text style={styles.upsellArrow}>→</Text>
@@ -347,16 +348,16 @@ export default function DataVaultScreen() {
             {/* ── Beállítások ───────────────────────────────────────────── */}
             <GlassCardSimple padding={0}>
               <Text style={[styles.sectionTitle, { padding: Spacing.lg, paddingBottom: Spacing.sm }]}>
-                Beállítások
+                {t('settings')}
               </Text>
               {[
-                { icon: '👤', label: 'Profil szerkesztése', onPress: () => {} },
-                { icon: '🌍', label: 'Nyelv', onPress: () => {} },
-                { icon: '🔔', label: 'Értesítések', onPress: () => {} },
-                { icon: '🛡️', label: 'Adatkezelés (GDPR)', onPress: () => {} },
+                { icon: '👤', label: t('editProfile'), onPress: () => {} },
+                { icon: '🌍', label: t('common.language'), onPress: () => {} },
+                { icon: '🔔', label: t('dataVault.notifications'), onPress: () => {} },
+                { icon: '🛡️', label: t('dataVault.gdpr'), onPress: () => {} },
                 {
                   icon: '⭐',
-                  label: isPremium ? 'Premium kezelése' : 'Premium megvásárlása',
+                  label: isPremium ? t('dataVault.managePremium') : t('dataVault.buyPremium'),
                   onPress: () => setUpsellVisible(true),
                   accent: !isPremium,
                 },
@@ -376,10 +377,10 @@ export default function DataVaultScreen() {
             </GlassCardSimple>
 
             <Pressable style={styles.logoutBtn} onPress={handleLogout}>
-              <Text style={styles.logoutText}>🚪 Kijelentkezés</Text>
+              <Text style={styles.logoutText}>🚪 {t('profile.logout')}</Text>
             </Pressable>
 
-            <Text style={styles.versionText}>VitaScan v1.0 · {isPremium ? '⭐ Premium' : 'Ingyenes'}</Text>
+            <Text style={styles.versionText}>VitaScan v1.0 · {isPremium ? '⭐ Premium' : t('dataVault.free')}</Text>
             <View style={{ height: 110 }} />
           </View>
         </ScrollView>
@@ -390,7 +391,7 @@ export default function DataVaultScreen() {
         onClose={() => setUpsellVisible(false)}
         onUpgrade={() => {
           setUpsellVisible(false);
-          Alert.alert('Hamarosan', 'Stripe / RevenueCat integráció — Fázis 7b!');
+          Alert.alert(t('dataVault.comingSoonTitle'), t('dataVault.comingSoonMessage'));
         }}
       />
 

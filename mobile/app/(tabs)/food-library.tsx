@@ -1,11 +1,12 @@
 import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, TextInput, FlatList,
-  Pressable, ActivityIndicator, RefreshControl,
+  Pressable, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../src/i18n';
 
 import { foodApi, Food } from '../../src/services/api';
 import FoodDetailModal from '../../src/components/food/FoodDetailModal';
@@ -15,16 +16,10 @@ import { Colors, Gradients, Radius, Spacing, Typography } from '../../src/design
 
 type FilterStatus = 'all' | 'VERIFIED' | 'UNVERIFIED';
 
-const FILTER_OPTS: { value: FilterStatus; label: string; emoji: string }[] = [
-  { value: 'all',        label: 'Összes',        emoji: '🍽️' },
-  { value: 'VERIFIED',   label: 'Ellenőrzött',   emoji: '✅' },
-  { value: 'UNVERIFIED', label: 'Új',            emoji: '🆕' },
-];
-
 // ─── FoodRow ──────────────────────────────────────────────────────────────────
 function FoodRow({ food, onPress }: { food: Food; onPress: () => void }) {
   const isVerified = food.status === 'VERIFIED';
-  const isOFF = food.isOFF;
+  const displayName = (i18n.language === 'en' ? food.nameEn : food.nameHu) ?? food.displayName ?? food.name;
 
   return (
     <Pressable
@@ -32,15 +27,14 @@ function FoodRow({ food, onPress }: { food: Food; onPress: () => void }) {
       onPress={onPress}
     >
       {/* Bal szín-csík */}
-      <View style={[rowStyles.stripe, { backgroundColor: isVerified ? Colors.status.verified : isOFF ? '#4A90D9' : Colors.macro.carbs }]} />
+      <View style={[rowStyles.stripe, { backgroundColor: isVerified ? Colors.status.verified : Colors.macro.carbs }]} />
 
       <View style={rowStyles.content}>
         <View style={rowStyles.nameRow}>
-          <Text style={rowStyles.name} numberOfLines={1}>{food.name}</Text>
+          <Text style={rowStyles.name} numberOfLines={1}>{displayName}</Text>
           <View style={rowStyles.badges}>
             {isVerified && <Text style={rowStyles.verifiedDot}>✅</Text>}
-            {isOFF && <Text style={rowStyles.offDot}>🌍</Text>}
-            {food.creator?.reputation >= 10 && <Text style={rowStyles.expertDot}>🏆</Text>}
+            {(food.creator?.reputation ?? 0) >= 10 && <Text style={rowStyles.expertDot}>🏆</Text>}
           </View>
         </View>
         <Text style={rowStyles.meta} numberOfLines={1}>
@@ -71,7 +65,6 @@ const rowStyles = StyleSheet.create({
   name: { flex: 1, ...Typography.bodyMedium, color: Colors.text.primary },
   badges: { flexDirection: 'row', gap: 2 },
   verifiedDot: { fontSize: 13 },
-  offDot: { fontSize: 12 },
   expertDot: { fontSize: 12 },
   meta: { ...Typography.caption, color: Colors.text.muted, marginTop: 3 },
   right: { paddingRight: Spacing.md, alignItems: 'center' },
@@ -81,51 +74,44 @@ const rowStyles = StyleSheet.create({
 
 // ─── Főképernyő ───────────────────────────────────────────────────────────────
 export default function FoodLibraryScreen() {
-  const router = useRouter();
+  const { t } = useTranslation();
+  const filterOptions: { value: FilterStatus; label: string; emoji: string }[] = [
+    { value: 'all', label: t('food.all'), emoji: '🍽️' },
+    { value: 'VERIFIED', label: t('food.verified'), emoji: '✅' },
+    { value: 'UNVERIFIED', label: t('food.new'), emoji: '🆕' },
+  ];
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Food[]>([]);
   const [loading, setLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
-  const [includeOFF, setIncludeOFF] = useState(true);
-  const [offCount, setOffCount] = useState(0);
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [detailVisible, setDetailVisible] = useState(false);
   const [addVisible, setAddVisible] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const doSearch = useCallback(async (q: string) => {
-    if (q.length < 2) { setResults([]); setOffCount(0); return; }
+    if (q.length < 2) { setResults([]); return; }
     setLoading(true);
     try {
       const statusParam = filterStatus !== 'all' ? filterStatus : undefined;
-      const { foods, offCount: oc } = await foodApi.search(q, {
-        includeOFF,
-        limit: 30,
-      });
+      const { foods } = await foodApi.search(q, { limit: 30 });
       // Kliens oldali státusz szűrés
       const filtered = statusParam ? foods.filter((f) => f.status === statusParam) : foods;
       setResults(filtered);
-      setOffCount(oc ?? 0);
     } catch {
       setResults([]);
     } finally {
       setLoading(false);
     }
-  }, [filterStatus, includeOFF]);
+  }, [filterStatus]);
 
   const handleQueryChange = (text: string) => {
     setQuery(text);
-    clearTimeout(debounceRef.current);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => doSearch(text), 350);
   };
 
   const handleSelectFood = async (food: Food) => {
-    // Ha OFF étel → nem kell részlet API hívás, már van adat
-    if (food.isOFF || food.id?.startsWith('off_')) {
-      setSelectedFood(food);
-      setDetailVisible(true);
-      return;
-    }
     try {
       const detail = await foodApi.getById(food.id);
       setSelectedFood(detail);
@@ -147,11 +133,11 @@ export default function FoodLibraryScreen() {
         >
           <View style={styles.headerTop}>
             <View>
-              <Text style={styles.headerTitle}>🍎 Étel-könyvtár</Text>
-              <Text style={styles.headerSub}>Saját DB + Open Food Facts</Text>
+              <Text style={styles.headerTitle}>🍎 {t('food.libraryTitle')}</Text>
+              <Text style={styles.headerSub}>{t('food.librarySubtitle')}</Text>
             </View>
             <Pressable style={styles.addBtn} onPress={() => setAddVisible(true)}>
-              <Text style={styles.addBtnText}>+ Új étel</Text>
+              <Text style={styles.addBtnText}>+ {t('food.newFood')}</Text>
             </Pressable>
           </View>
 
@@ -162,7 +148,7 @@ export default function FoodLibraryScreen() {
               style={styles.searchInput}
               value={query}
               onChangeText={handleQueryChange}
-              placeholder="Keresés: étel neve, márka..."
+              placeholder={t('food.searchPlaceholder')}
               placeholderTextColor={Colors.text.muted}
               returnKeyType="search"
               clearButtonMode="while-editing"
@@ -173,7 +159,7 @@ export default function FoodLibraryScreen() {
         {/* Szűrők */}
         <View style={styles.filterBar}>
           <View style={styles.filterChips}>
-            {FILTER_OPTS.map((f) => (
+            {filterOptions.map((f) => (
               <Pressable
                 key={f.value}
                 style={[styles.chip, filterStatus === f.value && styles.chipActive]}
@@ -186,32 +172,13 @@ export default function FoodLibraryScreen() {
             ))}
           </View>
 
-          {/* OFF toggle */}
-          <Pressable
-            style={[styles.offToggle, includeOFF && styles.offToggleActive]}
-            onPress={() => {
-              setIncludeOFF(!includeOFF);
-              if (query.length >= 2) setTimeout(() => doSearch(query), 100);
-            }}
-          >
-            <Text style={styles.offToggleText}>🌍 OFF</Text>
-          </Pressable>
         </View>
-
-        {/* OFF info banner */}
-        {offCount > 0 && (
-          <View style={styles.offBanner}>
-            <Text style={styles.offBannerText}>
-              🌍 {offCount} találat az Open Food Facts-ból
-            </Text>
-          </View>
-        )}
 
         {/* Lista */}
         {loading && query.length >= 2 ? (
           <View style={styles.loadingCenter}>
             <ActivityIndicator color={Colors.primary} size="large" />
-            <Text style={styles.loadingText}>Keresés...</Text>
+            <Text style={styles.loadingText}>{t('food.searching')}</Text>
           </View>
         ) : (
           <FlatList
@@ -226,20 +193,19 @@ export default function FoodLibraryScreen() {
               query.length >= 2 && !loading ? (
                 <GlassCardSimple style={styles.emptyCard}>
                   <Text style={styles.emptyEmoji}>🔍</Text>
-                  <Text style={styles.emptyTitle}>Nincs találat</Text>
+                  <Text style={styles.emptyTitle}>{t('food.noResults')}</Text>
                   <Text style={styles.emptyDesc}>
-                    Nem találtuk: „{query}"{'\n'}
-                    {!includeOFF && 'Kapcsold be az OFF szűrőt a nemzetközi adatbázishoz!'}
+                    {t('food.notFound', { query })}
                   </Text>
                   <Pressable style={styles.addNewBtn} onPress={() => setAddVisible(true)}>
-                    <Text style={styles.addNewBtnText}>+ Hozzáadás manuálisan</Text>
+                    <Text style={styles.addNewBtnText}>+ {t('food.addManual')}</Text>
                   </Pressable>
                 </GlassCardSimple>
               ) : query.length < 2 ? (
                 <GlassCardSimple style={styles.emptyCard}>
                   <Text style={styles.emptyEmoji}>👆</Text>
-                  <Text style={styles.emptyTitle}>Kezdj el gépelni</Text>
-                  <Text style={styles.emptyDesc}>Legalább 2 karakter a kereséshez</Text>
+                  <Text style={styles.emptyTitle}>{t('food.startTyping')}</Text>
+                  <Text style={styles.emptyDesc}>{t('food.minChars')}</Text>
                 </GlassCardSimple>
               ) : null
             }
@@ -303,19 +269,6 @@ const styles = StyleSheet.create({
   chipActive: { borderColor: Colors.primary, backgroundColor: Colors.primarySoft },
   chipText: { ...Typography.caption, color: Colors.text.secondary, fontWeight: '600' },
   chipTextActive: { color: Colors.primary, fontWeight: '800' },
-  offToggle: {
-    paddingVertical: 5, paddingHorizontal: 10,
-    backgroundColor: '#F0F8FF', borderRadius: Radius.full,
-    borderWidth: 1.5, borderColor: 'rgba(74,144,217,0.2)',
-  },
-  offToggleActive: { backgroundColor: '#EBF4FF', borderColor: '#4A90D9' },
-  offToggleText: { ...Typography.caption, color: '#4A90D9', fontWeight: '700' },
-  offBanner: {
-    backgroundColor: 'rgba(74,144,217,0.08)',
-    paddingHorizontal: Spacing.lg, paddingVertical: 6,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(74,144,217,0.1)',
-  },
-  offBannerText: { ...Typography.caption, color: '#2B6CB0', fontWeight: '600' },
   list: { padding: Spacing.lg, paddingBottom: 120 },
   loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, paddingTop: 60 },
   loadingText: { ...Typography.body, color: Colors.text.muted },

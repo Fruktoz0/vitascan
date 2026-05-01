@@ -52,6 +52,8 @@ model UserProfile {
 model Food {
   id          String  @id @default(uuid())
   name        String
+  nameHu      String?
+  nameEn      String?
   brand       String?
   barcode     String? @unique
   kcal        Float
@@ -65,6 +67,7 @@ model Food {
 
   status Status @default(UNVERIFIED)
   tier   Tier   @default(FREE) // Freemium
+  source FoodSource @default(USER_SCAN)
 
   creatorId String
   creator   User   @relation(fields: [creatorId], references: [id])
@@ -170,4 +173,10 @@ enum ActivityLevel {
 enum Role {
   USER
   ADMIN
+}
+
+enum FoodSource {
+  INTERNAL
+  USER_SCAN
+  EXTERNAL_API
 }

@@ -152,7 +152,7 @@ function FoodsTab() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('UNVERIFIED');
   const [query, setQuery] = useState('');
-  const debounce = useRef<ReturnType<typeof setTimeout>>();
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchFoods = useCallback(async (q = query, f = filter) => {
     setLoading(true);
@@ -167,7 +167,7 @@ function FoodsTab() {
 
   const handleSearch = (t: string) => {
     setQuery(t);
-    clearTimeout(debounce.current);
+    if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(() => fetchFoods(t), 400);
   };
 
@@ -302,7 +302,7 @@ function UsersTab() {
   const [repModalVisible, setRepModalVisible] = useState(false);
   const [repDelta, setRepDelta] = useState('');
   const [repReason, setRepReason] = useState('');
-  const debounce = useRef<ReturnType<typeof setTimeout>>();
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchUsers = useCallback(async (q = query) => {
     setLoading(true);
@@ -317,7 +317,7 @@ function UsersTab() {
 
   const handleSearch = (t: string) => {
     setQuery(t);
-    clearTimeout(debounce.current);
+    if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(() => fetchUsers(t), 400);
   };
 

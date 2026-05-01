@@ -32,7 +32,7 @@ export interface OFFNormalizedFood {
   sugar?: number;
   servingSize?: number;
   servingUnit?: string;
-  source: 'OFF';
+  source: 'EXTERNAL_API';
 }
 
 /**
@@ -84,7 +84,7 @@ export function normalizeOFFProduct(
     sugar: n['sugars_100g'] != null ? Math.round(n['sugars_100g'] * 10) / 10 : undefined,
     servingSize,
     servingUnit,
-    source: 'OFF',
+    source: 'EXTERNAL_API',
   };
 }
 

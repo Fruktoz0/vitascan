@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
+import { useTranslation } from 'react-i18next';
 
 import { GlassCardSimple } from '../ui/GlassCard';
 import { PrimaryButton, GhostButton } from '../ui/Button';
@@ -25,7 +26,7 @@ async function apiGet<T>(path: string): Promise<T> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error ?? 'Hiba az exportálás során.');
+    throw new Error(err.error ?? 'Export failed.');
   }
   return res.json();
 }
@@ -33,17 +34,18 @@ async function apiGet<T>(path: string): Promise<T> {
 // ─── Dátum-preset opciók ─────────────────────────────────────────────────────
 
 interface DatePreset {
+  key: string;
   label: string;
   emoji: string;
   days: number;
 }
 
-const DATE_PRESETS: DatePreset[] = [
-  { label: 'Utolsó 7 nap',  emoji: '📅', days: 7   },
-  { label: 'Utolsó 30 nap', emoji: '📆', days: 30  },
-  { label: 'Utolsó 90 nap', emoji: '🗓️', days: 90  },
-  { label: 'Idei év',       emoji: '📊', days: 0   },  // 0 = idei év
-  { label: 'Tavalyi év',    emoji: '📈', days: -1  },  // -1 = tavalyi év
+const DATE_PRESETS: Omit<DatePreset, 'label'>[] = [
+  { key: 'last7', emoji: '📅', days: 7 },
+  { key: 'last30', emoji: '📆', days: 30 },
+  { key: 'last90', emoji: '🗓️', days: 90 },
+  { key: 'thisYear', emoji: '📊', days: 0 },
+  { key: 'lastYear', emoji: '📈', days: -1 },
 ];
 
 function getDateRange(preset: DatePreset): { from: string; to: string } {
@@ -76,15 +78,16 @@ interface PreviewData {
 }
 
 function PreviewCard({ data }: { data: PreviewData }) {
+  const { t } = useTranslation();
   return (
     <GlassCardSimple
       backgroundColor="rgba(46,204,113,0.07)"
       borderColor="rgba(46,204,113,0.25)"
     >
-      <Text style={prevStyles.title}>📋 Export előnézet</Text>
+      <Text style={prevStyles.title}>📋 {t('export.previewTitle')}</Text>
 
       <View style={prevStyles.dateRow}>
-        <Text style={prevStyles.dateLabel}>Időszak</Text>
+        <Text style={prevStyles.dateLabel}>{t('export.period')}</Text>
         <Text style={prevStyles.dateValue}>
           {data.from} → {data.to}
         </Text>
@@ -93,19 +96,19 @@ function PreviewCard({ data }: { data: PreviewData }) {
       <View style={prevStyles.statsRow}>
         <View style={prevStyles.statBox}>
           <Text style={prevStyles.statNum}>{data.days}</Text>
-          <Text style={prevStyles.statLabel}>nap</Text>
+          <Text style={prevStyles.statLabel}>{t('export.days')}</Text>
         </View>
         <View style={prevStyles.statBox}>
           <Text style={prevStyles.statNum}>{data.logCount}</Text>
-          <Text style={prevStyles.statLabel}>napló-sor</Text>
+          <Text style={prevStyles.statLabel}>{t('export.logRows')}</Text>
         </View>
         <View style={prevStyles.statBox}>
           <Text style={prevStyles.statNum}>{data.waterCount}</Text>
-          <Text style={prevStyles.statLabel}>vízbejegyzés</Text>
+          <Text style={prevStyles.statLabel}>{t('export.waterRows')}</Text>
         </View>
       </View>
 
-      <Text style={prevStyles.sheetsLabel}>Munkafüzetek az XLSX-ben:</Text>
+      <Text style={prevStyles.sheetsLabel}>{t('export.workbooksInFile')}</Text>
       <View style={prevStyles.sheetList}>
         {data.sheets.map((s) => (
           <View key={s} style={prevStyles.sheetRow}>
@@ -140,15 +143,16 @@ const prevStyles = StyleSheet.create({
 // ─── Letöltés progress ────────────────────────────────────────────────────────
 
 function DownloadProgress({ progress }: { progress: number }) {
+  const { t } = useTranslation();
   return (
     <View style={dlStyles.container}>
       <ActivityIndicator color={Colors.status.verified} size="small" />
       <View style={{ flex: 1, gap: 4 }}>
         <Text style={dlStyles.label}>
-          {progress < 33 ? 'Adatok összegyűjtése...'
-            : progress < 66 ? 'XLSX formázása...'
-            : progress < 95 ? 'Fájl előkészítése...'
-            : 'Letöltés...'}
+          {progress < 33 ? t('export.progressCollecting')
+            : progress < 66 ? t('export.progressFormatting')
+            : progress < 95 ? t('export.progressPreparing')
+            : t('export.progressDownloading')}
         </Text>
         <View style={dlStyles.track}>
           <View style={[dlStyles.fill, { width: `${progress}%` }]} />
@@ -175,7 +179,12 @@ interface Props {
 }
 
 export default function ExportEngine({ visible, onClose }: Props) {
-  const [selectedPreset, setSelectedPreset] = useState<DatePreset>(DATE_PRESETS[1]);
+  const { t } = useTranslation();
+  const translatedPresets: DatePreset[] = DATE_PRESETS.map((p) => ({
+    ...p,
+    label: t(`export.presets.${p.key}`),
+  }));
+  const [selectedPreset, setSelectedPreset] = useState<DatePreset>(translatedPresets[1]);
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -194,7 +203,7 @@ export default function ExportEngine({ visible, onClose }: Props) {
       const data = await apiGet<PreviewData>(`/export/preview?from=${range.from}&to=${range.to}`);
       setPreview(data);
     } catch (e: any) {
-      Alert.alert('Hiba', e.message);
+      Alert.alert(t('food.errorTitle'), e.message);
     } finally {
       setLoadingPreview(false);
     }
@@ -229,7 +238,7 @@ export default function ExportEngine({ visible, onClose }: Props) {
       setDownloadProgress(100);
 
       if (result.status !== 200) {
-        throw new Error('A szerver nem tudta előállítani a fájlt.');
+        throw new Error(t('export.serverFileError'));
       }
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -239,7 +248,7 @@ export default function ExportEngine({ visible, onClose }: Props) {
     } catch (e: any) {
       clearInterval(ticker);
       setDownloadProgress(0);
-      Alert.alert('Letöltési hiba', e.message);
+      Alert.alert(t('export.downloadErrorTitle'), e.message);
     } finally {
       setDownloading(false);
     }
@@ -252,11 +261,11 @@ export default function ExportEngine({ visible, onClose }: Props) {
       if (canShare) {
         await Sharing.shareAsync(lastFilePath, {
           mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          dialogTitle: 'VitaScan adatok megosztása',
+          dialogTitle: t('export.shareDialogTitle'),
         });
       }
     } catch (e: any) {
-      Alert.alert('Megosztási hiba', e.message);
+      Alert.alert(t('export.shareErrorTitle'), e.message);
     }
   };
 
@@ -281,24 +290,24 @@ export default function ExportEngine({ visible, onClose }: Props) {
             <Text style={styles.closeIcon}>✕</Text>
           </Pressable>
           <Text style={styles.headerEmoji}>📤</Text>
-          <Text style={styles.headerTitle}>Excel Export</Text>
+          <Text style={styles.headerTitle}>{t('export.headerTitle')}</Text>
           <Text style={styles.headerSub}>
-            Töltsd le az összes adatodat professzionálisan formázott XLSX fájlban.
+            {t('export.headerSub')}
           </Text>
           <View style={styles.premiumBadge}>
-            <Text style={styles.premiumBadgeText}>⭐ Premium funkció</Text>
+            <Text style={styles.premiumBadgeText}>⭐ {t('premium.premiumFeature')}</Text>
           </View>
         </LinearGradient>
 
         <View style={styles.body}>
           {/* Időszak választó */}
-          <Text style={styles.sectionLabel}>Exportálni kívánt időszak</Text>
+          <Text style={styles.sectionLabel}>{t('export.selectRange')}</Text>
           <View style={styles.presetGrid}>
-            {DATE_PRESETS.map((p) => {
-              const active = selectedPreset.label === p.label;
+            {translatedPresets.map((p) => {
+              const active = selectedPreset.key === p.key;
               return (
                 <Pressable
-                  key={p.label}
+                  key={p.key}
                   style={[styles.presetCard, active && styles.presetCardActive]}
                   onPress={() => handleSelectPreset(p)}
                 >
@@ -325,7 +334,7 @@ export default function ExportEngine({ visible, onClose }: Props) {
           {loadingPreview && (
             <View style={styles.previewLoading}>
               <ActivityIndicator color={Colors.primary} />
-              <Text style={styles.previewLoadingText}>Előnézet betöltése...</Text>
+              <Text style={styles.previewLoadingText}>{t('export.loadingPreview')}</Text>
             </View>
           )}
 
@@ -333,7 +342,7 @@ export default function ExportEngine({ visible, onClose }: Props) {
 
           {!preview && !loadingPreview && (
             <GhostButton
-              label="🔍 Előnézet betöltése"
+              label={`🔍 ${t('export.loadPreview')}`}
               onPress={() => loadPreview(selectedPreset)}
             />
           )}
@@ -354,26 +363,26 @@ export default function ExportEngine({ visible, onClose }: Props) {
               <View style={styles.doneRow}>
                 <Text style={styles.doneEmoji}>✅</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.doneTitle}>Letöltés kész!</Text>
+                  <Text style={styles.doneTitle}>{t('export.downloadDone')}</Text>
                   <Text style={styles.doneSub}>
                     vitascan_export_{from}_{to}.xlsx
                   </Text>
                 </View>
               </View>
               <Pressable style={styles.shareBtn} onPress={handleShare}>
-                <Text style={styles.shareBtnText}>📤 Megosztás / Megnyitás</Text>
+                <Text style={styles.shareBtnText}>📤 {t('export.shareOpen')}</Text>
               </Pressable>
             </GlassCardSimple>
           )}
 
           {/* Tartalom leírás */}
           <GlassCardSimple backgroundColor="rgba(0,0,0,0.02)">
-            <Text style={styles.contentsTitle}>Az XLSX fájl tartalma</Text>
+            <Text style={styles.contentsTitle}>{t('export.fileContents')}</Text>
             {[
-              { sheet: '📝 Napló', desc: 'Minden bejegyzés időbélyeggel, étkezés-típussal, kalóriával és makrókkal' },
-              { sheet: '📊 Napi összesítők', desc: 'Naponta összesített kalória, makrók és átlagok' },
-              { sheet: '💧 Vízfogyasztás', desc: 'Vízfogyasztási naplóbejegyzések és napi összesítők' },
-              { sheet: '👤 Profil', desc: 'Felhasználói profil, célok és export metaadatok' },
+              { sheet: t('export.sheetLogs'), desc: t('export.sheetLogsDesc') },
+              { sheet: t('export.sheetDaily'), desc: t('export.sheetDailyDesc') },
+              { sheet: t('export.sheetWater'), desc: t('export.sheetWaterDesc') },
+              { sheet: t('export.sheetProfile'), desc: t('export.sheetProfileDesc') },
             ].map((item) => (
               <View key={item.sheet} style={styles.contentRow}>
                 <Text style={styles.contentSheet}>{item.sheet}</Text>
@@ -385,7 +394,7 @@ export default function ExportEngine({ visible, onClose }: Props) {
           {/* Letöltés gomb */}
           {!done && (
             <PrimaryButton
-              label={downloading ? 'Generálás...' : '📥  Letöltés XLSX'}
+                  label={downloading ? t('export.generating') : `📥  ${t('export.downloadXlsx')}`}
               onPress={handleDownload}
               loading={downloading}
               disabled={downloading}
@@ -395,13 +404,13 @@ export default function ExportEngine({ visible, onClose }: Props) {
 
           {done && (
             <PrimaryButton
-              label="📥  Újra letöltés"
+              label={`📥  ${t('export.redownload')}`}
               onPress={handleDownload}
               size="lg"
             />
           )}
 
-          <GhostButton label="Bezárás" onPress={handleClose} />
+          <GhostButton label={t('common.close')} onPress={handleClose} />
           <View style={{ height: 40 }} />
         </View>
       </ScrollView>

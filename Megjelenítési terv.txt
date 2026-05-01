@@ -1,0 +1,22 @@
+Vitascan Vizuális Specifikáció: "Cartoon-Premium"
+A vitascan nem csupán egy adatbázis egy barátságos digitális társ, amely segít eligazodni az élelmiszerek világában. A design célja hogy ötvözze a YAZIO tisztaságát és professzionalizmusát egy játékos illusztrált stílussal amely csökkenti a felhasználók szorongását az étkezési adatok követése során. Amolyan képregényes jelleg.
+
+1. Layout és Térközök (The Bento Vibe)
+•	Bento-Grid Struktúra: Az információkat nem listákba kényszerítjük, hanem különböző méretű, lekerekített sarkú moduláris kártyákba rendezzük[cite: 4, 5].
+•	Fehér Tér (White Space): Domináns fehér háttér biztosítja a professzionális, levegős érzetet, elkerülve a zsúfoltságot. 
+•	Lekerekítések: Minden kártya és gomb egységes, extrém 32px-es sarkokat kap, ami barátságos, organikus formát kölcsönöz a felületnek[cite: 4, 5].
+2. Grafikai Stíluselemek (The Cartoon Soul)
+•	Hajszálvékony Kontúrok: Minden kártya és UI elem egy finom, 0.8px-es sötét körvonalat kap[cite: 4, 5]. Ez adja meg a "cartoon" jelleget, miközben tűéles marad a kijelzőn. 
+•	Organikus "Blobs": A kártyák mögött a háttérben lágy, pasztellszínű (menta, barack, levendula), úszó foltok találhatók[cite: 4, 5]. Ezek lassú mozgása mélységet és életet ad a fehér tereknek. 
+•	Doodle Ikonok: Standard ikonok helyett egyedi, vázlatos stílusú, de letisztult vektoros illusztrációkat használunk (pl. rajzolt alma a gyümölcsökhöz, hullámzó vízcsepp a hidratációhoz). 
+3. Színpaletta (Vitamin Colors)
+•	Alap: Hófehér (#FFFFFF) és nagyon világos szürke. 
+•	Akcentus színek:
+o	Menta zöld: A siker és a validált adatok színe. 
+o	Vibráló narancs: Az energia és a fruktoz-figyelmeztetések színe. 
+o	Égszínkék: A vízbevitel és frissesség színe. 
+4. Mozgás és Interakció (The Juice)
+•	Spring Animációk: A modális ablakok és kártyák ruganyosan, nem lineárisan mozognak, ami játékos visszajelzést ad a felhasználónak[cite: 4, 5].
+•	Haptikus Visszajelzés: Minden fontos interakciót (pl. sikeres szken) egy apró, finom rezgetés kísér a fizikai élmény érdekében[cite: 4, 5].
+•	Vizuális Megerősítés: Sikeres mérések után apró, rajzolt csillagok vagy gratuláló buborékok villanhatnak fel a kijelzőn[cite: 4, 5].
+

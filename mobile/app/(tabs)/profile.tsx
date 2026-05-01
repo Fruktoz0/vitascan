@@ -7,6 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { useTranslation } from 'react-i18next';
+import i18n, { setAppLanguage } from '../../src/i18n';
 
 import { useAuthStore } from '../../src/stores/authStore';
 import { profileApi, premiumApi } from '../../src/services/api';
@@ -16,20 +18,6 @@ import { ReputationCard } from '../../src/components/badge/ExpertBadge';
 import { PremiumUpsellModal, PremiumBadge } from '../../src/components/premium/PremiumGate';
 import AnimatedMeshBackground from '../../src/components/ui/AnimatedMeshBackground';
 import { Colors, Gradients, Radius, Spacing, Typography } from '../../src/design/tokens';
-
-const GOAL_LABELS: Record<string, string> = {
-  LOSE: '📉 Fogyás',
-  MAINTAIN: '⚖️ Szinten tartás',
-  GAIN: '📈 Tömegnövelés',
-};
-
-const ACTIVITY_LABELS: Record<string, string> = {
-  SEDENTARY:   '🪑 Ülőmunka',
-  LIGHT:       '🚶 Könnyű aktivitás',
-  MODERATE:    '🏃 Közepes aktivitás',
-  ACTIVE:      '💪 Aktív',
-  VERY_ACTIVE: '🔥 Nagyon aktív',
-};
 
 // ─── Info sor ─────────────────────────────────────────────────────────────────
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -42,6 +30,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function ProfileScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const [profile, setProfile] = useState<any>(null);
@@ -73,12 +62,12 @@ export default function ProfileScreen() {
 
   const handleLogout = () => {
     Alert.alert(
-      'Kijelentkezés',
-      'Biztosan ki szeretnél jelentkezni?',
+      t('profile.logoutTitle'),
+      t('profile.logoutConfirm'),
       [
-        { text: 'Mégse', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Kijelentkezés',
+          text: t('profile.logout'),
           style: 'destructive',
           onPress: async () => {
             await logout();
@@ -101,6 +90,18 @@ export default function ProfileScreen() {
 
   const isPremium = premium?.tier === 'PREMIUM';
   const p = profile?.profile;
+  const goalLabels: Record<string, string> = {
+    LOSE: i18n.language === 'en' ? '📉 Weight loss' : '📉 Fogyás',
+    MAINTAIN: i18n.language === 'en' ? '⚖️ Maintain' : '⚖️ Szinten tartás',
+    GAIN: i18n.language === 'en' ? '📈 Gain mass' : '📈 Tömegnövelés',
+  };
+  const activityLabels: Record<string, string> = {
+    SEDENTARY: i18n.language === 'en' ? '🪑 Sedentary' : '🪑 Ülőmunka',
+    LIGHT: i18n.language === 'en' ? '🚶 Light activity' : '🚶 Könnyű aktivitás',
+    MODERATE: i18n.language === 'en' ? '🏃 Moderate activity' : '🏃 Közepes aktivitás',
+    ACTIVE: i18n.language === 'en' ? '💪 Active' : '💪 Aktív',
+    VERY_ACTIVE: i18n.language === 'en' ? '🔥 Very active' : '🔥 Nagyon aktív',
+  };
 
   return (
     <AnimatedMeshBackground colors={Gradients.meshMain}>
@@ -120,7 +121,7 @@ export default function ProfileScreen() {
             <Text style={styles.email}>{user?.email}</Text>
             {isPremium && (
               <View style={styles.premiumPill}>
-                <Text style={styles.premiumPillText}>⭐ Premium</Text>
+                <Text style={styles.premiumPillText}>⭐ {t('premium.vitascanPremium')}</Text>
               </View>
             )}
           </View>
@@ -135,19 +136,41 @@ export default function ProfileScreen() {
 
           {/* Profil adatok */}
           <GlassCardSimple>
-            <Text style={styles.sectionTitle}>Profil adatok</Text>
+            <Text style={styles.sectionTitle}>{t('profile.title')}</Text>
             {p ? (
               <>
-                <InfoRow label="Testsúly"  value={p.weightKg  ? `${p.weightKg} kg`   : 'Nincs megadva'} />
-                <InfoRow label="Magasság"  value={p.heightCm  ? `${p.heightCm} cm`   : 'Nincs megadva'} />
-                <InfoRow label="Cél"       value={p.goal      ? GOAL_LABELS[p.goal]  ?? p.goal : 'Nincs megadva'} />
-                <InfoRow label="Aktivitás" value={p.activityLevel ? ACTIVITY_LABELS[p.activityLevel] ?? p.activityLevel : 'Nincs megadva'} />
-                <InfoRow label="Napi kcal cél" value={p.dailyKcalGoal ? `${Math.round(p.dailyKcalGoal)} kcal` : '—'} />
-                <InfoRow label="Napi vízcél"   value={p.dailyWaterGoalMl ? `${p.dailyWaterGoalMl} ml` : '—'} />
+                <InfoRow label={t('profile.weight')}  value={p.weightKg  ? `${p.weightKg} kg`   : t('profile.notProvided')} />
+                <InfoRow label={t('profile.height')}  value={p.heightCm  ? `${p.heightCm} cm`   : t('profile.notProvided')} />
+                <InfoRow label={t('profile.goal')}       value={p.goal      ? goalLabels[p.goal]  ?? p.goal : t('profile.notProvided')} />
+                <InfoRow label={t('profile.activity')} value={p.activityLevel ? activityLabels[p.activityLevel] ?? p.activityLevel : t('profile.notProvided')} />
+                <InfoRow label={t('profile.dailyKcal')} value={p.dailyKcalGoal ? `${Math.round(p.dailyKcalGoal)} kcal` : '—'} />
+                <InfoRow label={t('profile.dailyWater')}   value={p.dailyWaterGoalMl ? `${p.dailyWaterGoalMl} ml` : '—'} />
               </>
             ) : (
-              <Text style={styles.noProfile}>Nincs profil beállítva. Futtasd újra az onboardingot!</Text>
+              <Text style={styles.noProfile}>{t('profile.noProfile')}</Text>
             )}
+          </GlassCardSimple>
+
+          <GlassCardSimple>
+            <Text style={styles.sectionTitle}>{t('language.switchLabel')}</Text>
+            <View style={styles.languageRow}>
+              <Pressable
+                style={[styles.languageChip, i18n.language === 'hu' && styles.languageChipActive]}
+                onPress={() => setAppLanguage('hu')}
+              >
+                <Text style={[styles.languageChipText, i18n.language === 'hu' && styles.languageChipTextActive]}>
+                  {t('language.hungarian')}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.languageChip, i18n.language === 'en' && styles.languageChipActive]}
+                onPress={() => setAppLanguage('en')}
+              >
+                <Text style={[styles.languageChipText, i18n.language === 'en' && styles.languageChipTextActive]}>
+                  {t('language.english')}
+                </Text>
+              </Pressable>
+            </View>
           </GlassCardSimple>
 
           {/* Premium státusz */}
@@ -156,12 +179,12 @@ export default function ProfileScreen() {
               backgroundColor="rgba(255,215,0,0.1)"
               borderColor="rgba(255,215,0,0.3)"
             >
-              <Text style={styles.sectionTitle}>🔓 Premium funkciók</Text>
+              <Text style={styles.sectionTitle}>🔓 {t('profile.premiumFeatures')}</Text>
               <Text style={styles.premiumDesc}>
-                Korlátlan naplózás, Excel export, havi statisztikák és sok más!
+                {t('profile.premiumDesc')}
               </Text>
               <PrimaryButton
-                label="⭐ Váltás Premiumra"
+                label={`⭐ ${t('profile.upgrade')}`}
                 onPress={() => setUpsellVisible(true)}
                 style={{ marginTop: Spacing.md }}
               />
@@ -174,22 +197,22 @@ export default function ProfileScreen() {
               borderColor="rgba(46,204,113,0.25)"
             >
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Premium előfizetés</Text>
+                <Text style={styles.sectionTitle}>{t('profile.premiumSub')}</Text>
                 <PremiumBadge />
               </View>
-              <InfoRow label="Státusz"        value="✅ Aktív" />
-              <InfoRow label="Napi logok"     value="Korlátlan" />
-              <InfoRow label="Szkennelések"   value="Korlátlan" />
-              <InfoRow label="Excel export"   value="✅ Elérhető" />
+              <InfoRow label={t('profile.status')}        value={`✅ ${t('profile.active')}`} />
+              <InfoRow label={t('profile.unlimitedDailyLogs')}     value={t('profile.unlimitedValue')} />
+              <InfoRow label={t('profile.unlimitedScans')}   value={t('profile.unlimitedValue')} />
+              <InfoRow label={t('profile.excelExport')}   value={`✅ ${t('profile.available')}`} />
             </GlassCardSimple>
           )}
 
           {/* Admin panel link */}
           {user?.role === 'ADMIN' && (
             <GlassCardSimple backgroundColor="rgba(26,26,46,0.08)">
-              <Text style={styles.sectionTitle}>🛡️ Admin</Text>
+              <Text style={styles.sectionTitle}>🛡️ {t('profile.admin')}</Text>
               <PrimaryButton
-                label="Admin panel megnyitása"
+                label={t('profile.openAdmin')}
                 onPress={() => router.push('/admin')}
                 style={{ marginTop: Spacing.sm }}
               />
@@ -198,7 +221,7 @@ export default function ProfileScreen() {
 
           {/* Kijelentkezés */}
           <GhostButton
-            label="Kijelentkezés"
+            label={t('profile.logout')}
             onPress={handleLogout}
             style={{ marginTop: Spacing.sm }}
           />
@@ -245,4 +268,12 @@ const styles = StyleSheet.create({
   infoValue: { ...Typography.bodyMedium, color: Colors.text.primary },
   noProfile: { ...Typography.body, color: Colors.text.muted, textAlign: 'center', paddingVertical: Spacing.md },
   premiumDesc: { ...Typography.body, color: Colors.text.secondary, lineHeight: 22, marginBottom: Spacing.sm },
+  languageRow: { flexDirection: 'row', gap: Spacing.sm },
+  languageChip: {
+    flex: 1, alignItems: 'center', paddingVertical: 10,
+    borderRadius: Radius.full, backgroundColor: '#F5F5F5', borderWidth: 1, borderColor: '#E8E8E8',
+  },
+  languageChipActive: { borderColor: Colors.primary, backgroundColor: Colors.primarySoft },
+  languageChipText: { ...Typography.body, color: Colors.text.secondary, fontWeight: '600' },
+  languageChipTextActive: { color: Colors.primary, fontWeight: '800' },
 });

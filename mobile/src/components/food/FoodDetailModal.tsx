@@ -5,18 +5,14 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 import { Food, foodApi, logApi } from '../../services/api';
 import { GlassCardSimple } from '../ui/GlassCard';
 import { PrimaryButton, GhostButton } from '../ui/Button';
 import { Colors, Gradients, Radius, Spacing, Typography } from '../../design/tokens';
 
-const MEAL_TYPES = [
-  { value: 'BREAKFAST', label: '🌅 Reggeli' },
-  { value: 'LUNCH',     label: '☀️ Ebéd' },
-  { value: 'DINNER',    label: '🌙 Vacsora' },
-  { value: 'SNACK',     label: '🍎 Snack' },
-  { value: 'OTHER',     label: '🍽️ Egyéb' },
-];
+const MEAL_TYPES = ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK', 'OTHER'] as const;
 
 interface Props {
   food: Food | null;
@@ -45,6 +41,7 @@ const nutrStyles = StyleSheet.create({
 
 // ─── Szavazó gombok ───────────────────────────────────────────────────────────
 function VoteButtons({ food, onVoted }: { food: Food; onVoted: (score: number, myVote: 1 | -1 | null) => void }) {
+  const { t } = useTranslation();
   const [myVote, setMyVote] = useState<1 | -1 | null>(food.myVote ?? null);
   const [score, setScore] = useState<number>(food.score ?? 0);
   const [loading, setLoading] = useState(false);
@@ -61,10 +58,10 @@ function VoteButtons({ food, onVoted }: { food: Food; onVoted: (score: number, m
       onVoted(res.score, newMyVote);
 
       if (res.earnedExpertBadge) {
-        Alert.alert('🏆 Szakértő badge!', 'Az étel alkotója megkapta a Szakértő kitűzőt!');
+        Alert.alert(`🏆 ${t('food.expertBadgeTitle')}`, t('food.expertBadgeBody'));
       }
     } catch {
-      Alert.alert('Hiba', 'Nem sikerült leadni a szavazatot.');
+      Alert.alert(t('food.errorTitle'), t('food.voteError'));
     } finally {
       setLoading(false);
     }
@@ -72,7 +69,7 @@ function VoteButtons({ food, onVoted }: { food: Food; onVoted: (score: number, m
 
   return (
     <View style={voteStyles.container}>
-      <Text style={voteStyles.label}>Közösségi értékelés</Text>
+      <Text style={voteStyles.label}>{t('food.communityRating')}</Text>
       <View style={voteStyles.row}>
         {/* Le szavazat */}
         <Pressable
@@ -82,7 +79,7 @@ function VoteButtons({ food, onVoted }: { food: Food; onVoted: (score: number, m
         >
           <Text style={voteStyles.btnEmoji}>👎</Text>
           <Text style={[voteStyles.btnText, myVote === -1 && voteStyles.btnTextDownActive]}>
-            Pontatlan
+            {t('food.inaccurate')}
           </Text>
         </Pressable>
 
@@ -103,7 +100,7 @@ function VoteButtons({ food, onVoted }: { food: Food; onVoted: (score: number, m
               ]}>
                 {score > 0 ? '+' : ''}{score}
               </Text>
-              <Text style={voteStyles.scoreLabel}>pont</Text>
+              <Text style={voteStyles.scoreLabel}>{t('food.points')}</Text>
             </>
           )}
         </View>
@@ -116,7 +113,7 @@ function VoteButtons({ food, onVoted }: { food: Food; onVoted: (score: number, m
         >
           <Text style={voteStyles.btnEmoji}>👍</Text>
           <Text style={[voteStyles.btnText, myVote === 1 && voteStyles.btnTextUpActive]}>
-            Helyes
+            {t('food.accurate')}
           </Text>
         </Pressable>
       </View>
@@ -125,12 +122,12 @@ function VoteButtons({ food, onVoted }: { food: Food; onVoted: (score: number, m
       <View style={voteStyles.statusRow}>
         {food.status === 'VERIFIED' && (
           <View style={voteStyles.verifiedBadge}>
-            <Text style={voteStyles.verifiedText}>✅ Közösségileg ellenőrzött (+5 felett)</Text>
+            <Text style={voteStyles.verifiedText}>✅ {t('food.verifiedStatus')}</Text>
           </View>
         )}
         {food.status === 'UNVERIFIED' && (
           <Text style={voteStyles.unverifiedText}>
-            💡 {5 - (score > 0 ? score : 0)} szavazat hiányzik az ellenőrzöttséghez
+            💡 {t('food.votesToVerify', { count: 5 - (score > 0 ? score : 0) })}
           </Text>
         )}
       </View>
@@ -175,6 +172,7 @@ const voteStyles = StyleSheet.create({
 
 // ─── Fő modal ─────────────────────────────────────────────────────────────────
 export default function FoodDetailModal({ food, visible, onClose, onLogAdded, logSource = 'SEARCH' }: Props) {
+  const { t } = useTranslation();
   const [amount, setAmount] = useState('100');
   const [mealType, setMealType] = useState('OTHER');
   const [adding, setAdding] = useState(false);
@@ -184,6 +182,7 @@ export default function FoodDetailModal({ food, visible, onClose, onLogAdded, lo
   React.useEffect(() => { setCurrentFood(food); }, [food]);
 
   if (!currentFood) return null;
+  const displayName = (i18n.language === 'en' ? currentFood.nameEn : currentFood.nameHu) ?? currentFood.displayName ?? currentFood.name;
 
   const g = parseFloat(amount) || 0;
   const calc = {
@@ -194,12 +193,12 @@ export default function FoodDetailModal({ food, visible, onClose, onLogAdded, lo
   };
 
   const handleAddLog = async () => {
-    if (!g || g <= 0) { Alert.alert('Add meg a mennyiséget!'); return; }
+    if (!g || g <= 0) { Alert.alert(t('food.enterAmount')); return; }
     setAdding(true);
     try {
       await logApi.create({
-        foodId: currentFood.isOFF ? undefined : currentFood.id,
-        foodName: currentFood.name,
+        foodId: currentFood.id,
+        foodName: displayName,
         kcal: calc.kcal,
         protein: calc.protein,
         carbs: calc.carbs,
@@ -214,7 +213,7 @@ export default function FoodDetailModal({ food, visible, onClose, onLogAdded, lo
       onLogAdded?.();
       onClose();
     } catch (e: any) {
-      Alert.alert('Hiba', e.message);
+      Alert.alert(t('food.errorTitle'), e.message);
     } finally {
       setAdding(false);
     }
@@ -227,7 +226,7 @@ export default function FoodDetailModal({ food, visible, onClose, onLogAdded, lo
         <LinearGradient colors={Gradients.cardOrange as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.headerBand}>
           <View style={styles.headerRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.foodName} numberOfLines={2}>{currentFood.name}</Text>
+              <Text style={styles.foodName} numberOfLines={2}>{displayName}</Text>
               {currentFood.brand && <Text style={styles.foodBrand}>{currentFood.brand}</Text>}
             </View>
             <Pressable style={styles.closeBtn} onPress={onClose} hitSlop={10}>
@@ -238,13 +237,7 @@ export default function FoodDetailModal({ food, visible, onClose, onLogAdded, lo
           {/* Badge-ek */}
           <View style={styles.badges}>
             {currentFood.status === 'VERIFIED' && (
-              <View style={styles.badge}><Text style={styles.badgeText}>✅ Ellenőrzött</Text></View>
-            )}
-            {currentFood.isOFF && (
-              <View style={[styles.badge, styles.badgeOFF]}><Text style={styles.badgeText}>🌍 Open Food Facts</Text></View>
-            )}
-            {currentFood.source === 'OFF_NEW' && (
-              <View style={[styles.badge, styles.badgeOFF]}><Text style={styles.badgeText}>🆕 Most mentve</Text></View>
+              <View style={styles.badge}><Text style={styles.badgeText}>✅ {t('food.verified')}</Text></View>
             )}
             {currentFood.creator && (
               <View style={[styles.badge, styles.badgeCreator]}>
@@ -260,13 +253,13 @@ export default function FoodDetailModal({ food, visible, onClose, onLogAdded, lo
         <View style={styles.body}>
           {/* 100g tápértékek */}
           <GlassCardSimple backgroundColor="rgba(255,107,53,0.05)" borderColor="rgba(255,107,53,0.15)">
-            <Text style={styles.sectionTitle}>Tápértékek / 100g</Text>
+            <Text style={styles.sectionTitle}>{t('food.nutritionPer100g')}</Text>
             <View style={styles.nutriGrid}>
               {[
-                { label: 'Kalória', value: currentFood.kcal, unit: ' kcal', color: Colors.primary },
-                { label: 'Fehérje', value: currentFood.protein, unit: 'g', color: Colors.macro.protein },
-                { label: 'Szénhidrát', value: currentFood.carbs, unit: 'g', color: Colors.macro.carbs },
-                { label: 'Zsír', value: currentFood.fat, unit: 'g', color: Colors.macro.fat },
+                { label: t('food.caloriesPer100g'), value: currentFood.kcal, unit: ' kcal', color: Colors.primary },
+                { label: t('food.proteinPer100g'), value: currentFood.protein, unit: 'g', color: Colors.macro.protein },
+                { label: t('food.carbsPer100g'), value: currentFood.carbs, unit: 'g', color: Colors.macro.carbs },
+                { label: t('food.fatPer100g'), value: currentFood.fat, unit: 'g', color: Colors.macro.fat },
               ].map((n) => (
                 <View key={n.label} style={[styles.nutriCard, { borderTopColor: n.color }]}>
                   <Text style={[styles.nutriVal, { color: n.color }]}>{n.value}</Text>
@@ -278,10 +271,10 @@ export default function FoodDetailModal({ food, visible, onClose, onLogAdded, lo
             {(currentFood.fiber != null || currentFood.sugar != null) && (
               <View style={styles.extraNutri}>
                 {currentFood.fiber != null && (
-                  <NutrRow label="Rost" value={currentFood.fiber} unit="g" color={Colors.macro.fiber} />
+                  <NutrRow label={t('food.fiberPer100g')} value={currentFood.fiber} unit="g" color={Colors.macro.fiber} />
                 )}
                 {currentFood.sugar != null && (
-                  <NutrRow label="Cukor" value={currentFood.sugar} unit="g" color={Colors.macro.sugar} />
+                  <NutrRow label={t('food.sugarPer100g')} value={currentFood.sugar} unit="g" color={Colors.macro.sugar} />
                 )}
               </View>
             )}
@@ -289,7 +282,7 @@ export default function FoodDetailModal({ food, visible, onClose, onLogAdded, lo
 
           {/* Mennyiség + adag */}
           <GlassCardSimple>
-            <Text style={styles.sectionTitle}>Mennyiség</Text>
+            <Text style={styles.sectionTitle}>{t('food.amount')}</Text>
             <View style={styles.amountRow}>
               <TextInput
                 style={styles.amountInput}
@@ -300,7 +293,7 @@ export default function FoodDetailModal({ food, visible, onClose, onLogAdded, lo
                 placeholderTextColor={Colors.text.muted}
                 selectTextOnFocus
               />
-              <Text style={styles.amountUnit}>gramm</Text>
+              <Text style={styles.amountUnit}>{t('food.grams')}</Text>
             </View>
 
             {/* Gyors preset gombok */}
@@ -316,7 +309,7 @@ export default function FoodDetailModal({ food, visible, onClose, onLogAdded, lo
                   amount === String(currentFood.servingSize) && styles.presetBtnActive]}
                   onPress={() => setAmount(String(currentFood.servingSize))}>
                   <Text style={[styles.presetText, amount === String(currentFood.servingSize) && styles.presetTextActive]}>
-                    1 adag ({currentFood.servingSize}g)
+                    1 {t('food.serving')} ({currentFood.servingSize}g)
                   </Text>
                 </Pressable>
               )}
@@ -336,14 +329,18 @@ export default function FoodDetailModal({ food, visible, onClose, onLogAdded, lo
 
           {/* Étkezés típusa */}
           <GlassCardSimple>
-            <Text style={styles.sectionTitle}>Étkezés típusa</Text>
+            <Text style={styles.sectionTitle}>{t('food.mealType')}</Text>
             <View style={styles.mealRow}>
               {MEAL_TYPES.map((m) => (
-                <Pressable key={m.value}
-                  style={[styles.mealBtn, mealType === m.value && styles.mealBtnActive]}
-                  onPress={() => setMealType(m.value)}>
-                  <Text style={[styles.mealBtnText, mealType === m.value && styles.mealBtnTextActive]}>
-                    {m.label}
+                <Pressable key={m}
+                  style={[styles.mealBtn, mealType === m && styles.mealBtnActive]}
+                  onPress={() => setMealType(m)}>
+                  <Text style={[styles.mealBtnText, mealType === m && styles.mealBtnTextActive]}>
+                    {m === 'BREAKFAST' && `🌅 ${t('food.breakfast')}`}
+                    {m === 'LUNCH' && `☀️ ${t('food.lunch')}`}
+                    {m === 'DINNER' && `🌙 ${t('food.dinner')}`}
+                    {m === 'SNACK' && `🍎 ${t('food.snack')}`}
+                    {m === 'OTHER' && `🍽️ ${t('food.other')}`}
                   </Text>
                 </Pressable>
               ))}
@@ -351,7 +348,7 @@ export default function FoodDetailModal({ food, visible, onClose, onLogAdded, lo
           </GlassCardSimple>
 
           {/* Szavazás (csak DB ételekre) */}
-          {!currentFood.isOFF && currentFood.id && !currentFood.id.startsWith('off_') && (
+          {currentFood.id && (
             <GlassCardSimple>
               <VoteButtons
                 food={currentFood}
@@ -362,12 +359,12 @@ export default function FoodDetailModal({ food, visible, onClose, onLogAdded, lo
 
           {/* Hozzáadás gomb */}
           <PrimaryButton
-            label="✅  Hozzáadás a naplóhoz"
+            label={`✅  ${t('food.addToLog')}`}
             onPress={handleAddLog}
             loading={adding}
             size="lg"
           />
-          <GhostButton label="Mégse" onPress={onClose} />
+          <GhostButton label={t('common.cancel')} onPress={onClose} />
 
           <View style={{ height: 40 }} />
         </View>

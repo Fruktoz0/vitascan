@@ -64,7 +64,7 @@ export async function createLog(
       return prisma.dailyLog.create({
         data: {
           userId,
-          foodName: food.name,
+          foodName: food.nameHu ?? food.nameEn ?? food.name,
           kcal: Math.round(food.kcal * ratio * 10) / 10,
           protein: Math.round(food.protein * ratio * 10) / 10,
           carbs: Math.round(food.carbs * ratio * 10) / 10,

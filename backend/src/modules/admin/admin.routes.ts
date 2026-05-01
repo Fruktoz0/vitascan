@@ -52,7 +52,13 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
     const where: any = {};
     if (query.status) where.status = query.status;
-    if (query.q) where.name = { contains: query.q, mode: 'insensitive' };
+    if (query.q) {
+      where.OR = [
+        { name: { contains: query.q, mode: 'insensitive' } },
+        { nameHu: { contains: query.q, mode: 'insensitive' } },
+        { nameEn: { contains: query.q, mode: 'insensitive' } },
+      ];
+    }
 
     const [foods, total] = await fastify.prisma.$transaction([
       fastify.prisma.food.findMany({
@@ -73,7 +79,11 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         where: { foodId: food.id },
         _sum: { value: true },
       });
-      return { ...food, score: agg._sum.value ?? 0 };
+      return {
+        ...food,
+        displayName: food.nameHu ?? food.nameEn ?? food.name,
+        score: agg._sum.value ?? 0,
+      };
     }));
 
     return reply.send({ foods: foodsWithScore, total });

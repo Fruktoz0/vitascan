@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, Modal, ScrollView,
-  TextInput, Pressable, Alert, ActivityIndicator,
+  TextInput, Pressable, Alert,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { foodApi } from '../../services/api';
 import { GlassCardSimple } from '../ui/GlassCard';
 import { PrimaryButton, GhostButton } from '../ui/Button';
@@ -18,7 +19,7 @@ interface Props {
 
 interface Field {
   key: string;
-  label: string;
+  labelKey: string;
   placeholder: string;
   required?: boolean;
   keyboard?: 'default' | 'decimal-pad';
@@ -26,21 +27,22 @@ interface Field {
 }
 
 const FIELDS: Field[] = [
-  { key: 'name',    label: 'Étel neve',         placeholder: 'pl. Natúr joghurt', required: true, emoji: '🍽️' },
-  { key: 'brand',   label: 'Márka (opcionális)', placeholder: 'pl. Danone',                        emoji: '🏷️' },
-  { key: 'barcode', label: 'Vonalkód (opcionális)', placeholder: '12345678',                       emoji: '📊' },
+  { key: 'name',    labelKey: 'food.foodName', placeholder: 'e.g. Greek yogurt', required: true, emoji: '🍽️' },
+  { key: 'brand',   labelKey: 'food.brandOptional', placeholder: 'e.g. Danone', emoji: '🏷️' },
+  { key: 'barcode', labelKey: 'food.barcodeOptional', placeholder: '12345678', emoji: '📊' },
 ];
 
 const NUTRI_FIELDS: Field[] = [
-  { key: 'kcal',    label: 'Kalória (kcal/100g)', placeholder: '150',  required: true, keyboard: 'decimal-pad', emoji: '🔥' },
-  { key: 'protein', label: 'Fehérje (g/100g)',     placeholder: '10',  required: true, keyboard: 'decimal-pad', emoji: '💪' },
-  { key: 'carbs',   label: 'Szénhidrát (g/100g)',  placeholder: '20',  required: true, keyboard: 'decimal-pad', emoji: '🌾' },
-  { key: 'fat',     label: 'Zsír (g/100g)',         placeholder: '5',   required: true, keyboard: 'decimal-pad', emoji: '🥑' },
-  { key: 'fiber',   label: 'Rost (g/100g)',         placeholder: '1.5', keyboard: 'decimal-pad', emoji: '🌿' },
-  { key: 'sugar',   label: 'Cukor (g/100g)',        placeholder: '8',   keyboard: 'decimal-pad', emoji: '🍬' },
+  { key: 'kcal',    labelKey: 'food.caloriesPer100g', placeholder: '150',  required: true, keyboard: 'decimal-pad', emoji: '🔥' },
+  { key: 'protein', labelKey: 'food.proteinPer100g', placeholder: '10',  required: true, keyboard: 'decimal-pad', emoji: '💪' },
+  { key: 'carbs',   labelKey: 'food.carbsPer100g', placeholder: '20',  required: true, keyboard: 'decimal-pad', emoji: '🌾' },
+  { key: 'fat',     labelKey: 'food.fatPer100g', placeholder: '5',   required: true, keyboard: 'decimal-pad', emoji: '🥑' },
+  { key: 'fiber',   labelKey: 'food.fiberPer100g', placeholder: '1.5', keyboard: 'decimal-pad', emoji: '🌿' },
+  { key: 'sugar',   labelKey: 'food.sugarPer100g', placeholder: '8',   keyboard: 'decimal-pad', emoji: '🍬' },
 ];
 
 export default function AddFoodManualModal({ visible, prefillBarcode, prefillName, onClose, onCreated }: Props) {
+  const { t } = useTranslation();
   const [values, setValues] = useState<Record<string, string>>({
     name: prefillName ?? '',
     barcode: prefillBarcode ?? '',
@@ -54,7 +56,7 @@ export default function AddFoodManualModal({ visible, prefillBarcode, prefillNam
     const missing = [...FIELDS, ...NUTRI_FIELDS]
       .filter((f) => f.required && !values[f.key]?.trim());
     if (missing.length) {
-      Alert.alert('Hiányzó adatok', `Töltsd ki: ${missing.map((f) => f.label).join(', ')}`);
+      Alert.alert(t('food.missingDataTitle'), t('food.fillFields', { fields: missing.map((f) => t(f.labelKey)).join(', ') }));
       return;
     }
 
@@ -70,12 +72,12 @@ export default function AddFoodManualModal({ visible, prefillBarcode, prefillNam
         fat: parseFloat(values.fat),
         fiber: values.fiber ? parseFloat(values.fiber) : undefined,
         sugar: values.sugar ? parseFloat(values.sugar) : undefined,
-        source: 'MANUAL',
+        source: 'USER_SCAN',
       });
       onCreated?.(food);
       onClose();
     } catch (e: any) {
-      Alert.alert('Hiba', e.message);
+      Alert.alert(t('food.errorTitle'), e.message);
     } finally {
       setSaving(false);
     }
@@ -85,20 +87,19 @@ export default function AddFoodManualModal({ visible, prefillBarcode, prefillNam
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <Text style={styles.title}>➕ Étel hozzáadása</Text>
+          <Text style={styles.title}>➕ {t('food.manualAddTitle')}</Text>
           <Text style={styles.subtitle}>
-            A manuálisan hozzáadott ételek UNVERIFIED státuszban kerülnek be,
-            a közösség szavazásával válnak ellenőrzötté.
+            {t('food.manualAddSubtitle')}
           </Text>
         </View>
 
         <View style={styles.body}>
           {/* Alap adatok */}
           <GlassCardSimple>
-            <Text style={styles.sectionLabel}>Alapadatok</Text>
+            <Text style={styles.sectionLabel}>{t('food.baseData')}</Text>
             {FIELDS.map((f) => (
               <View key={f.key} style={styles.fieldWrap}>
-                <Text style={styles.fieldLabel}>{f.emoji} {f.label}{f.required ? ' *' : ''}</Text>
+                <Text style={styles.fieldLabel}>{f.emoji} {t(f.labelKey)}{f.required ? ' *' : ''}</Text>
                 <TextInput
                   style={styles.input}
                   value={values[f.key] ?? ''}
@@ -113,11 +114,11 @@ export default function AddFoodManualModal({ visible, prefillBarcode, prefillNam
 
           {/* Tápértékek */}
           <GlassCardSimple>
-            <Text style={styles.sectionLabel}>Tápértékek / 100g</Text>
+            <Text style={styles.sectionLabel}>{t('food.nutritionPer100g')}</Text>
             <View style={styles.nutriGrid}>
               {NUTRI_FIELDS.map((f) => (
                 <View key={f.key} style={styles.nutriFieldWrap}>
-                  <Text style={styles.fieldLabel}>{f.emoji} {f.label}{f.required ? ' *' : ''}</Text>
+                  <Text style={styles.fieldLabel}>{f.emoji} {t(f.labelKey)}{f.required ? ' *' : ''}</Text>
                   <TextInput
                     style={styles.input}
                     value={values[f.key] ?? ''}
@@ -134,13 +135,12 @@ export default function AddFoodManualModal({ visible, prefillBarcode, prefillNam
           {/* Info */}
           <View style={styles.infoBox}>
             <Text style={styles.infoText}>
-              💡 Az adatokat 100 grammra vonatkoztatva add meg.
-              A közösség +5 szavazat felett ellenőrzöttnek minősíti.
+              💡 {t('food.infoPer100g')}
             </Text>
           </View>
 
-          <PrimaryButton label="💾  Beküldés" onPress={handleSave} loading={saving} size="lg" />
-          <GhostButton label="Mégse" onPress={onClose} />
+          <PrimaryButton label={`💾  ${t('food.submit')}`} onPress={handleSave} loading={saving} size="lg" />
+          <GhostButton label={t('common.cancel')} onPress={onClose} />
           <View style={{ height: 40 }} />
         </View>
       </ScrollView>

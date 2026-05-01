@@ -7,6 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import AnimatedMeshBackground from '../../src/components/ui/AnimatedMeshBackground';
 import { GlassCardSimple } from '../../src/components/ui/GlassCard';
 import { PrimaryButton } from '../../src/components/ui/Button';
@@ -53,6 +54,7 @@ const inputStyles = StyleSheet.create({
 });
 
 export default function RegisterScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const register = useAuthStore((s) => s.register);
 
@@ -76,16 +78,16 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
     if (!username.trim() || !email.trim() || !password) {
-      shake(); Alert.alert('Hiányzó adatok', 'Kérjük töltsd ki az összes mezőt.'); return;
+      shake(); Alert.alert(t('auth.missingDataTitle'), t('auth.registerMissingData')); return;
     }
     if (password !== password2) {
-      shake(); Alert.alert('Jelszó hiba', 'A két jelszó nem egyezik meg.'); return;
+      shake(); Alert.alert(t('auth.passwordErrorTitle'), t('auth.passwordMismatch')); return;
     }
     if (password.length < 8) {
-      shake(); Alert.alert('Gyenge jelszó', 'A jelszó legalább 8 karakter legyen.'); return;
+      shake(); Alert.alert(t('auth.weakPasswordTitle'), t('auth.weakPasswordMessage')); return;
     }
     if (!accepted) {
-      shake(); Alert.alert('GDPR', 'Az adatkezelési tájékoztató elfogadása kötelező.'); return;
+      shake(); Alert.alert(t('auth.gdprTitle'), t('auth.gdprRequired')); return;
     }
     setLoading(true);
     try {
@@ -93,8 +95,8 @@ export default function RegisterScreen() {
       router.replace('/');
     } catch (err) {
       shake();
-      const msg = err instanceof ApiError ? err.message : 'Ismeretlen hiba.';
-      Alert.alert('Sikertelen regisztráció', msg);
+      const msg = err instanceof ApiError ? err.message : t('unknownError');
+      Alert.alert(t('auth.registerFailedTitle'), msg);
     } finally {
       setLoading(false);
     }
@@ -103,9 +105,9 @@ export default function RegisterScreen() {
   // Jelszó erősség jelző
   const pwStrength = (() => {
     if (!password) return null;
-    if (password.length < 6) return { label: 'Gyenge', color: '#E74C3C', pct: 0.25 };
-    if (password.length < 10) return { label: 'Közepes', color: '#F5A623', pct: 0.6 };
-    return { label: 'Erős', color: '#2ECC71', pct: 1 };
+    if (password.length < 6) return { label: t('auth.passwordWeak'), color: '#E74C3C', pct: 0.25 };
+    if (password.length < 10) return { label: t('auth.passwordMedium'), color: '#F5A623', pct: 0.6 };
+    return { label: t('auth.passwordStrong'), color: '#2ECC71', pct: 1 };
   })();
 
   return (
@@ -132,7 +134,7 @@ export default function RegisterScreen() {
                 <Text style={styles.logoEmoji}>🥗</Text>
               </LinearGradient>
               <Text style={styles.appName}>VitaScan</Text>
-              <Text style={styles.tagline}>Csatlakozz a közösséghez!</Text>
+              <Text style={styles.tagline}>{t('auth.joinCommunity')}</Text>
             </View>
 
             {/* Kártya */}
@@ -144,25 +146,25 @@ export default function RegisterScreen() {
                 radius={Radius['3xl']}
                 style={styles.card}
               >
-                <Text style={styles.cardTitle}>Regisztráció</Text>
+                <Text style={styles.cardTitle}>{t('register')}</Text>
 
                 <View style={styles.fields}>
                   <GlassInput
-                    label="Felhasználónév"
+                    label={t('username')}
                     value={username}
                     onChange={setUsername}
-                    placeholder="pl. kovacs_peter"
+                    placeholder={t('auth.usernamePlaceholder')}
                   />
                   <GlassInput
-                    label="Email cím"
+                    label={t('email')}
                     value={email}
                     onChange={setEmail}
-                    placeholder="pelda@email.com"
+                    placeholder={t('auth.emailPlaceholder')}
                     keyboardType="email-address"
                   />
                   <View>
                     <GlassInput
-                      label="Jelszó (min. 8 karakter)"
+                      label={t('auth.passwordMin')}
                       value={password}
                       onChange={setPassword}
                       placeholder="••••••••"
@@ -179,14 +181,14 @@ export default function RegisterScreen() {
                     )}
                   </View>
                   <GlassInput
-                    label="Jelszó megerősítése"
+                    label={t('auth.confirmPassword')}
                     value={password2}
                     onChange={setPassword2}
                     placeholder="••••••••"
                     secure
                   />
                   {password2 !== '' && password !== password2 && (
-                    <Text style={styles.mismatch}>⚠️ A jelszavak nem egyeznek</Text>
+                    <Text style={styles.mismatch}>⚠️ {t('auth.passwordMismatchInline')}</Text>
                   )}
                 </View>
 
@@ -199,14 +201,14 @@ export default function RegisterScreen() {
                     {accepted && <Text style={styles.checkmark}>✓</Text>}
                   </LinearGradient>
                   <Text style={styles.checkText}>
-                    Elfogadom az{' '}
-                    <Text style={styles.checkLink}>adatkezelési tájékoztatót</Text>
+                    {t('auth.acceptPrefix')}{' '}
+                    <Text style={styles.checkLink}>{t('auth.privacyPolicy')}</Text>
                     {' '}(GDPR)
                   </Text>
                 </Pressable>
 
                 <PrimaryButton
-                  label="Regisztráció →"
+                  label={t('auth.registerArrow')}
                   onPress={handleRegister}
                   loading={loading}
                   disabled={!accepted}
@@ -217,10 +219,10 @@ export default function RegisterScreen() {
 
             {/* Login link */}
             <View style={styles.footer}>
-              <Text style={styles.footerText}>Már van fiókod? </Text>
+              <Text style={styles.footerText}>{t('auth.hasAccount')} </Text>
               <Link href="/auth/login" asChild>
                 <Pressable hitSlop={8}>
-                  <Text style={styles.footerLink}>Bejelentkezés →</Text>
+                  <Text style={styles.footerLink}>{t('auth.loginLink')}</Text>
                 </Pressable>
               </Link>
             </View>

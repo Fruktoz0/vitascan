@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { Colors, Radius, Shadows, Typography } from '../../design/tokens';
 import { GlassCardSimple } from './GlassCard';
 
@@ -13,6 +14,7 @@ interface WaterProgressBarProps {
 const QUICK_ADD = [200, 300, 500];
 
 export default function WaterProgressBar({ totalMl, goalMl, onAdd }: WaterProgressBarProps) {
+  const { t } = useTranslation();
   const pct = Math.min(totalMl / goalMl, 1);
   const done = totalMl >= goalMl;
   const widthAnim = useRef(new Animated.Value(0)).current;
@@ -40,8 +42,8 @@ export default function WaterProgressBar({ totalMl, goalMl, onAdd }: WaterProgre
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Text style={styles.dropEmoji}>💧</Text>
-          <Text style={styles.title}>Vízfogyasztás</Text>
-          {done && <Text style={styles.doneBadge}>✅ Cél elérve!</Text>}
+          <Text style={styles.title}>{t('waterScreen.title')}</Text>
+          {done && <Text style={styles.doneBadge}>✅ {t('waterScreen.goalReached')}</Text>}
         </View>
         <Text style={styles.amount}>
           <Text style={[styles.current, done && styles.currentDone]}>
@@ -101,12 +103,12 @@ export default function WaterProgressBar({ totalMl, goalMl, onAdd }: WaterProgre
       {/* Motiváló szöveg */}
       <Text style={styles.motivation}>
         {pct === 0
-          ? '🌱 Kezdj el inni! A hidratálás az alap.'
+          ? `🌱 ${t('waterScreen.motivationStart')}`
           : pct < 0.5
-          ? `💪 Csak ${goalMl - totalMl}ml hiányzik a feléig!`
+          ? `💪 ${t('waterScreen.motivationHalf', { amount: goalMl - totalMl })}`
           : pct < 1
-          ? `🎯 Már majdnem ott vagy! Még ${goalMl - totalMl}ml.`
-          : '🏆 Fantasztikus! Elérted a napi vízfogyasztási célodat!'}
+          ? `🎯 ${t('waterScreen.motivationAlmost', { amount: goalMl - totalMl })}`
+          : `🏆 ${t('waterScreen.motivationDone')}`}
       </Text>
     </GlassCardSimple>
   );

@@ -4,6 +4,7 @@ import {
   KeyboardAvoidingView, Platform, ScrollView, ViewStyle, StyleProp,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import AnimatedMeshBackground from '../ui/AnimatedMeshBackground';
 import { GlassCardSimple } from '../ui/GlassCard';
 import { PrimaryButton, GhostButton } from '../ui/Button';
@@ -87,14 +88,17 @@ interface OnboardingShellProps {
 export default function OnboardingShell({
   step, total, children, cardStyle,
   onNext, onSkip, onBack,
-  nextLabel = 'Tovább →',
-  skipLabel = 'Kihagyom',
+  nextLabel,
+  skipLabel,
   nextDisabled = false,
   nextLoading = false,
   hideBack = false,
   hideSkip = false,
   scrollable = false,
 }: OnboardingShellProps) {
+  const { t } = useTranslation();
+  const resolvedNextLabel = nextLabel ?? t('onboarding.next');
+  const resolvedSkipLabel = skipLabel ?? t('onboarding.skip');
   const Content = (
     <View style={shellStyles.inner}>
       <OnboardingProgressBar step={step} total={total} />
@@ -113,14 +117,14 @@ export default function OnboardingShell({
       <View style={shellStyles.btnRow}>
         {!hideSkip && onSkip && (
           <GhostButton
-            label={skipLabel}
+            label={resolvedSkipLabel}
             onPress={onSkip}
             style={shellStyles.skipBtn}
           />
         )}
         {onNext && (
           <PrimaryButton
-            label={nextLabel}
+            label={resolvedNextLabel}
             onPress={onNext}
             disabled={nextDisabled}
             loading={nextLoading}
@@ -131,7 +135,7 @@ export default function OnboardingShell({
 
       {!hideBack && onBack && (
         <Pressable onPress={onBack} style={shellStyles.backBtn} hitSlop={12}>
-          <Text style={shellStyles.backText}>← Vissza</Text>
+          <Text style={shellStyles.backText}>{t('onboarding.back')}</Text>
         </Pressable>
       )}
     </View>

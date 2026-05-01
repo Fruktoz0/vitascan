@@ -2,13 +2,15 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authenticate } from '../../middleware/authenticate';
 import { scanLimitGuard } from '../../middleware/tierGuard';
-import { fetchOFFByBarcode, searchOFF } from '../../services/openFoodFacts';
+import { fetchOFFByBarcode } from '../../services/openFoodFacts';
 import { checkProfanity } from '../../utils/profanity';
 
 // ─── Validation schemas ───────────────────────────────────────────────────────
 
 const CreateFoodSchema = z.object({
   name: z.string().min(2).max(120),
+  nameHu: z.string().min(2).max(120).optional(),
+  nameEn: z.string().min(2).max(120).optional(),
   brand: z.string().max(80).optional(),
   barcode: z.string().max(30).optional(),
   kcal: z.number().min(0).max(10000),
@@ -19,7 +21,7 @@ const CreateFoodSchema = z.object({
   sugar: z.number().min(0).max(1000).optional(),
   servingSize: z.number().min(0).optional(),
   servingUnit: z.string().max(20).optional(),
-  source: z.enum(['MANUAL', 'OFF', 'SCAN']).default('MANUAL'),
+  source: z.enum(['INTERNAL', 'USER_SCAN', 'EXTERNAL_API']).default('USER_SCAN'),
 });
 
 const VoteSchema = z.object({
@@ -30,11 +32,11 @@ const VoteSchema = z.object({
 
 export default async function foodRoutes(fastify: FastifyInstance) {
 
-  // GET /foods — keresés (saját DB + opcionálisan OFF fallback)
+  // GET /foods — keresés (kétnyelvű + hitelességi rangsor)
   fastify.get('/', {
     preHandler: [authenticate],
   }, async (req, reply) => {
-    const { q = '', status, limit = '20', offset = '0', includeOFF = 'false' } =
+    const { q = '', status, limit = '20', offset = '0' } =
       req.query as any;
 
     const prisma = (fastify as any).prisma;
@@ -45,16 +47,16 @@ export default async function foodRoutes(fastify: FastifyInstance) {
     if (q) {
       where.OR = [
         { name: { contains: q, mode: 'insensitive' } },
+        { nameHu: { contains: q, mode: 'insensitive' } },
+        { nameEn: { contains: q, mode: 'insensitive' } },
         { brand: { contains: q, mode: 'insensitive' } },
       ];
     }
 
-    const [foods, total] = await Promise.all([
+    const [foodsRaw, total] = await Promise.all([
       prisma.food.findMany({
         where,
-        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-        take: parseInt(limit),
-        skip: parseInt(offset),
+        orderBy: { createdAt: 'desc' },
         include: {
           creator: { select: { username: true, reputation: true } },
           _count: { select: { votes: true } },
@@ -63,29 +65,30 @@ export default async function foodRoutes(fastify: FastifyInstance) {
       prisma.food.count({ where }),
     ]);
 
-    // Ha kevés a DB találat és includeOFF=true → kiegészítjük OFF-ból
-    let offResults: any[] = [];
-    if (q && includeOFF === 'true' && foods.length < 5) {
-      try {
-        const offItems = await searchOFF(q);
-        offResults = offItems.map((item) => ({
-          ...item,
-          id: `off_${item.barcode ?? Math.random().toString(36).slice(2)}`,
-          status: 'UNVERIFIED',
-          tier: 'FREE',
-          isOFF: true,
-          votes: [],
-          _count: { votes: 0 },
-        }));
-      } catch {
-        // OFF hiba esetén csendben továbblépünk
-      }
-    }
+    const rankBySourceAndStatus = (food: any) => {
+      if (food.source === 'INTERNAL') return 0;
+      if (food.source === 'USER_SCAN' && food.status === 'VERIFIED') return 1;
+      if (food.source === 'EXTERNAL_API') return 2;
+      if (food.source === 'USER_SCAN' && food.status === 'UNVERIFIED') return 3;
+      return 4;
+    };
+
+    const foods = foodsRaw
+      .slice()
+      .sort((a: any, b: any) => {
+        const rankDiff = rankBySourceAndStatus(a) - rankBySourceAndStatus(b);
+        if (rankDiff !== 0) return rankDiff;
+        return b.createdAt.getTime() - a.createdAt.getTime();
+      })
+      .slice(parseInt(offset), parseInt(offset) + parseInt(limit))
+      .map((food: any) => ({
+        ...food,
+        displayName: food.nameHu ?? food.nameEn ?? food.name,
+      }));
 
     return reply.send({
-      foods: [...foods, ...offResults],
-      total: total + offResults.length,
-      offCount: offResults.length,
+      foods,
+      total,
     });
   });
 
@@ -122,6 +125,8 @@ export default async function foodRoutes(fastify: FastifyInstance) {
       const saved = await prisma.food.create({
         data: {
           name: offFood.name,
+          nameHu: offFood.name,
+          nameEn: offFood.name,
           brand: offFood.brand,
           barcode: offFood.barcode,
           kcal: offFood.kcal,
@@ -134,6 +139,7 @@ export default async function foodRoutes(fastify: FastifyInstance) {
           servingUnit: offFood.servingUnit,
           status: 'UNVERIFIED',
           tier: 'FREE',
+          source: 'EXTERNAL_API',
           creatorId: user.id,
         },
         include: {
@@ -141,10 +147,10 @@ export default async function foodRoutes(fastify: FastifyInstance) {
           _count: { select: { votes: true } },
         },
       });
-      return reply.send({ ...saved, source: 'OFF_NEW' });
+      return reply.send({ ...saved, source: 'EXTERNAL_API' });
     } catch {
       // Ha barcode unique conflict → visszaadjuk az OFF adatot mentés nélkül
-      return reply.send({ ...offFood, id: `off_${barcode}`, source: 'OFF', status: 'UNVERIFIED', tier: 'FREE' });
+      return reply.send({ ...offFood, id: `off_${barcode}`, source: 'EXTERNAL_API', status: 'UNVERIFIED', tier: 'FREE' });
     }
   });
 
@@ -163,7 +169,15 @@ export default async function foodRoutes(fastify: FastifyInstance) {
     const prisma = (fastify as any).prisma;
 
     const food = await prisma.food.create({
-      data: { ...body, status: 'UNVERIFIED', tier: 'FREE', creatorId: user.id },
+      data: {
+        ...body,
+        nameHu: body.nameHu ?? body.name,
+        nameEn: body.nameEn ?? body.name,
+        status: 'UNVERIFIED',
+        tier: 'FREE',
+        source: body.source ?? 'USER_SCAN',
+        creatorId: user.id,
+      },
     });
 
     return reply.status(201).send(food);

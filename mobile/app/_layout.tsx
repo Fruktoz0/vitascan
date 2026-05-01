@@ -2,6 +2,8 @@ import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuthStore } from '../src/stores/authStore';
+import '../src/i18n';
+import { initializeLanguage } from '../src/i18n';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Ignoráljuk a hibát, ha a SplashScreen nem létezik (pl. web, vagy fast refresh)
@@ -11,7 +13,7 @@ export default function RootLayout() {
   const { restoreSession, isLoading } = useAuthStore();
 
   useEffect(() => {
-    restoreSession().finally(() => {
+    Promise.all([restoreSession(), initializeLanguage()]).finally(() => {
       SplashScreen.hideAsync().catch(() => {
         // Ignoráljuk a hibát, ha a SplashScreen nem létezik (pl. web, vagy fast refresh)
       });

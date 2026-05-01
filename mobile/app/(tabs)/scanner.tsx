@@ -15,6 +15,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 
 import { foodApi, Food, ApiError } from '../../src/services/api';
 import FoodDetailModal from '../../src/components/food/FoodDetailModal';
@@ -28,6 +29,7 @@ type ScanState = 'idle' | 'scanning' | 'found' | 'not_found' | 'error';
  * Ultra-optimalizált verzió: a kamera leáll, ha modális ablak van nyitva vagy elnavigálunk.
  */
 function ScannerScreen() {
+  const { t } = useTranslation();
   const isFocused = useIsFocused();
   const [permission, requestPermission] = useCameraPermissions();
   const router = useRouter();
@@ -103,12 +105,12 @@ function ScannerScreen() {
         <SafeAreaView style={styles.permInner}>
           <View style={styles.permCard}>
             <Text style={styles.permEmoji}>📷</Text>
-            <Text style={styles.permTitle}>Kamera szükséges</Text>
+            <Text style={styles.permTitle}>{t('scannerScreen.cameraRequired')}</Text>
             <Text style={styles.permDesc}>
-              Engedélyezd a kamerát a vonalkódok beolvasásához.
+              {t('scannerScreen.cameraDesc')}
             </Text>
             <Pressable style={styles.permBtn} onPress={requestPermission}>
-              <Text style={styles.permBtnText}>Engedélyezés</Text>
+              <Text style={styles.permBtnText}>{t('scannerScreen.allow')}</Text>
             </Pressable>
           </View>
         </SafeAreaView>
@@ -157,7 +159,7 @@ function ScannerScreen() {
             {scanState === 'scanning' && (
               <View style={styles.stateOverlay}>
                 <ActivityIndicator color="#fff" size="large" />
-                <Text style={styles.stateText}>Elemzés...</Text>
+                <Text style={styles.stateText}>{t('scannerScreen.analyzing')}</Text>
               </View>
             )}
           </View>
@@ -167,25 +169,25 @@ function ScannerScreen() {
 
         <View style={styles.bottomPanel}>
           <Text style={styles.scanHint}>
-            {scanState === 'idle' ? 'Irányítsd a kamerát a vonalkódra' : 'Folyamatban...'}
+            {scanState === 'idle' ? t('scannerScreen.aimBarcode') : t('scannerScreen.inProgress')}
           </Text>
 
           {scanState === 'not_found' && (
             <View style={styles.actionRow}>
               <Pressable style={styles.actionBtn} onPress={() => setManualVisible(true)}>
                 <Text style={styles.actionBtnEmoji}>✏️</Text>
-                <Text style={styles.actionBtnText}>Új étel</Text>
+                <Text style={styles.actionBtnText}>{t('scannerScreen.newFood')}</Text>
               </Pressable>
               <Pressable style={styles.actionBtn} onPress={resetScan}>
                 <Text style={styles.actionBtnEmoji}>🔄</Text>
-                <Text style={styles.actionBtnText}>Mégse</Text>
+                <Text style={styles.actionBtnText}>{t('common.cancel')}</Text>
               </Pressable>
             </View>
           )}
 
           {scanState === 'idle' && (
             <Pressable style={styles.manualLink} onPress={() => router.push('/(tabs)/food-library')}>
-              <Text style={styles.manualLinkText}>🔍 Kézi keresés</Text>
+              <Text style={styles.manualLinkText}>🔍 {t('scannerScreen.manualSearch')}</Text>
             </Pressable>
           )}
         </View>

@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import i18n from '../../src/i18n';
 
 import AnimatedMeshBackground from '../../src/components/ui/AnimatedMeshBackground';
 import { GlassCardSimple } from '../../src/components/ui/GlassCard';
@@ -79,6 +80,7 @@ export default function HomeScreen() {
     if (h < 18) return t('goodAfternoon');
     return t('goodEvening');
   };
+  const locale = i18n.language === 'en' ? 'en-US' : 'hu-HU';
 
   if (loading) {
     return (
@@ -109,7 +111,7 @@ export default function HomeScreen() {
             <View>
               <Text style={styles.greeting}>{greeting()}, {user?.username?.split('_')[0]} 👋</Text>
               <Text style={styles.dateText}>
-                {new Date().toLocaleDateString('hu-HU', { weekday: 'long', month: 'long', day: 'numeric' })}
+                {new Date().toLocaleDateString(locale, { weekday: 'long', month: 'long', day: 'numeric' })}
               </Text>
             </View>
             <View style={styles.headerRight}>
@@ -130,14 +132,14 @@ export default function HomeScreen() {
             borderColor="rgba(255,255,255,0.35)"
             style={[styles.kcalCard, Shadows.primary]}
           >
-            <Text style={styles.kcalCardLabel}>Napi kalória</Text>
+            <Text style={styles.kcalCardLabel}>{t('homeScreen.dailyCalories')}</Text>
             <View style={styles.kcalRingRow}>
               <KcalRing consumed={totals.kcal} goal={goals.dailyKcalGoal} size={170} strokeWidth={14} />
               <View style={styles.kcalStats}>
                 {[
-                  { num: goals.dailyKcalGoal, label: 'Cél' },
-                  { num: Math.round(totals.kcal), label: 'Elfogyasztva' },
-                  { num: Math.abs(Math.round(goals.dailyKcalGoal - totals.kcal)), label: totals.kcal > goals.dailyKcalGoal ? 'Felett' : 'Maradt' },
+                  { num: goals.dailyKcalGoal, label: t('homeScreen.goal') },
+                  { num: Math.round(totals.kcal), label: t('homeScreen.consumed') },
+                  { num: Math.abs(Math.round(goals.dailyKcalGoal - totals.kcal)), label: totals.kcal > goals.dailyKcalGoal ? t('homeScreen.over') : t('homeScreen.remaining') },
                 ].map((item, i) => (
                   <React.Fragment key={i}>
                     {i > 0 && <View style={styles.kcalDivider} />}
@@ -164,12 +166,12 @@ export default function HomeScreen() {
           )}
 
           {/* Hozzáadás gomb */}
-          <PrimaryButton label="+ Étel hozzáadása" onPress={() => router.push('/(tabs)/scanner')} size="lg" icon="📸" />
+          <PrimaryButton label={t('homeScreen.addFoodCta')} onPress={() => router.push('/(tabs)/scanner')} size="lg" icon="📸" />
 
           {/* Mai étkezések */}
           {sortedMeals.length > 0 ? (
             <View style={styles.mealsSection}>
-              <Text style={styles.mealsTitle}>Mai étkezések</Text>
+              <Text style={styles.mealsTitle}>{t('homeScreen.todayMeals')}</Text>
               {sortedMeals.map((mealType) => (
                 <MealCard key={mealType} mealType={mealType} logs={byMealType[mealType]} onDeleteLog={handleDeleteLog} />
               ))}
@@ -177,8 +179,8 @@ export default function HomeScreen() {
           ) : (
             <GlassCardSimple style={styles.emptyCard}>
               <Text style={styles.emptyEmoji}>🍽️</Text>
-              <Text style={styles.emptyTitle}>Még nincs mai bejegyzés</Text>
-              <Text style={styles.emptyDesc}>Szkennelj egy vonalkódot, vagy keress az étel-könyvtárban!</Text>
+              <Text style={styles.emptyTitle}>{t('homeScreen.noEntries')}</Text>
+              <Text style={styles.emptyDesc}>{t('homeScreen.noEntriesDesc')}</Text>
             </GlassCardSimple>
           )}
 

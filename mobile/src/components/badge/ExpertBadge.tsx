@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { Colors, Radius, Spacing, Typography } from '../../design/tokens';
 
 // ─── Reputáció szintek ────────────────────────────────────────────────────────
@@ -41,6 +42,7 @@ interface BadgeProps {
 }
 
 export function ExpertBadge({ reputation, size = 'md', showLabel = true }: BadgeProps) {
+  const { t } = useTranslation();
   const level = getReputationLevel(reputation);
   if (reputation < REPUTATION_LEVELS[2].minRep) return null; // Aktív szint alatt nincs badge
 
@@ -58,7 +60,7 @@ export function ExpertBadge({ reputation, size = 'md', showLabel = true }: Badge
       <Text style={{ fontSize }}>{level.emoji}</Text>
       {showLabel && (
         <Text style={[badgeStyles.label, { fontSize: textSize, color: '#fff' }]}>
-          {level.label}
+          {t(`reputation.level.${level.label}`)}
         </Text>
       )}
     </LinearGradient>
@@ -78,6 +80,7 @@ interface ReputationCardProps {
 }
 
 export function ReputationCard({ reputation, username }: ReputationCardProps) {
+  const { t } = useTranslation();
   const level = getReputationLevel(reputation);
   const nextLevel = getNextLevel(reputation);
   const progressToNext = nextLevel
@@ -107,7 +110,7 @@ export function ReputationCard({ reputation, username }: ReputationCardProps) {
       <View style={cardStyles.header}>
         <Text style={cardStyles.emoji}>{level.emoji}</Text>
         <View>
-          <Text style={cardStyles.levelLabel}>{level.label}</Text>
+          <Text style={cardStyles.levelLabel}>{t(`reputation.level.${level.label}`)}</Text>
           <Text style={cardStyles.username}>{username}</Text>
         </View>
         <Animated.Text style={cardStyles.repNum}>
@@ -121,13 +124,13 @@ export function ReputationCard({ reputation, username }: ReputationCardProps) {
           <Animated.View style={[cardStyles.progressFill, { width: animWidth }]} />
         </View>
         <View style={cardStyles.progressLabels}>
-          <Text style={cardStyles.progressCurrent}>{level.label} ({level.minRep}+ pont)</Text>
+          <Text style={cardStyles.progressCurrent}>{t(`reputation.level.${level.label}`)} ({level.minRep}+ {t('reputation.points')})</Text>
           {nextLevel ? (
             <Text style={cardStyles.progressNext}>
-              {nextLevel.emoji} {nextLevel.label} ({nextLevel.minRep} pont)
+              {nextLevel.emoji} {t(`reputation.level.${nextLevel.label}`)} ({nextLevel.minRep} {t('reputation.points')})
             </Text>
           ) : (
-            <Text style={cardStyles.progressNext}>🌟 Max szint elérve!</Text>
+            <Text style={cardStyles.progressNext}>🌟 {t('reputation.maxLevelReached')}</Text>
           )}
         </View>
       </View>
@@ -135,10 +138,10 @@ export function ReputationCard({ reputation, username }: ReputationCardProps) {
       {/* Szint leírása */}
       <Text style={cardStyles.howTo}>
         {reputation < 3
-          ? '💡 Küldj be ételeket, és kapj pozitív szavazatokat a pontjaid növeléséhez!'
+          ? `💡 ${t('reputation.howToStart')}`
           : nextLevel
-          ? `Még ${nextLevel.minRep - reputation} pont a ${nextLevel.emoji} ${nextLevel.label} szintig.`
-          : '🏆 Elérted a legmagasabb szintet. Köszönjük a hozzájárulásod!'}
+          ? t('reputation.pointsToNext', { count: nextLevel.minRep - reputation, emoji: nextLevel.emoji, level: t(`reputation.level.${nextLevel.label}`) })
+          : `🏆 ${t('reputation.maxThanks')}`}
       </Text>
     </LinearGradient>
   );
@@ -170,9 +173,10 @@ const cardStyles = StyleSheet.create({
 // ─── ReputationLevelsGuide — minden szint megjelenítése ───────────────────────
 
 export function ReputationLevelsGuide({ currentRep }: { currentRep: number }) {
+  const { t } = useTranslation();
   return (
     <View style={guideStyles.container}>
-      <Text style={guideStyles.title}>Reputáció szintek</Text>
+      <Text style={guideStyles.title}>{t('reputation.levelsTitle')}</Text>
       {REPUTATION_LEVELS.map((level) => {
         const reached = currentRep >= level.minRep;
         const isCurrent = getReputationLevel(currentRep).label === level.label;
@@ -181,13 +185,13 @@ export function ReputationLevelsGuide({ currentRep }: { currentRep: number }) {
             <Text style={guideStyles.emoji}>{level.emoji}</Text>
             <View style={{ flex: 1 }}>
               <Text style={[guideStyles.levelName, reached && guideStyles.levelNameReached]}>
-                {level.label}
+                {t(`reputation.level.${level.label}`)}
               </Text>
-              <Text style={guideStyles.minRep}>{level.minRep}+ reputáció pont</Text>
+              <Text style={guideStyles.minRep}>{level.minRep}+ {t('reputation.reputationPoints')}</Text>
             </View>
             {isCurrent && (
               <View style={guideStyles.currentBadge}>
-                <Text style={guideStyles.currentText}>Jelenlegi</Text>
+                <Text style={guideStyles.currentText}>{t('reputation.current')}</Text>
               </View>
             )}
             {reached && !isCurrent && <Text style={guideStyles.checkMark}>✓</Text>}

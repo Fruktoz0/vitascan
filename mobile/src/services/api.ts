@@ -102,6 +102,9 @@ export type FoodStatus = 'UNVERIFIED' | 'VERIFIED' | 'BANNED';
 export interface Food {
   id: string;
   name: string;
+  nameHu?: string;
+  nameEn?: string;
+  displayName?: string;
   brand?: string;
   barcode?: string;
   kcal: number;
@@ -114,18 +117,17 @@ export interface Food {
   servingUnit?: string;
   status: FoodStatus;
   tier: 'FREE' | 'PREMIUM';
-  isOFF?: boolean;
   score?: number;
   myVote?: 1 | -1 | null;
-  source?: 'DB' | 'OFF' | 'OFF_NEW' | 'MANUAL' | 'SCAN' | 'SEARCH';
+  source?: 'INTERNAL' | 'USER_SCAN' | 'EXTERNAL_API' | 'MANUAL' | 'SCAN' | 'SEARCH';
   creator?: { username: string; reputation: number };
   _count?: { votes: number };
 }
 
 export const foodApi = {
   search: (q: string, opts?: { limit?: number; offset?: number; includeOFF?: boolean }) => {
-    const p = new URLSearchParams({ q, limit: String(opts?.limit ?? 20), offset: String(opts?.offset ?? 0), includeOFF: String(opts?.includeOFF ?? false) });
-    return request<{ foods: Food[]; total: number; offCount: number }>(`/foods?${p}`);
+    const p = new URLSearchParams({ q, limit: String(opts?.limit ?? 20), offset: String(opts?.offset ?? 0) });
+    return request<{ foods: Food[]; total: number }>(`/foods?${p}`);
   },
   getById: (id: string) => request<Food & { score: number; myVote: 1 | -1 | null }>(`/foods/${id}`),
   getByBarcode: (barcode: string) => request<Food & { source: string }>(`/foods/barcode/${barcode}`),

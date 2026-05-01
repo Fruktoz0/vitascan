@@ -3,18 +3,19 @@ import {
   View, Text, StyleSheet, Pressable, TextInput, ScrollView, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { useOnboardingStore, Gender } from '../../stores/onboardingStore';
 import OnboardingProgressBar from '../../components/onboarding/OnboardingProgressBar';
 
-const GENDERS: { value: Gender; label: string; icon: string }[] = [
-  { value: 'MALE', label: 'Férfi', icon: '♂️' },
-  { value: 'FEMALE', label: 'Nő', icon: '♀️' },
-  { value: 'OTHER', label: 'Egyéb', icon: '⚧' },
-];
-
 export default function OnboardingStep2Personal() {
+  const { t } = useTranslation();
   const store = useOnboardingStore();
   const [error, setError] = useState<string | null>(null);
+  const genders: { value: Gender; label: string; icon: string }[] = [
+    { value: 'MALE', label: t('onboarding.genderMale'), icon: '♂️' },
+    { value: 'FEMALE', label: t('onboarding.genderFemale'), icon: '♀️' },
+    { value: 'OTHER', label: t('onboarding.genderOther'), icon: '⚧' },
+  ];
 
   const handleNext = () => {
     // Ez a lépés opcionális — mindig tovább lehet lépni
@@ -32,13 +33,13 @@ export default function OnboardingStep2Personal() {
           <OnboardingProgressBar step={2} total={7} />
 
           <View style={styles.card}>
-            <Text style={styles.title}>Személyes adatok</Text>
-            <Text style={styles.subtitle}>Pontos kalória-célhoz kell, de kihagyható.</Text>
+            <Text style={styles.title}>{t('onboarding.personalTitle')}</Text>
+            <Text style={styles.subtitle}>{t('onboarding.personalSubtitle')}</Text>
 
             {/* Nem választó */}
-            <Text style={styles.label}>Nem</Text>
+            <Text style={styles.label}>{t('onboarding.gender')}</Text>
             <View style={styles.genderRow}>
-              {GENDERS.map((g) => (
+              {genders.map((g) => (
                 <Pressable
                   key={g.value}
                   style={[styles.genderBtn, store.gender === g.value && styles.genderBtnActive]}
@@ -53,10 +54,10 @@ export default function OnboardingStep2Personal() {
             </View>
 
             {/* Születési év */}
-            <Text style={styles.label}>Születési év</Text>
+            <Text style={styles.label}>{t('onboarding.birthYear')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="pl. 1995"
+              placeholder={t('onboarding.birthYearPlaceholder')}
               keyboardType="number-pad"
               maxLength={4}
               value={store.birthYear?.toString() ?? ''}
@@ -67,10 +68,10 @@ export default function OnboardingStep2Personal() {
             />
 
             {/* Magasság */}
-            <Text style={styles.label}>Magasság (cm)</Text>
+            <Text style={styles.label}>{t('onboarding.heightCm')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="pl. 175"
+              placeholder={t('onboarding.heightPlaceholder')}
               keyboardType="decimal-pad"
               value={store.heightCm?.toString() ?? ''}
               onChangeText={(v) => {
@@ -80,10 +81,10 @@ export default function OnboardingStep2Personal() {
             />
 
             {/* Testsúly */}
-            <Text style={styles.label}>Testsúly (kg)</Text>
+            <Text style={styles.label}>{t('onboarding.weightKg')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="pl. 72.5"
+              placeholder={t('onboarding.weightPlaceholder')}
               keyboardType="decimal-pad"
               value={store.weightKg?.toString() ?? ''}
               onChangeText={(v) => {
@@ -97,15 +98,15 @@ export default function OnboardingStep2Personal() {
 
           <View style={styles.buttonRow}>
             <Pressable style={styles.skipBtn} onPress={handleSkip}>
-              <Text style={styles.skipText}>Kihagyom</Text>
+              <Text style={styles.skipText}>{t('onboarding.skip')}</Text>
             </Pressable>
             <Pressable style={styles.nextBtn} onPress={handleNext}>
-              <Text style={styles.nextText}>Tovább →</Text>
+              <Text style={styles.nextText}>{t('onboarding.next')}</Text>
             </Pressable>
           </View>
 
           <Pressable onPress={store.prevStep} style={styles.backBtn}>
-            <Text style={styles.backText}>← Vissza</Text>
+            <Text style={styles.backText}>{t('onboarding.back')}</Text>
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, Pressable, Modal,
-  ScrollView, Animated, useRef,
+  ScrollView,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Colors, Gradients, Radius, Spacing, Typography } from '../../design/tokens';
@@ -20,24 +21,28 @@ export type PremiumFeature =
   | 'customization'
   | 'monthly_stats';
 
-const FEATURE_META: Record<PremiumFeature, { icon: string; title: string; desc: string }> = {
-  unlimited_logs:  { icon: '📝', title: 'Korlátlan naplózás',      desc: 'Naponta több mint 10 bejegyzéshez Premium szükséges.' },
-  unlimited_scans: { icon: '📷', title: 'Korlátlan szkennelés',    desc: 'Naponta több mint 5 szkenneléshez Premium szükséges.' },
-  full_history:    { icon: '📊', title: 'Teljes statisztika',       desc: 'A korábbi hetek adataihoz Premium szükséges.' },
-  export:          { icon: '📤', title: 'Excel export',            desc: 'Az adatok XLSX-be exportálásához Premium szükséges.' },
-  premium_foods:   { icon: '⭐', title: 'Prémium étel-adatbázis', desc: 'A prémium étel-katalógushoz Premium szükséges.' },
-  customization:   { icon: '🎨', title: 'Profil testreszabás',     desc: 'Egyedi avatár és téma csak Premiumban.' },
-  monthly_stats:   { icon: '📅', title: 'Havi statisztika',        desc: 'Havi lebontáshoz Premium szükséges.' },
-};
+function getFeatureMeta(t: any): Record<PremiumFeature, { icon: string; title: string; desc: string }> {
+  return {
+    unlimited_logs:  { icon: '📝', title: t('premiumMeta.unlimitedLogsTitle'), desc: t('premiumMeta.unlimitedLogsDesc') },
+    unlimited_scans: { icon: '📷', title: t('premiumMeta.unlimitedScansTitle'), desc: t('premiumMeta.unlimitedScansDesc') },
+    full_history:    { icon: '📊', title: t('premiumMeta.fullHistoryTitle'), desc: t('premiumMeta.fullHistoryDesc') },
+    export:          { icon: '📤', title: t('premiumMeta.exportTitle'), desc: t('premiumMeta.exportDesc') },
+    premium_foods:   { icon: '⭐', title: t('premiumMeta.premiumFoodsTitle'), desc: t('premiumMeta.premiumFoodsDesc') },
+    customization:   { icon: '🎨', title: t('premiumMeta.customizationTitle'), desc: t('premiumMeta.customizationDesc') },
+    monthly_stats:   { icon: '📅', title: t('premiumMeta.monthlyStatsTitle'), desc: t('premiumMeta.monthlyStatsDesc') },
+  };
+}
 
-const ALL_PREMIUM_FEATURES = [
-  { icon: '📝', title: 'Korlátlan naplózás',       desc: 'Annyi bejegyzés, amennyit csak akarsz' },
-  { icon: '📷', title: 'Korlátlan szkennelés',     desc: 'Vonalkód limit nélkül' },
-  { icon: '📊', title: 'Teljes statisztika',        desc: 'Heti, havi, éves trendek' },
-  { icon: '📤', title: 'Excel export',             desc: 'XLSX letöltés, teljes napló' },
-  { icon: '⭐', title: 'Prémium étel-adatbázis',  desc: 'Extra prémium ételek' },
-  { icon: '🚫', title: 'Reklámok nélkül',          desc: 'Teljesen tiszta élmény' },
-];
+function getAllPremiumFeatures(t: any) {
+  return [
+    { icon: '📝', title: t('premiumMeta.unlimitedLogsTitle'), desc: t('premiumMeta.unlimitedLogsList') },
+    { icon: '📷', title: t('premiumMeta.unlimitedScansTitle'), desc: t('premiumMeta.unlimitedScansList') },
+    { icon: '📊', title: t('premiumMeta.fullHistoryTitle'), desc: t('premiumMeta.fullHistoryList') },
+    { icon: '📤', title: t('premiumMeta.exportTitle'), desc: t('premiumMeta.exportList') },
+    { icon: '⭐', title: t('premiumMeta.premiumFoodsTitle'), desc: t('premiumMeta.premiumFoodsList') },
+    { icon: '🚫', title: t('premiumMeta.noAdsTitle'), desc: t('premiumMeta.noAdsDesc') },
+  ];
+}
 
 // ─── PremiumUpsellModal ──────────────────────────────────────────────────────
 
@@ -49,8 +54,11 @@ interface UpsellModalProps {
 }
 
 export function PremiumUpsellModal({ visible, feature, onClose, onUpgrade }: UpsellModalProps) {
+  const { t } = useTranslation();
   const [plan, setPlan] = useState<'monthly' | 'yearly'>('yearly');
-  const meta = feature ? FEATURE_META[feature] : null;
+  const featureMeta = getFeatureMeta(t);
+  const allPremiumFeatures = getAllPremiumFeatures(t);
+  const meta = feature ? featureMeta[feature] : null;
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -67,8 +75,8 @@ export function PremiumUpsellModal({ visible, feature, onClose, onUpgrade }: Ups
           <View style={upsellStyles.crownBox}>
             <Text style={upsellStyles.crownEmoji}>⭐</Text>
           </View>
-          <Text style={upsellStyles.headerTitle}>VitaScan Premium</Text>
-          <Text style={upsellStyles.headerSub}>Korlátlan hozzáférés az összes funkcióhoz</Text>
+          <Text style={upsellStyles.headerTitle}>{t('premium.vitascanPremium')}</Text>
+          <Text style={upsellStyles.headerSub}>{t('premium.unlimitedAccess')}</Text>
 
           {/* Specifikus feature kiemelése */}
           {meta && (
@@ -81,10 +89,10 @@ export function PremiumUpsellModal({ visible, feature, onClose, onUpgrade }: Ups
 
         <View style={upsellStyles.body}>
           {/* Feature lista */}
-          <Text style={upsellStyles.sectionLabel}>Mit kapsz Premiumban?</Text>
+          <Text style={upsellStyles.sectionLabel}>{t('premium.whatYouGet')}</Text>
           <GlassCardSimple backgroundColor="rgba(74,63,107,0.06)" borderColor="rgba(74,63,107,0.15)">
-            {ALL_PREMIUM_FEATURES.map((f, i) => (
-              <View key={f.title} style={[upsellStyles.featureRow, i < ALL_PREMIUM_FEATURES.length - 1 && upsellStyles.featureDivider]}>
+            {allPremiumFeatures.map((f, i) => (
+              <View key={f.title} style={[upsellStyles.featureRow, i < allPremiumFeatures.length - 1 && upsellStyles.featureDivider]}>
                 <View style={upsellStyles.featureIconBox}>
                   <Text style={{ fontSize: 18 }}>{f.icon}</Text>
                 </View>
@@ -98,16 +106,16 @@ export function PremiumUpsellModal({ visible, feature, onClose, onUpgrade }: Ups
           </GlassCardSimple>
 
           {/* Árak */}
-          <Text style={upsellStyles.sectionLabel}>Válassz csomagot</Text>
+          <Text style={upsellStyles.sectionLabel}>{t('premium.selectPlan')}</Text>
           <View style={upsellStyles.planRow}>
             {/* Havi */}
             <Pressable
               style={[upsellStyles.planCard, plan === 'monthly' && upsellStyles.planCardActive]}
               onPress={() => setPlan('monthly')}
             >
-              <Text style={upsellStyles.planPeriod}>Havi</Text>
+              <Text style={upsellStyles.planPeriod}>{t('premium.monthly')}</Text>
               <Text style={upsellStyles.planPrice}>1 990 Ft</Text>
-              <Text style={upsellStyles.planUnit}>/hó</Text>
+              <Text style={upsellStyles.planUnit}>{t('premium.perMonth')}</Text>
             </Pressable>
 
             {/* Éves – ajánlott */}
@@ -118,25 +126,24 @@ export function PremiumUpsellModal({ visible, feature, onClose, onUpgrade }: Ups
               <View style={upsellStyles.savingBadge}>
                 <Text style={upsellStyles.savingText}>-37%</Text>
               </View>
-              <Text style={upsellStyles.planPeriod}>Éves</Text>
+              <Text style={upsellStyles.planPeriod}>{t('premium.yearly')}</Text>
               <Text style={upsellStyles.planPrice}>14 990 Ft</Text>
-              <Text style={upsellStyles.planUnit}>/év · 1 249 Ft/hó</Text>
+              <Text style={upsellStyles.planUnit}>{t('premium.yearlyUnit')}</Text>
             </Pressable>
           </View>
 
           {/* CTA */}
           <PrimaryButton
-            label={`⭐  Premium – ${plan === 'yearly' ? '14 990 Ft/év' : '1 990 Ft/hó'}`}
+            label={`⭐  Premium – ${plan === 'yearly' ? t('premium.ctaYearly') : t('premium.ctaMonthly')}`}
             onPress={onUpgrade ?? onClose}
             size="lg"
           />
 
           <Text style={upsellStyles.disclaimer}>
-            Az előfizetés az App Store / Google Play fiókodon keresztül kezelődik.
-            Bármikor lemondható.
+            {t('premium.disclaimer')}
           </Text>
 
-          <GhostButton label="Maradok az ingyenes verzióban" onPress={onClose} />
+          <GhostButton label={t('premium.stayFree')} onPress={onClose} />
           <View style={{ height: 40 }} />
         </View>
       </ScrollView>
@@ -213,8 +220,9 @@ interface LockOverlayProps {
 }
 
 export function PremiumLockOverlay({ feature, children, locked = true, compact = false }: LockOverlayProps) {
+  const { t } = useTranslation();
   const [upsellVisible, setUpsellVisible] = useState(false);
-  const meta = FEATURE_META[feature];
+  const meta = getFeatureMeta(t)[feature];
 
   if (!locked) return <>{children}</>;
 
@@ -241,7 +249,7 @@ export function PremiumLockOverlay({ feature, children, locked = true, compact =
             </>
           )}
           <View style={lockStyles.unlockBtn}>
-            <Text style={lockStyles.unlockText}>⭐ Premium-ra váltás</Text>
+            <Text style={lockStyles.unlockText}>⭐ {t('premium.upgradeToPremium')}</Text>
           </View>
         </View>
       </Pressable>
@@ -280,9 +288,10 @@ const lockStyles = StyleSheet.create({
 // ─── PremiumBadge — kis jelvény Premium funkciók jelöléséhez ─────────────────
 
 export function PremiumBadge({ style }: { style?: any }) {
+  const { t } = useTranslation();
   return (
     <View style={[badgeStyles.badge, style]}>
-      <Text style={badgeStyles.text}>⭐ PRO</Text>
+      <Text style={badgeStyles.text}>⭐ {t('premium.proBadge')}</Text>
     </View>
   );
 }
@@ -307,14 +316,15 @@ interface DailyLimitBarProps {
 }
 
 export function DailyLimitBar({ type, used, limit, onUpgrade }: DailyLimitBarProps) {
+  const { t } = useTranslation();
   const pct = Math.min(used / limit, 1);
   const remaining = Math.max(limit - used, 0);
   const isAlmostFull = pct >= 0.8;
   const isFull = pct >= 1;
 
   const label = type === 'logs'
-    ? `📝 Napi naplók: ${remaining} maradt`
-    : `📷 Napi szkennelések: ${remaining} maradt`;
+    ? `📝 ${t('premium.dailyLogsRemaining', { count: remaining })}`
+    : `📷 ${t('premium.dailyScansRemaining', { count: remaining })}`;
 
   return (
     <View style={limitStyles.container}>
@@ -322,7 +332,7 @@ export function DailyLimitBar({ type, used, limit, onUpgrade }: DailyLimitBarPro
         <Text style={[limitStyles.label, isFull && limitStyles.labelFull]}>{label}</Text>
         {isAlmostFull && (
           <Pressable onPress={onUpgrade}>
-            <Text style={limitStyles.upgradeLink}>⭐ Bővítés</Text>
+            <Text style={limitStyles.upgradeLink}>⭐ {t('premium.expand')}</Text>
           </Pressable>
         )}
       </View>
@@ -336,7 +346,7 @@ export function DailyLimitBar({ type, used, limit, onUpgrade }: DailyLimitBarPro
       </View>
       {isFull && (
         <Text style={limitStyles.fullText}>
-          Elérted a napi limitet. Válts Premiumra a korlátlan hozzáférésért!
+          {t('premium.dailyLimitReached')}
         </Text>
       )}
     </View>

@@ -24,6 +24,8 @@ export async function searchFoods(
   if (query.q) {
     where.OR = [
       { name: { contains: query.q, mode: 'insensitive' } },
+      { nameHu: { contains: query.q, mode: 'insensitive' } },
+      { nameEn: { contains: query.q, mode: 'insensitive' } },
       { brand: { contains: query.q, mode: 'insensitive' } },
       { barcode: { equals: query.q } },
     ];
@@ -37,13 +39,32 @@ export async function searchFoods(
         _count: { select: { votes: true } },
       },
       orderBy: { createdAt: 'desc' },
-      take: query.limit,
-      skip: query.offset,
     }),
     prisma.food.count({ where }),
   ]);
 
-  return { foods, total };
+  const rankBySourceAndStatus = (food: any) => {
+    if (food.source === 'INTERNAL') return 0;
+    if (food.source === 'USER_SCAN' && food.status === 'VERIFIED') return 1;
+    if (food.source === 'EXTERNAL_API') return 2;
+    if (food.source === 'USER_SCAN' && food.status === 'UNVERIFIED') return 3;
+    return 4;
+  };
+
+  const sortedFoods = foods
+    .slice()
+    .sort((a, b) => {
+      const rankDiff = rankBySourceAndStatus(a) - rankBySourceAndStatus(b);
+      if (rankDiff !== 0) return rankDiff;
+      return b.createdAt.getTime() - a.createdAt.getTime();
+    })
+    .slice(query.offset, query.offset + query.limit)
+    .map((food) => ({
+      ...food,
+      displayName: food.nameHu ?? food.nameEn ?? food.name,
+    }));
+
+  return { foods: sortedFoods, total };
 }
 
 export async function getFoodByBarcode(prisma: PrismaClient, barcode: string) {
@@ -69,7 +90,13 @@ export async function createFood(
   }
 
   return prisma.food.create({
-    data: { ...data, creatorId: userId },
+    data: {
+      ...data,
+      nameHu: data.nameHu ?? data.name,
+      nameEn: data.nameEn ?? data.name,
+      source: data.source ?? 'USER_SCAN',
+      creatorId: userId,
+    },
   });
 }
 
