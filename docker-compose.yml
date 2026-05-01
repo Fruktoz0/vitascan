@@ -1,0 +1,44 @@
+services:
+  api:
+    image: node:20-slim
+    container_name: vitascan_api
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    working_dir: /app
+    restart: always
+    # Konténer induláskor a DB sémát is szinkronizáljuk (retry-val)
+    command: sh -c "apt-get update -y && apt-get install -y openssl && npm install && npx prisma generate && until npx prisma db push; do echo 'Prisma db push failed, retrying in 3s...'; sleep 3; done && npm run dev"
+    volumes:
+      - ./backend:/app
+    environment:
+      DATABASE_URL: "postgresql://${DB_USER}:${DB_PASS}@global_postgres:5432/${DB_NAME}?schema=public"
+      PORT: 3005
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+    ports:
+      - "3005:3005"
+    networks:
+      - global-net
+
+  prisma-studio:
+    image: node:20-slim
+    container_name: vitascan_studio
+    working_dir: /app
+    restart: always
+    # Studio csak az API indulása után indul, így nem ütközik a sémafrissítéssel
+    command: sh -c "apt-get update -y && apt-get install -y openssl netcat-openbsd && npm install && npx prisma generate && until nc -z api 3005; do echo 'Waiting for API to be ready...'; sleep 2; done && npx prisma studio --browser none --port 5555"
+    volumes:
+      - ./backend:/app
+    environment:
+      DATABASE_URL: "postgresql://${DB_USER}:${DB_PASS}@global_postgres:5432/${DB_NAME}?schema=public"
+    ports:
+      - "5555:5555"
+    networks:
+      - global-net
+    depends_on:
+      - api
+
+networks:
+  global-net:
+    external: true
