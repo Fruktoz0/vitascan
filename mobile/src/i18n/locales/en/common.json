@@ -1,9 +1,9 @@
 {
   "home": "Home",
   "scanner": "Scanner",
-  "foodLibrary": "Foods",
-  "dataVault": "Stats",
-  "profile": "Profile",
+  "foodLibrary": "Diary",
+  "dataVaultTab": "Stats",
+  "profileTab": "Profile",
   "goodMorning": "Good morning",
   "goodAfternoon": "Good afternoon",
   "goodEvening": "Good evening",

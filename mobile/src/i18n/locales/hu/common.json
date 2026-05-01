@@ -1,9 +1,9 @@
 {
   "home": "Főoldal",
   "scanner": "Szkenner",
-  "foodLibrary": "Ételek",
-  "dataVault": "Adatok",
-  "profile": "Profil",
+  "foodLibrary": "Napló",
+  "dataVaultTab": "Adatok",
+  "profileTab": "Profil",
   "goodMorning": "Jó reggelt",
   "goodAfternoon": "Jó napot",
   "goodEvening": "Jó estét",

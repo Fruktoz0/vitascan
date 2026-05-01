@@ -23,7 +23,24 @@ interface AuthState {
   setOnboardingCompleted: (value: boolean) => void;
 }
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3005';
+const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://newhomeproject.ddns.net:3005';
+const REFRESH_TOKEN_KEY = 'refreshToken';
+const CACHED_USER_KEY = 'cachedUser';
+const ONBOARDING_COMPLETED_KEY = 'onboardingCompleted';
+
+async function restoreCachedAuthState() {
+  const [cachedUser, cachedOnboarding] = await Promise.all([
+    SecureStore.getItemAsync(CACHED_USER_KEY),
+    SecureStore.getItemAsync(ONBOARDING_COMPLETED_KEY),
+  ]);
+
+  if (!cachedUser) return null;
+
+  return {
+    user: JSON.parse(cachedUser) as User,
+    onboardingCompleted: cachedOnboarding === 'true',
+  };
+}
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
@@ -35,13 +52,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { accessToken, refreshToken, user } = await authApi.login(email, password);
 
     setAccessToken(accessToken);
-    await SecureStore.setItemAsync('refreshToken', refreshToken);
+    await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
 
     let onboardingCompleted = false;
     try {
       const status = await onboardingApi.getStatus();
       onboardingCompleted = status.completed;
     } catch {}
+
+    await Promise.all([
+      SecureStore.setItemAsync(CACHED_USER_KEY, JSON.stringify(user)),
+      SecureStore.setItemAsync(ONBOARDING_COMPLETED_KEY, String(onboardingCompleted)),
+    ]);
 
     set({ user, isAuthenticated: true, onboardingCompleted });
   },
@@ -53,19 +75,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     try {
-      const refreshToken = await SecureStore.getItemAsync('refreshToken');
+      const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
       if (refreshToken) await authApi.logout(refreshToken);
     } catch {}
 
     setAccessToken(null);
-    await SecureStore.deleteItemAsync('refreshToken');
+    await Promise.all([
+      SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
+      SecureStore.deleteItemAsync(CACHED_USER_KEY),
+      SecureStore.deleteItemAsync(ONBOARDING_COMPLETED_KEY),
+    ]);
     set({ user: null, isAuthenticated: false, onboardingCompleted: false });
   },
 
   restoreSession: async () => {
     set({ isLoading: true });
     try {
-      const refreshToken = await SecureStore.getItemAsync('refreshToken');
+      const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
       if (!refreshToken) {
         set({ isLoading: false });
         return;
@@ -79,14 +105,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       if (!res.ok) {
-        await SecureStore.deleteItemAsync('refreshToken');
+        const cached = await restoreCachedAuthState();
+        if (cached) {
+          set({
+            user: cached.user,
+            isAuthenticated: true,
+            onboardingCompleted: cached.onboardingCompleted,
+            isLoading: false,
+          });
+          return;
+        }
         set({ isLoading: false });
         return;
       }
 
       const { accessToken, refreshToken: newRefresh } = await res.json();
       setAccessToken(accessToken);
-      await SecureStore.setItemAsync('refreshToken', newRefresh);
+      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, newRefresh);
 
       // /auth/refresh nem ad vissza user objektumot, ezért külön lekérjük
       let user: User | null = null;
@@ -99,9 +134,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           role: profile.role,
         };
       } catch {
-        // Ha a profile lekérés sikertelen, kijelentkeztetjük
-        await SecureStore.deleteItemAsync('refreshToken');
-        setAccessToken(null);
+        const cached = await restoreCachedAuthState();
+        if (cached) {
+          set({
+            user: cached.user,
+            isAuthenticated: true,
+            onboardingCompleted: cached.onboardingCompleted,
+            isLoading: false,
+          });
+          return;
+        }
         set({ isLoading: false });
         return;
       }
@@ -113,11 +155,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         onboardingCompleted = status.completed;
       } catch {}
 
+      await Promise.all([
+        SecureStore.setItemAsync(CACHED_USER_KEY, JSON.stringify(user)),
+        SecureStore.setItemAsync(ONBOARDING_COMPLETED_KEY, String(onboardingCompleted)),
+      ]);
+
       set({ user, isAuthenticated: true, onboardingCompleted, isLoading: false });
     } catch {
+      const cached = await restoreCachedAuthState();
+      if (cached) {
+        set({
+          user: cached.user,
+          isAuthenticated: true,
+          onboardingCompleted: cached.onboardingCompleted,
+          isLoading: false,
+        });
+        return;
+      }
       set({ isLoading: false });
     }
   },
 
-  setOnboardingCompleted: (value) => set({ onboardingCompleted: value }),
+  setOnboardingCompleted: (value) => {
+    SecureStore.setItemAsync(ONBOARDING_COMPLETED_KEY, String(value)).catch(() => {});
+    set({ onboardingCompleted: value });
+  },
 }));

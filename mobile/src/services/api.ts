@@ -23,7 +23,7 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
       console.log('[API Debug] 401 hiba, refresh próbálkozás...');
       const refreshed = await tryRefreshToken();
       if (refreshed) return request<T>(path, options, false);
-      throw new ApiError(401, 'Lejárt munkamenet.');
+      throw new ApiError(401, 'A hitelesítés frissítése sikertelen. Próbáld újra később.');
     }
 
     // Először szövegként olvassuk be, hátha nem JSON-t küld a szerver (pl. hálózati hibaoldal)
@@ -58,7 +58,7 @@ async function tryRefreshToken(): Promise<boolean> {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken: stored }),
     });
-    if (!res.ok) { await SecureStore.deleteItemAsync('refreshToken'); setAccessToken(null); return false; }
+    if (!res.ok) { setAccessToken(null); return false; }
     const { accessToken: newAccess, refreshToken: newRefresh } = await res.json();
     setAccessToken(newAccess);
     await SecureStore.setItemAsync('refreshToken', newRefresh);

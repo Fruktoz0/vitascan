@@ -88,28 +88,31 @@ export const Colors = {
     strokeSoft: 'rgba(28,27,27,0.1)',
     shadowHard: '#1c1b1b', // rgba(28,27,27,1)
     shadowHardSoft: 'rgba(28,27,27,0.1)',
-    
+
     // Pastel blobs
     blobMint: '#e8f5e9', // primary-container
     blobPeach: '#ffdad6', // error-container
     blobLavender: '#eadecc', // secondary-container
+    softGreen: '#e8f5e9',
+    softOrange: '#eadecc',
+    softBlue: '#e1f5fe',
 
     // UI elements from HTML
     kcalTrack: '#f1edec', // surface-container
     kcalFill: '#ffb77d', // tertiary-fixed-dim
-    
+
     proteinBg: '#ffffff',
     proteinTrack: '#f0eded',
     proteinFill: '#d0c5b3', // secondary-fixed-dim
-    
+
     carbsBg: '#ffffff',
     carbsTrack: '#f0eded',
     carbsFill: '#b6cad2', // tertiary-fixed-dim
-    
+
     fatBg: '#ffffff',
     fatTrack: '#f0eded',
     fatFill: '#fcd34d', // custom yellow from HTML
-    
+
     nutritionIcon: '#556158', // primary
     waterBg: '#e1f5fe', // tertiary-container
     waterIcon: '#b6cad2', // tertiary-fixed-dim
