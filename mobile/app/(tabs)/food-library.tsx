@@ -8,8 +8,10 @@ import { useTranslation } from 'react-i18next';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-import { statsApi } from '../../src/services/api';
+import { Food, statsApi } from '../../src/services/api';
 import { BentoCard } from '../../src/components/ui/BentoCard';
+import AddFoodManualModal from '../../src/components/food/AddFoodManualModal';
+import FoodDetailModal from '../../src/components/food/FoodDetailModal';
 import { Colors, Spacing } from '../../src/design/tokens';
 
 // ─── MealItem ────────────────────────────────────────────────────────────────
@@ -99,6 +101,10 @@ export default function FoodLibraryScreen() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [manualVisible, setManualVisible] = useState(false);
+  const [detailVisible, setDetailVisible] = useState(false);
+  const [selectedFood, setSelectedFood] = useState<Food | null>(null);
+  const [selectedMealType, setSelectedMealType] = useState<'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK' | 'OTHER'>('OTHER');
 
   const fetchData = useCallback(async () => {
     try {
@@ -128,6 +134,11 @@ export default function FoodLibraryScreen() {
   const totals = data?.totals ?? { kcal: 1450 };
   const goals = data?.goals ?? { dailyKcalGoal: 2200 };
   const meals = data?.byMealType ?? {};
+
+  const openAddFlow = (mealType: 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK' | 'OTHER') => {
+    setSelectedMealType(mealType);
+    setManualVisible(true);
+  };
 
   return (
     <View style={styles.screen}>
@@ -175,8 +186,8 @@ export default function FoodLibraryScreen() {
           iconBg={Colors.dashboard.tertiaryFixed}
           kcal={meals.BREAKFAST?.reduce((acc: number, l: any) => acc + l.kcal, 0) || 0}
           items={meals.BREAKFAST || []}
-          onAdd={() => router.push('/food-search')}
-          onEdit={() => {}}
+          onAdd={() => openAddFlow('BREAKFAST')}
+          onEdit={() => router.push('/(tabs)/scanner')}
         />
 
         <MealSection 
@@ -186,8 +197,8 @@ export default function FoodLibraryScreen() {
           iconBg={Colors.dashboard.errorContainer}
           kcal={meals.LUNCH?.reduce((acc: number, l: any) => acc + l.kcal, 0) || 0}
           items={meals.LUNCH || []}
-          onAdd={() => router.push('/food-search')}
-          onEdit={() => {}}
+          onAdd={() => openAddFlow('LUNCH')}
+          onEdit={() => router.push('/(tabs)/scanner')}
         />
 
         <MealSection 
@@ -197,8 +208,8 @@ export default function FoodLibraryScreen() {
           iconBg={Colors.dashboard.surfaceContainerHigh}
           kcal={meals.DINNER?.reduce((acc: number, l: any) => acc + l.kcal, 0) || '--'}
           items={meals.DINNER || []}
-          onAdd={() => router.push('/food-search')}
-          onEdit={() => {}}
+          onAdd={() => openAddFlow('DINNER')}
+          onEdit={() => router.push('/(tabs)/scanner')}
         />
 
         <MealSection 
@@ -208,12 +219,34 @@ export default function FoodLibraryScreen() {
           iconBg={Colors.dashboard.secondaryContainer}
           kcal={meals.SNACK?.reduce((acc: number, l: any) => acc + l.kcal, 0) || 0}
           items={meals.SNACK || []}
-          onAdd={() => router.push('/food-search')}
-          onEdit={() => {}}
+          onAdd={() => openAddFlow('SNACK')}
+          onEdit={() => router.push('/(tabs)/scanner')}
         />
 
         <View style={{ height: 120 }} />
       </ScrollView>
+
+      <AddFoodManualModal
+        visible={manualVisible}
+        onClose={() => setManualVisible(false)}
+        onCreated={(food) => {
+          setManualVisible(false);
+          setSelectedFood(food);
+          setDetailVisible(true);
+        }}
+      />
+
+      <FoodDetailModal
+        food={selectedFood}
+        visible={detailVisible}
+        onClose={() => setDetailVisible(false)}
+        onLogAdded={() => {
+          setDetailVisible(false);
+          fetchData();
+        }}
+        initialMealType={selectedMealType}
+        logSource="MANUAL"
+      />
     </View>
   );
 }

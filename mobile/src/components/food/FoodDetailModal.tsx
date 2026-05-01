@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { Food, foodApi, logApi } from '../../services/api';
@@ -20,6 +21,7 @@ interface Props {
   onClose: () => void;
   onLogAdded?: () => void;
   logSource?: 'SCAN' | 'SEARCH' | 'MANUAL';
+  initialMealType?: (typeof MEAL_TYPES)[number];
 }
 
 // ─── Tápérték sor ─────────────────────────────────────────────────────────────
@@ -38,6 +40,23 @@ const nutrStyles = StyleSheet.create({
   label: { flex: 1, ...Typography.body, color: Colors.text.secondary },
   value: { fontSize: 15, fontWeight: '800' },
 });
+
+function MacroBar({
+  label,
+  grams,
+  percent,
+  color,
+}: { label: string; grams: number; percent: number; color: string }) {
+  return (
+    <View style={styles.macroRow}>
+      <Text style={styles.macroLabel}>{label} ({grams}g)</Text>
+      <View style={styles.macroTrack}>
+        <View style={[styles.macroFill, { width: `${Math.max(4, Math.min(100, percent))}%`, backgroundColor: color }]} />
+      </View>
+      <Text style={styles.macroPct}>{Math.round(percent)}%</Text>
+    </View>
+  );
+}
 
 // ─── Szavazó gombok ───────────────────────────────────────────────────────────
 function VoteButtons({ food, onVoted }: { food: Food; onVoted: (score: number, myVote: 1 | -1 | null) => void }) {
@@ -171,15 +190,25 @@ const voteStyles = StyleSheet.create({
 });
 
 // ─── Fő modal ─────────────────────────────────────────────────────────────────
-export default function FoodDetailModal({ food, visible, onClose, onLogAdded, logSource = 'SEARCH' }: Props) {
+export default function FoodDetailModal({
+  food,
+  visible,
+  onClose,
+  onLogAdded,
+  logSource = 'SEARCH',
+  initialMealType = 'OTHER',
+}: Props) {
   const { t } = useTranslation();
   const [amount, setAmount] = useState('100');
-  const [mealType, setMealType] = useState('OTHER');
+  const [mealType, setMealType] = useState<(typeof MEAL_TYPES)[number]>('OTHER');
   const [adding, setAdding] = useState(false);
   const [currentFood, setCurrentFood] = useState<Food | null>(null);
 
   // food prop változásakor frissítjük
   React.useEffect(() => { setCurrentFood(food); }, [food]);
+  React.useEffect(() => {
+    if (visible) setMealType(initialMealType);
+  }, [visible, initialMealType]);
 
   if (!currentFood) return null;
   const displayName = (i18n.language === 'en' ? currentFood.nameEn : currentFood.nameHu) ?? currentFood.displayName ?? currentFood.name;
@@ -222,38 +251,57 @@ export default function FoodDetailModal({ food, visible, onClose, onLogAdded, lo
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Fejléc gradiens sáv */}
-        <LinearGradient colors={Gradients.cardOrange as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.headerBand}>
-          <View style={styles.headerRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.foodName} numberOfLines={2}>{displayName}</Text>
-              {currentFood.brand && <Text style={styles.foodBrand}>{currentFood.brand}</Text>}
-            </View>
-            <Pressable style={styles.closeBtn} onPress={onClose} hitSlop={10}>
-              <Text style={styles.closeIcon}>✕</Text>
+        <View style={styles.headerBand}>
+          <View style={styles.headerTop}>
+            <Pressable style={styles.iconBtn} onPress={onClose}>
+              <Text style={styles.iconBtnText}>←</Text>
             </Pressable>
+            <View style={styles.headerChip}>
+              <MaterialIcons name="nutrition" size={16} color={Colors.dashboard.stroke} />
+            </View>
+            <View style={[styles.headerChip, { backgroundColor: Colors.dashboard.blobMint }]}>
+              <MaterialIcons name="eco" size={16} color={Colors.dashboard.stroke} />
+            </View>
           </View>
-
-          {/* Badge-ek */}
-          <View style={styles.badges}>
-            {currentFood.status === 'VERIFIED' && (
-              <View style={styles.badge}><Text style={styles.badgeText}>✅ {t('food.verified')}</Text></View>
-            )}
-            {currentFood.creator && (
-              <View style={[styles.badge, styles.badgeCreator]}>
-                <Text style={styles.badgeText}>
-                  👤 {currentFood.creator.username}
-                  {currentFood.creator.reputation >= 10 ? ' 🏆' : ''}
-                </Text>
-              </View>
-            )}
-          </View>
-        </LinearGradient>
+          <Text style={styles.productTitle}>Termekadatlap</Text>
+          <Text style={styles.foodName} numberOfLines={2}>{displayName}</Text>
+          <Text style={styles.portionText}>100g adag</Text>
+        </View>
 
         <View style={styles.body}>
+          <GlassCardSimple style={styles.energyCard}>
+            <MaterialIcons name="bolt" size={18} color={Colors.dashboard.stroke} />
+            <Text style={styles.energyLabel}>Energia tartalom</Text>
+            <Text style={styles.energyValue}>100g / {currentFood.kcal} kcal</Text>
+          </GlassCardSimple>
+
+          <GlassCardSimple style={styles.benefitCard}>
+            <MaterialIcons name="psychology" size={18} color={Colors.dashboard.stroke} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.benefitTitle}>Kivalo rostforras</Text>
+              <Text style={styles.benefitText}>
+                Gazdag C-vitaminban es pektinben, amely tamogatja az emesztest.
+              </Text>
+            </View>
+            <MaterialIcons name="favorite" size={16} color={Colors.dashboard.stroke} />
+          </GlassCardSimple>
+
           {/* 100g tápértékek */}
           <GlassCardSimple backgroundColor="rgba(255,107,53,0.05)" borderColor="rgba(255,107,53,0.15)">
-            <Text style={styles.sectionTitle}>{t('food.nutritionPer100g')}</Text>
+            <Text style={styles.sectionTitle}>Makrotapanyagok</Text>
+            {(() => {
+              const total = Math.max(0.1, currentFood.carbs + currentFood.protein + currentFood.fat);
+              const carbsPct = (currentFood.carbs / total) * 100;
+              const proteinPct = (currentFood.protein / total) * 100;
+              const fatPct = (currentFood.fat / total) * 100;
+              return (
+                <View style={{ gap: 10, marginBottom: 14 }}>
+                  <MacroBar label="Szenhidrat" grams={currentFood.carbs} percent={carbsPct} color={Colors.macro.carbs} />
+                  <MacroBar label="Feherje" grams={currentFood.protein} percent={proteinPct} color={Colors.macro.protein} />
+                  <MacroBar label="Zsir" grams={currentFood.fat} percent={fatPct} color={Colors.macro.fat} />
+                </View>
+              );
+            })()}
             <View style={styles.nutriGrid}>
               {[
                 { label: t('food.caloriesPer100g'), value: currentFood.kcal, unit: ' kcal', color: Colors.primary },
@@ -358,12 +406,10 @@ export default function FoodDetailModal({ food, visible, onClose, onLogAdded, lo
           )}
 
           {/* Hozzáadás gomb */}
-          <PrimaryButton
-            label={`✅  ${t('food.addToLog')}`}
-            onPress={handleAddLog}
-            loading={adding}
-            size="lg"
-          />
+          <Pressable style={styles.stitchAddBtn} onPress={handleAddLog} disabled={adding}>
+            <MaterialIcons name="add-circle" size={22} color="#fff" />
+            <Text style={styles.stitchAddBtnLabel}>{adding ? 'Hozzaadas...' : t('food.addToLog')}</Text>
+          </Pressable>
           <GhostButton label={t('common.cancel')} onPress={onClose} />
 
           <View style={{ height: 40 }} />
@@ -374,16 +420,21 @@ export default function FoodDetailModal({ food, visible, onClose, onLogAdded, lo
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FAFAFA' },
-  headerBand: { padding: Spacing['2xl'], paddingTop: Spacing['3xl'] },
-  headerRow: { flexDirection: 'row', gap: Spacing.md, alignItems: 'flex-start' },
-  foodName: { fontSize: 22, fontWeight: '900', color: '#fff', lineHeight: 28 },
-  foodBrand: { ...Typography.body, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
-  closeBtn: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center',
+  container: { flex: 1, backgroundColor: Colors.dashboard.page },
+  headerBand: { padding: Spacing['2xl'], paddingTop: Spacing['3xl'], gap: 10 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  iconBtn: {
+    width: 34, height: 34, borderRadius: 17, borderWidth: 1.2, borderColor: Colors.dashboard.stroke,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff',
   },
-  closeIcon: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  iconBtnText: { fontSize: 16, color: Colors.dashboard.stroke, fontWeight: '800' },
+  headerChip: {
+    width: 34, height: 34, borderRadius: 17, borderWidth: 1.2, borderColor: Colors.dashboard.stroke,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.dashboard.blobPeach,
+  },
+  productTitle: { fontSize: 14, fontWeight: '700', color: Colors.dashboard.tabInactive },
+  foodName: { fontSize: 26, fontWeight: '900', color: Colors.dashboard.stroke, lineHeight: 30 },
+  portionText: { ...Typography.body, color: Colors.dashboard.tabInactive },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: Spacing.sm },
   badge: {
     backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: Radius.full,
@@ -393,7 +444,18 @@ const styles = StyleSheet.create({
   badgeCreator: { backgroundColor: 'rgba(155,89,182,0.3)' },
   badgeText: { ...Typography.caption, color: '#fff', fontWeight: '700' },
   body: { padding: Spacing.xl, gap: Spacing.md },
+  energyCard: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 20 },
+  energyLabel: { fontSize: 14, fontWeight: '700', color: Colors.dashboard.stroke, flex: 1 },
+  energyValue: { fontSize: 14, fontWeight: '800', color: Colors.dashboard.stroke },
+  benefitCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 20 },
+  benefitTitle: { fontSize: 15, fontWeight: '800', color: Colors.dashboard.stroke, marginBottom: 3 },
+  benefitText: { fontSize: 12, color: Colors.dashboard.tabInactive, lineHeight: 17 },
   sectionTitle: { ...Typography.label, color: Colors.text.secondary, marginBottom: Spacing.sm },
+  macroRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  macroLabel: { width: 120, fontSize: 12, color: Colors.dashboard.stroke, fontWeight: '600' },
+  macroTrack: { flex: 1, height: 8, borderRadius: 999, backgroundColor: Colors.dashboard.kcalTrack, overflow: 'hidden' },
+  macroFill: { height: 8, borderRadius: 999 },
+  macroPct: { width: 36, textAlign: 'right', fontSize: 12, color: Colors.dashboard.tabInactive, fontWeight: '700' },
   nutriGrid: { flexDirection: 'row', gap: Spacing.sm },
   nutriCard: {
     flex: 1, backgroundColor: 'rgba(255,255,255,0.8)',
@@ -433,4 +495,18 @@ const styles = StyleSheet.create({
   mealBtnActive: { borderColor: Colors.primary, backgroundColor: Colors.primarySoft },
   mealBtnText: { ...Typography.caption, color: Colors.text.secondary, fontWeight: '600' },
   mealBtnTextActive: { color: Colors.primary, fontWeight: '800' },
+  stitchAddBtn: {
+    backgroundColor: Colors.dashboard.stroke,
+    borderRadius: 999,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  stitchAddBtnLabel: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
+  },
 });
