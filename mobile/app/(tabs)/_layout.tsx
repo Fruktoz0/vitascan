@@ -1,29 +1,17 @@
 import { Tabs } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { View, Text, StyleSheet, Platform } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { Platform, StyleSheet, View, Text } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { Colors } from '../../src/design/tokens';
 
-function TabIcon({ emoji, label, focused }: { emoji: string; label: string; focused: boolean }) {
-  return (
-    <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapActive]}>
-      <Text style={tabStyles.emoji}>{emoji}</Text>
-      {focused && <Text style={tabStyles.label}>{label}</Text>}
-    </View>
-  );
-}
-
-const tabStyles = StyleSheet.create({
-  iconWrap: {
-    alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-    minWidth: 52,
-  },
-  iconWrapActive: {
-    backgroundColor: 'rgba(255, 107, 53, 0.12)',
-  },
-  emoji: { fontSize: 20 },
-  label: { fontSize: 10, fontWeight: '700', color: '#FF6B35', marginTop: 2 },
-});
+// HTML-beli ikonok: home, menu_book, qr_code_scanner, person
+// MaterialIcons megfelelő nevei:
+const ICON_MAP: Record<string, keyof typeof MaterialIcons.glyphMap> = {
+  home: 'home',
+  diary: 'menu-book',
+  scan: 'qr-code-scanner',
+  profile: 'person',
+};
 
 export default function TabsLayout() {
   const { t } = useTranslation();
@@ -35,65 +23,143 @@ export default function TabsLayout() {
         tabBarShowLabel: false,
         tabBarStyle: {
           position: 'absolute',
-          borderTopWidth: 0,
-          elevation: 0,
-          backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(255,255,255,0.95)',
-          height: Platform.OS === 'ios' ? 84 : 64,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-          paddingTop: 8,
-          shadowColor: '#000',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          // HTML: bg-surface border-t-[0.8px] border-on-background rounded-t-[32px]
+          backgroundColor: Colors.dashboard.tabBg,
+          borderTopWidth: 1.5,
+          borderTopColor: Colors.dashboard.stroke,
+          borderTopLeftRadius: 32,
+          borderTopRightRadius: 32,
+          // HTML: shadow-[0px_-4px_0px_0px_rgba(28,27,27,1)] – felső szilárd árnyék
+          shadowColor: Colors.dashboard.shadowHard,
           shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.08,
-          shadowRadius: 16,
+          shadowOpacity: 1,
+          shadowRadius: 0,
+          elevation: 0,
+          height: Platform.OS === 'ios' ? 88 : 72,
+          paddingTop: 6,
+          paddingBottom: Platform.OS === 'ios' ? 24 : 8,
         },
-        tabBarBackground: () =>
-          Platform.OS === 'ios' ? (
-            <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
-          ) : null,
-        tabBarActiveTintColor: '#FF6B35',
-        tabBarInactiveTintColor: '#AAA',
+        tabBarActiveTintColor: Colors.dashboard.stroke,
+        tabBarInactiveTintColor: Colors.dashboard.tabInactive,
+        tabBarItemStyle: {
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
       }}
     >
       <Tabs.Screen
         name="home"
         options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="🏠" label={t('home')} focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="scanner"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="📷" label={t('scanner')} focused={focused} />
+          title: t('home'),
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[tabStyles.itemWrap, focused && tabStyles.activeWrap]}>
+              {focused && <View style={tabStyles.activeShadow} />}
+              <View style={[tabStyles.itemInner, focused && tabStyles.activeInner]}>
+                <MaterialIcons name={ICON_MAP.home} size={24} color={color} />
+                <Text style={[tabStyles.label, { color }]}>{t('home')}</Text>
+              </View>
+            </View>
           ),
         }}
       />
       <Tabs.Screen
         name="food-library"
         options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="🍎" label={t('foodLibrary')} focused={focused} />
+          title: t('foodLibrary'),
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[tabStyles.itemWrap, focused && tabStyles.activeWrap]}>
+              {focused && <View style={tabStyles.activeShadow} />}
+              <View style={[tabStyles.itemInner, focused && tabStyles.activeInner]}>
+                <MaterialIcons name={ICON_MAP.diary} size={24} color={color} />
+                <Text style={[tabStyles.label, { color }]}>{t('foodLibrary')}</Text>
+              </View>
+            </View>
           ),
         }}
       />
       <Tabs.Screen
-        name="data-vault"
+        name="scanner"
         options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="📊" label={t('dataVault')} focused={focused} />
+          title: t('scanner'),
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[tabStyles.itemWrap, focused && tabStyles.activeWrap]}>
+              {focused && <View style={tabStyles.activeShadow} />}
+              <View style={[tabStyles.itemInner, focused && tabStyles.activeInner]}>
+                <MaterialIcons name={ICON_MAP.scan} size={24} color={color} />
+                <Text style={[tabStyles.label, { color }]}>{t('scanner')}</Text>
+              </View>
+            </View>
           ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="👤" label={t('profile')} focused={focused} />
+          title: t('profile'),
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[tabStyles.itemWrap, focused && tabStyles.activeWrap]}>
+              {focused && <View style={tabStyles.activeShadow} />}
+              <View style={[tabStyles.itemInner, focused && tabStyles.activeInner]}>
+                <MaterialIcons name={ICON_MAP.profile} size={24} color={color} />
+                <Text style={[tabStyles.label, { color }]}>{t('profile')}</Text>
+              </View>
+            </View>
           ),
         }}
+      />
+      <Tabs.Screen
+        name="index"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
+        name="two"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
+        name="data-vault"
+        options={{ href: null }}
       />
     </Tabs>
   );
 }
+
+const tabStyles = StyleSheet.create({
+  itemWrap: {
+    width: 84,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginTop: 1,
+  },
+  activeWrap: {
+    transform: [{ scale: 1.08 }],
+    marginTop: -8,
+  },
+  activeShadow: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Colors.dashboard.shadowHard,
+    borderRadius: 20,
+    top: 2,
+    left: 2,
+  },
+  itemInner: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    gap: 2,
+  },
+  activeInner: {
+    backgroundColor: Colors.dashboard.tabActive,
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+});

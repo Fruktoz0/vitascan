@@ -3,60 +3,66 @@
 
 export const Colors = {
   // Brand
-  primary: '#FF6B35',
-  primaryLight: '#FF9A6C',
-  primarySoft: '#FFF0EA',
+  primary: '#ff8c00',
+  primaryLight: '#ffb77d',
+  primarySoft: '#fff4ea',
+  ink: '#1a1a1a',
+  snow: '#fcf8f8',
+  mint: '#c8f2d3',
+  peach: '#ffd9bf',
+  lavender: '#e7ddff',
+  sky: '#d9f1ff',
 
   // Mesh gradient alap-színek
-  meshPeach: '#FF9A6C',
-  meshMint: '#A8EDBC',
-  meshBlue: '#7EC8E3',
-  meshLavender: '#C9B8FF',
+  meshPeach: '#ffd9bf',
+  meshMint: '#c8f2d3',
+  meshBlue: '#d9f1ff',
+  meshLavender: '#e7ddff',
 
   // Makró szín-kódok
   macro: {
-    protein: '#4A90D9',      // Királyskék
-    proteinLight: '#EBF4FF',
-    proteinGrad: ['#4A90D9', '#7EC8E3'] as [string, string],
+    protein: '#3f86cf',      // Királyskék
+    proteinLight: '#edf5ff',
+    proteinGrad: ['#3f86cf', '#88bee8'] as [string, string],
 
-    carbs: '#F5A623',        // Narancssárga
-    carbsLight: '#FFF8EC',
-    carbsGrad: ['#F5A623', '#FFD080'] as [string, string],
+    carbs: '#f2a83b',        // Narancssárga
+    carbsLight: '#fff7ea',
+    carbsGrad: ['#f2a83b', '#ffd69e'] as [string, string],
 
-    fat: '#2ECC71',          // Smaragdzöld
-    fatLight: '#F0FFF4',
-    fatGrad: ['#2ECC71', '#A8EDBC'] as [string, string],
+    fat: '#48b76a',          // Smaragdzöld
+    fatLight: '#effcf3',
+    fatGrad: ['#48b76a', '#9de1b1'] as [string, string],
 
-    fiber: '#9B59B6',        // Lila
-    fiberLight: '#F8F0FF',
-    fiberGrad: ['#9B59B6', '#C9B8FF'] as [string, string],
+    fiber: '#9464c7',        // Lila
+    fiberLight: '#f7f1ff',
+    fiberGrad: ['#9464c7', '#c7b3ee'] as [string, string],
 
-    sugar: '#E74C3C',        // Piros
-    sugarLight: '#FFF0F0',
-    sugarGrad: ['#E74C3C', '#FF9A6C'] as [string, string],
+    sugar: '#de5b4f',        // Piros
+    sugarLight: '#fff1ef',
+    sugarGrad: ['#de5b4f', '#ffb39f'] as [string, string],
 
-    kcal: '#FF6B35',         // Brand narancssárga
-    kcalLight: '#FFF0EA',
-    kcalGrad: ['#FF6B35', '#FF9A6C'] as [string, string],
+    kcal: '#ff8c00',         // Brand narancssárga
+    kcalLight: '#fff4ea',
+    kcalGrad: ['#ff8c00', '#ffb77d'] as [string, string],
   },
 
   // Glassmorphism
   glass: {
-    white: 'rgba(255, 255, 255, 0.75)',
-    whiteSoft: 'rgba(255, 255, 255, 0.55)',
-    whiteStrong: 'rgba(255, 255, 255, 0.90)',
-    border: 'rgba(255, 255, 255, 0.60)',
-    borderSoft: 'rgba(255, 255, 255, 0.35)',
-    shadow: 'rgba(31, 38, 135, 0.12)',
+    white: '#ffffff',
+    whiteSoft: 'rgba(255, 255, 255, 0.88)',
+    whiteStrong: '#ffffff',
+    border: 'rgba(26, 26, 26, 0.16)',
+    borderSoft: 'rgba(26, 26, 26, 0.1)',
+    shadow: 'rgba(26, 26, 26, 0.08)',
   },
 
   // Szöveg
   text: {
-    primary: '#1A1A2E',
-    secondary: '#555577',
-    muted: '#9999BB',
+    primary: '#1a1a1a',
+    secondary: '#3f3f46',
+    muted: '#76767c',
     white: '#FFFFFF',
-    whiteAlpha: 'rgba(255,255,255,0.85)',
+    whiteAlpha: 'rgba(255,255,255,0.88)',
   },
 
   // Státusz
@@ -71,17 +77,56 @@ export const Colors = {
 
   // Háttér
   bg: {
-    light: '#F8F9FF',
+    light: '#fcf8f8',
     card: '#FFFFFF',
+  },
+
+  dashboard: {
+    page: '#fcf9f8', // background
+    card: '#ffffff', // surface-container-lowest
+    stroke: '#1c1b1b', // on-background
+    strokeSoft: 'rgba(28,27,27,0.1)',
+    shadowHard: '#1c1b1b', // rgba(28,27,27,1)
+    shadowHardSoft: 'rgba(28,27,27,0.1)',
+    
+    // Pastel blobs
+    blobMint: '#e8f5e9', // primary-container
+    blobPeach: '#ffdad6', // error-container
+    blobLavender: '#eadecc', // secondary-container
+
+    // UI elements from HTML
+    kcalTrack: '#f1edec', // surface-container
+    kcalFill: '#ffb77d', // tertiary-fixed-dim
+    
+    proteinBg: '#ffffff',
+    proteinTrack: '#f0eded',
+    proteinFill: '#d0c5b3', // secondary-fixed-dim
+    
+    carbsBg: '#ffffff',
+    carbsTrack: '#f0eded',
+    carbsFill: '#b6cad2', // tertiary-fixed-dim
+    
+    fatBg: '#ffffff',
+    fatTrack: '#f0eded',
+    fatFill: '#fcd34d', // custom yellow from HTML
+    
+    nutritionIcon: '#556158', // primary
+    waterBg: '#e1f5fe', // tertiary-container
+    waterIcon: '#b6cad2', // tertiary-fixed-dim
+    waterFill: '#0b1e24', // on-tertiary-fixed
+
+    tabBg: '#fcf9f8', // surface
+    tabActive: '#eadecc', // secondary-container
+    tabInactive: '#434844', // on-surface-variant
   },
 } as const;
 
 export const Gradients = {
   // Fő mesh gradiens — app háttér
-  meshMain: ['#FF9A6C', '#FFD4B8', '#A8EDBC', '#7EC8E3'] as string[],
-  meshHome: ['#FF9A6C', '#FFD4B8', '#F0FFF4'] as string[],
+  meshMain: ['#ffe7d5', '#fff3ea', '#effbef', '#eef8ff'] as string[],
+  meshHome: ['#fff0e4', '#fff8f2', '#f3fcf4'] as string[],
   meshScanner: ['#1A1A2E', '#2D2D4E'] as string[],
-  meshVault: ['#7EC8E3', '#C9B8FF', '#F8F9FF'] as string[],
+  meshVault: ['#d9f1ff', '#e7ddff', '#fcf8f8'] as string[],
 
   // Makró gradiensek
   protein: Colors.macro.proteinGrad,
@@ -90,10 +135,10 @@ export const Gradients = {
   fiber: Colors.macro.fiberGrad,
 
   // Kártya gradiensek
-  cardOrange: ['#FF6B35', '#FF9A6C'] as string[],
-  cardMint: ['#2ECC71', '#A8EDBC'] as string[],
-  cardBlue: ['#4A90D9', '#7EC8E3'] as string[],
-  cardPurple: ['#9B59B6', '#C9B8FF'] as string[],
+  cardOrange: ['#ff8c00', '#ffb77d'] as string[],
+  cardMint: ['#48b76a', '#9de1b1'] as string[],
+  cardBlue: ['#3f86cf', '#88bee8'] as string[],
+  cardPurple: ['#9464c7', '#c7b3ee'] as string[],
   cardDark: ['#1A1A2E', '#2D2D4E'] as string[],
 } as const;
 
@@ -101,10 +146,10 @@ export const Shadows = {
   // Üveg árnyékok
   glass: {
     shadowColor: Colors.glass.shadow,
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 1,
-    shadowRadius: 32,
-    elevation: 8,
+    shadowRadius: 12,
+    elevation: 3,
   },
   glassSoft: {
     shadowColor: '#000',
@@ -114,19 +159,19 @@ export const Shadows = {
     elevation: 4,
   },
   card: {
-    shadowColor: '#000',
+    shadowColor: '#1a1a1a',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     elevation: 3,
   },
   // Brand árnyék (narancssárga gomboknál)
   primary: {
     shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 5,
   },
 } as const;
 

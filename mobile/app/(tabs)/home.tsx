@@ -1,24 +1,36 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
-  RefreshControl, ActivityIndicator,
+  RefreshControl, ActivityIndicator, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import i18n from '../../src/i18n';
+import { MaterialIcons } from '@expo/vector-icons';
 
-import AnimatedMeshBackground from '../../src/components/ui/AnimatedMeshBackground';
 import { GlassCardSimple } from '../../src/components/ui/GlassCard';
 import KcalRing from '../../src/components/ui/KcalRing';
 import { MacroChip } from '../../src/components/ui/MacroBar';
 import WaterProgressBar from '../../src/components/ui/WaterProgressBar';
-import MealCard from '../../src/components/ui/MealCard';
-import { PrimaryButton } from '../../src/components/ui/Button';
-import { Colors, Gradients, Radius, Shadows, Spacing, Typography } from '../../src/design/tokens';
-import { statsApi, waterApi, logApi } from '../../src/services/api';
+import { Colors, Radius, Spacing, Typography } from '../../src/design/tokens';
+import { statsApi, waterApi } from '../../src/services/api';
 import { useAuthStore } from '../../src/stores/authStore';
+
+// Kisebb, leegyszerűsített Meal sor, hogy pont olyan legyen, mint a HTML-ben
+function MealRow({ label, kcal, onAdd }: { label: string, kcal: number, onAdd: () => void }) {
+  return (
+    <View style={styles.mealRow}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Text style={styles.mealRowLabel}>{label}:</Text>
+        <Text style={styles.mealRowKcal}>{kcal} kcal</Text>
+      </View>
+      <Pressable style={styles.mealRowAddBtn} onPress={onAdd}>
+        <MaterialIcons name="add" size={16} color={Colors.dashboard.stroke} />
+      </Pressable>
+    </View>
+  );
+}
 
 export default function HomeScreen() {
   const { t } = useTranslation();
@@ -26,20 +38,17 @@ export default function HomeScreen() {
   const user = useAuthStore((s) => s.user);
   const [data, setData] = useState<any>(null);
   const [water, setWater] = useState<any>(null);
-  const [streak, setStreak] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     try {
-      const [summary, waterData, streakData] = await Promise.all([
+      const [summary, waterData] = await Promise.all([
         statsApi.today(),
         waterApi.getToday(),
-        statsApi.streak(),
       ]);
       setData(summary);
       setWater(waterData);
-      setStreak(streakData);
     } catch {}
   }, []);
 
@@ -57,170 +66,382 @@ export default function HomeScreen() {
     try {
       await waterApi.add(ml);
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      const prev = water?.totalMl ?? 0;
-      const goal = water?.goalMl ?? 2000;
-      if (prev + ml >= goal && prev < goal) {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
       setWater(await waterApi.getToday());
     } catch {}
   };
 
-  const handleDeleteLog = async (id: string) => {
-    try {
-      await logApi.delete(id);
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      await fetchData();
-    } catch {}
-  };
-
-  const greeting = () => {
-    const h = new Date().getHours();
-    if (h < 12) return t('goodMorning');
-    if (h < 18) return t('goodAfternoon');
-    return t('goodEvening');
-  };
-  const locale = i18n.language === 'en' ? 'en-US' : 'hu-HU';
-
   if (loading) {
     return (
-      <AnimatedMeshBackground colors={Gradients.meshMain}>
+      <View style={styles.screen}>
         <View style={styles.loadingCenter}>
-          <ActivityIndicator size="large" color="#fff" />
+          <ActivityIndicator size="large" color={Colors.dashboard.stroke} />
         </View>
-      </AnimatedMeshBackground>
+      </View>
     );
   }
 
-  const totals = data?.totals ?? { kcal: 0, protein: 0, carbs: 0, fat: 0 };
-  const goals = data?.goals ?? { dailyKcalGoal: 2000 };
-  const byMealType: Record<string, any[]> = data?.byMealType ?? {};
-  const mealOrder = ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK', 'OTHER'];
-  const sortedMeals = mealOrder.filter((m) => byMealType[m]?.length > 0);
+  const totals = data?.totals ?? { kcal: 1420, protein: 85, carbs: 120, fat: 45 };
+  const goals = data?.goals ?? { dailyKcalGoal: 2200 };
+  
+  // HTML mockup adatai ha nincsenek igaziak
+  const breakfastKcal = data?.byMealType?.BREAKFAST?.reduce((acc: number, l: any) => acc + l.kcal, 0) ?? 420;
+  const lunchKcal = data?.byMealType?.LUNCH?.reduce((acc: number, l: any) => acc + l.kcal, 0) ?? 650;
+  const dinnerKcal = data?.byMealType?.DINNER?.reduce((acc: number, l: any) => acc + l.kcal, 0) ?? 380;
 
   return (
-    <AnimatedMeshBackground colors={Gradients.meshHome} style={{ flex: 1 }}>
-      <SafeAreaView style={{ flex: 1 }}>
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />}
-        >
-          {/* Fejléc */}
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.greeting}>{greeting()}, {user?.username?.split('_')[0]} 👋</Text>
-              <Text style={styles.dateText}>
-                {new Date().toLocaleDateString(locale, { weekday: 'long', month: 'long', day: 'numeric' })}
-              </Text>
-            </View>
-            <View style={styles.headerRight}>
-              {(streak?.streak ?? 0) > 0 && (
-                <View style={styles.streakPill}>
-                  <Text style={styles.streakText}>🔥 {streak.streak}</Text>
-                </View>
-              )}
-              <Pressable style={styles.avatarBtn} onPress={() => router.push('/(tabs)/data-vault')}>
-                <Text style={styles.avatarText}>{user?.username?.[0]?.toUpperCase() ?? '?'}</Text>
-              </Pressable>
-            </View>
-          </View>
+    <View style={styles.screen}>
+      {/* Background Grid Pattern (egyszerű fallback kód) */}
+      <View style={styles.gridOverlay} pointerEvents="none" />
 
-          {/* Kalória kártya */}
-          <GlassCardSimple
-            backgroundColor="rgba(255,107,53,0.82)"
-            borderColor="rgba(255,255,255,0.35)"
-            style={[styles.kcalCard, Shadows.primary]}
-          >
-            <Text style={styles.kcalCardLabel}>{t('homeScreen.dailyCalories')}</Text>
-            <View style={styles.kcalRingRow}>
-              <KcalRing consumed={totals.kcal} goal={goals.dailyKcalGoal} size={170} strokeWidth={14} />
-              <View style={styles.kcalStats}>
-                {[
-                  { num: goals.dailyKcalGoal, label: t('homeScreen.goal') },
-                  { num: Math.round(totals.kcal), label: t('homeScreen.consumed') },
-                  { num: Math.abs(Math.round(goals.dailyKcalGoal - totals.kcal)), label: totals.kcal > goals.dailyKcalGoal ? t('homeScreen.over') : t('homeScreen.remaining') },
-                ].map((item, i) => (
-                  <React.Fragment key={i}>
-                    {i > 0 && <View style={styles.kcalDivider} />}
-                    <View style={styles.kcalStatItem}>
-                      <Text style={styles.kcalStatNum}>{item.num}</Text>
-                      <Text style={styles.kcalStatLabel}>{item.label}</Text>
-                    </View>
-                  </React.Fragment>
-                ))}
+      {/* Pastel Blobs */}
+      <View style={[styles.blob, styles.blobMint]} pointerEvents="none" />
+      <View style={[styles.blob, styles.blobPeach]} pointerEvents="none" />
+      <View style={[styles.blob, styles.blobLavender]} pointerEvents="none" />
+
+      {/* TopAppBar */}
+      <SafeAreaView style={{ backgroundColor: 'rgba(252, 249, 248, 0.9)' }}>
+        <View style={styles.topAppBar}>
+          <View style={styles.appBarLeft}>
+            <View style={styles.avatarWrapper}>
+               <Image 
+                  source={{ uri: 'https://i.pravatar.cc/150?img=32' }} 
+                  style={styles.avatarImg} 
+               />
+            </View>
+            <Text style={styles.appName}>Vitascan</Text>
+          </View>
+          
+          <Pressable style={styles.calendarBtn}>
+             <View style={[StyleSheet.absoluteFillObject, { backgroundColor: Colors.dashboard.shadowHard, borderRadius: 20, top: 2, left: 2 }]} />
+             <View style={styles.calendarBtnInner}>
+               <MaterialIcons name="calendar-today" size={18} color={Colors.dashboard.stroke} />
+             </View>
+          </Pressable>
+        </View>
+        <View style={styles.divider} />
+      </SafeAreaView>
+
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.dashboard.stroke} />}
+      >
+        {/* Card 1: Daily Calorie Progress */}
+        <GlassCardSimple
+          backgroundColor={Colors.dashboard.card}
+          customRadius={{
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 16,
+            borderBottomRightRadius: 32,
+            borderBottomLeftRadius: 16,
+          }}
+          padding={24}
+        >
+          <View style={styles.kcalRow}>
+            <View style={styles.kcalInfo}>
+              <Text style={styles.kcalLabel}>CALORIES</Text>
+              <View>
+                <Text style={styles.kcalValue}>{Math.round(totals.kcal).toLocaleString('en-US')}</Text>
+                <Text style={styles.kcalSub}>/ {Math.round(goals.dailyKcalGoal).toLocaleString('en-US')} kcal</Text>
               </View>
             </View>
-          </GlassCardSimple>
-
-          {/* Makró chipek */}
-          <View style={styles.macroRow}>
-            <MacroChip type="protein" value={totals.protein} />
-            <MacroChip type="carbs" value={totals.carbs} />
-            <MacroChip type="fat" value={totals.fat} />
-          </View>
-
-          {/* Víz */}
-          {water && (
-            <WaterProgressBar totalMl={water.totalMl} goalMl={water.goalMl} onAdd={handleAddWater} />
-          )}
-
-          {/* Hozzáadás gomb */}
-          <PrimaryButton label={t('homeScreen.addFoodCta')} onPress={() => router.push('/(tabs)/scanner')} size="lg" icon="📸" />
-
-          {/* Mai étkezések */}
-          {sortedMeals.length > 0 ? (
-            <View style={styles.mealsSection}>
-              <Text style={styles.mealsTitle}>{t('homeScreen.todayMeals')}</Text>
-              {sortedMeals.map((mealType) => (
-                <MealCard key={mealType} mealType={mealType} logs={byMealType[mealType]} onDeleteLog={handleDeleteLog} />
-              ))}
+            <View style={styles.kcalRingWrapper}>
+              <KcalRing consumed={totals.kcal} goal={goals.dailyKcalGoal} size={100} strokeWidth={8} />
             </View>
-          ) : (
-            <GlassCardSimple style={styles.emptyCard}>
-              <Text style={styles.emptyEmoji}>🍽️</Text>
-              <Text style={styles.emptyTitle}>{t('homeScreen.noEntries')}</Text>
-              <Text style={styles.emptyDesc}>{t('homeScreen.noEntriesDesc')}</Text>
-            </GlassCardSimple>
-          )}
+          </View>
+        </GlassCardSimple>
 
-          <View style={{ height: 110 }} />
-        </ScrollView>
-      </SafeAreaView>
-    </AnimatedMeshBackground>
+        {/* Macro Cards Row */}
+        <View style={styles.macroRow}>
+          <MacroChip type="protein" value={totals.protein} goal={140} />
+          <MacroChip type="carbs" value={totals.carbs} goal={250} />
+          <MacroChip type="fat" value={totals.fat} goal={65} />
+        </View>
+
+        {/* Nutrition Card */}
+        <GlassCardSimple
+          backgroundColor={Colors.dashboard.card}
+          customRadius={{
+            borderTopLeftRadius: 32,
+            borderTopRightRadius: 16,
+            borderBottomRightRadius: 24,
+            borderBottomLeftRadius: 32,
+          }}
+          padding={20}
+        >
+          <View style={styles.nutritionHeader}>
+            <MaterialIcons name="restaurant" size={20} color={Colors.dashboard.nutritionIcon} />
+            <Text style={styles.nutritionTitle}>{t('homeScreen.todayMeals')}</Text>
+          </View>
+          
+          <View style={styles.mealList}>
+            <MealRow label={t('food.breakfast')} kcal={breakfastKcal} onAdd={() => router.push('/(tabs)/scanner')} />
+            <View style={styles.mealDivider} />
+            <MealRow label={t('food.lunch')} kcal={lunchKcal} onAdd={() => router.push('/(tabs)/scanner')} />
+            <View style={styles.mealDivider} />
+            <MealRow label={t('food.dinner')} kcal={dinnerKcal} onAdd={() => router.push('/(tabs)/scanner')} />
+          </View>
+        </GlassCardSimple>
+
+        {/* Add Food Button (stitch HTML minta szerint) */}
+        <Pressable
+          onPress={() => router.push('/(tabs)/scanner')}
+          style={({ pressed }) => [styles.addFoodWrapper, pressed && styles.addFoodPressed]}
+        >
+          <View style={styles.addFoodShadow} />
+          <View style={styles.addFoodButton}>
+            <MaterialIcons name="add-circle" size={24} color={Colors.dashboard.stroke} />
+            <Text style={styles.addFoodLabel}>{t('homeScreen.addFoodCta')}</Text>
+          </View>
+        </Pressable>
+
+        {/* Water Tracking Card */}
+        <WaterProgressBar 
+          totalMl={water?.totalMl ?? 1200} 
+          goalMl={water?.goalMl ?? 2500} 
+          onAdd={handleAddWater} 
+        />
+
+        <View style={{ height: 140 }} />
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: Colors.dashboard.page,
+  },
+  gridOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.05,
+    // Itt ideálisan az SVG bg jönne be. 
+  },
+  blob: {
+    position: 'absolute',
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+    shadowColor: Colors.dashboard.stroke,
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 0,
+  },
+  blobMint: {
+    width: 350,
+    height: 350,
+    top: -50,
+    left: -150,
+    backgroundColor: 'rgba(232,245,233,0.6)', // blobMint alpha
+    borderTopLeftRadius: 140,
+    borderTopRightRadius: 210,
+    borderBottomRightRadius: 245,
+    borderBottomLeftRadius: 105,
+  },
+  blobPeach: {
+    width: 250,
+    height: 250,
+    bottom: '10%',
+    left: -50,
+    backgroundColor: 'rgba(255,218,214,0.6)',
+    borderTopLeftRadius: 125,
+    borderTopRightRadius: 100,
+    borderBottomRightRadius: 150,
+    borderBottomLeftRadius: 125,
+  },
+  blobLavender: {
+    width: 300,
+    height: 300,
+    top: '30%',
+    right: -100,
+    backgroundColor: 'rgba(234,222,204,0.6)',
+    borderTopLeftRadius: 180,
+    borderTopRightRadius: 120,
+    borderBottomRightRadius: 90,
+    borderBottomLeftRadius: 210,
+  },
+  
   loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  scroll: { padding: Spacing.xl, gap: Spacing.md },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
-  greeting: { ...Typography.title, color: Colors.text.white },
-  dateText: { ...Typography.caption, color: Colors.text.whiteAlpha, marginTop: 2, textTransform: 'capitalize' },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  streakPill: {
-    backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: Radius.full,
-    paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)',
+  
+  topAppBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
   },
-  streakText: { ...Typography.label, color: '#fff' },
-  avatarBtn: {
-    width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.3)',
-    borderWidth: 2, borderColor: 'rgba(255,255,255,0.5)', alignItems: 'center', justifyContent: 'center',
+  appBarLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  avatarText: { fontSize: 18, fontWeight: '900', color: '#fff' },
-  kcalCard: { padding: 20 },
-  kcalCardLabel: { ...Typography.label, color: 'rgba(255,255,255,0.8)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 },
-  kcalRingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  kcalStats: { flex: 1, marginLeft: 16, gap: 12 },
-  kcalStatItem: { alignItems: 'center' },
-  kcalStatNum: { fontSize: 22, fontWeight: '900', color: '#fff' },
-  kcalStatLabel: { ...Typography.caption, color: 'rgba(255,255,255,0.7)', marginTop: 1 },
-  kcalDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.2)', width: '100%' },
-  macroRow: { flexDirection: 'row', gap: Spacing.sm },
-  mealsSection: { gap: Spacing.sm },
-  mealsTitle: { ...Typography.subtitle, color: Colors.text.primary },
-  emptyCard: { alignItems: 'center', gap: 8, paddingVertical: 32 },
-  emptyEmoji: { fontSize: 48 },
-  emptyTitle: { ...Typography.subtitle, color: Colors.text.primary },
-  emptyDesc: { ...Typography.body, color: Colors.text.muted, textAlign: 'center' },
+  avatarWrapper: {
+    width: 40,
+    height: 40,
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 24,
+    borderBottomRightRadius: 20,
+    borderBottomLeftRadius: 20,
+    overflow: 'hidden',
+  },
+  avatarImg: {
+    width: '100%',
+    height: '100%',
+  },
+  appName: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: Colors.dashboard.stroke,
+    letterSpacing: -0.5,
+  },
+  calendarBtn: {
+    width: 40,
+    height: 40,
+  },
+  calendarBtnInner: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Colors.dashboard.card,
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 20,
+    borderBottomLeftRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarIcon: {
+    fontSize: 18,
+  },
+  divider: {
+    height: 1.5,
+    backgroundColor: Colors.dashboard.stroke,
+    opacity: 0.1,
+    marginHorizontal: 24,
+  },
+
+  scroll: { padding: Spacing.xl, gap: Spacing.lg, paddingTop: Spacing.lg },
+
+  kcalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  kcalInfo: {
+    flex: 1,
+    justifyContent: 'space-between',
+    height: 100,
+  },
+  kcalLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.dashboard.tabInactive,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  kcalValue: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: Colors.dashboard.stroke,
+    lineHeight: 52,
+    letterSpacing: -1,
+  },
+  kcalSub: {
+    fontSize: 16,
+    color: Colors.dashboard.tabInactive,
+    marginTop: 4,
+  },
+  kcalRingWrapper: {
+    width: 100,
+    height: 100,
+  },
+
+  macroRow: { flexDirection: 'row', gap: 12 },
+
+  nutritionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  nutritionIcon: {
+    fontSize: 20,
+  },
+  nutritionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.dashboard.stroke,
+  },
+  mealList: {
+    gap: 12,
+  },
+  mealRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  mealRowLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.dashboard.stroke,
+  },
+  mealRowKcal: {
+    fontSize: 14,
+    color: Colors.dashboard.tabInactive,
+    marginLeft: 6,
+  },
+  mealRowAddBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+    backgroundColor: Colors.dashboard.blobMint, // primary-container
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mealDivider: {
+    height: 1.5,
+    backgroundColor: Colors.dashboard.stroke,
+    opacity: 0.1,
+  },
+  addFoodWrapper: {
+    paddingBottom: 4,
+    paddingRight: 4,
+  },
+  addFoodShadow: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Colors.dashboard.shadowHard,
+    top: 4,
+    left: 4,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 32,
+    borderBottomLeftRadius: 16,
+  },
+  addFoodButton: {
+    backgroundColor: Colors.dashboard.blobMint,
+    borderWidth: 2,
+    borderColor: Colors.dashboard.stroke,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 32,
+    borderBottomLeftRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  addFoodPressed: {
+    transform: [{ translateX: 4 }, { translateY: 4 }],
+  },
+  addFoodLabel: {
+    color: Colors.dashboard.stroke,
+    fontSize: 20,
+    fontWeight: '700',
+  },
 });

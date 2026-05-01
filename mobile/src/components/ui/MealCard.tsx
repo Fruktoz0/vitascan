@@ -3,19 +3,19 @@ import {
   View, Text, StyleSheet, Pressable, LayoutAnimation, Platform, UIManager,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Colors, Radius, Shadows, Typography } from '../../design/tokens';
+import { Colors, Radius, Typography } from '../../design/tokens';
 import { GlassCardSimple } from './GlassCard';
 
 if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
 }
 
-const MEAL_META_BASE: Record<string, { emoji: string; color: string; bgColor: string }> = {
-  BREAKFAST: { emoji: '🌅', color: '#F5A623', bgColor: '#FFF8EC' },
-  LUNCH: { emoji: '☀️', color: '#2ECC71', bgColor: '#F0FFF4' },
-  DINNER: { emoji: '🌙', color: '#9B59B6', bgColor: '#F8F0FF' },
-  SNACK: { emoji: '🍎', color: '#FF6B35', bgColor: '#FFF0EA' },
-  OTHER: { emoji: '🍽️', color: '#4A90D9', bgColor: '#EBF4FF' },
+const MEAL_META_BASE: Record<string, { emoji: string; bgColor: string }> = {
+  BREAKFAST: { emoji: '🌅', bgColor: Colors.dashboard.softOrange },
+  LUNCH: { emoji: '☀️', bgColor: Colors.dashboard.softGreen },
+  DINNER: { emoji: '🌙', bgColor: Colors.dashboard.softBlue },
+  SNACK: { emoji: '🍎', bgColor: Colors.dashboard.blobPeach },
+  OTHER: { emoji: '🍽️', bgColor: Colors.dashboard.blobLavender },
 };
 
 interface LogEntry {
@@ -58,12 +58,11 @@ export default function MealCard({ mealType, logs, onDeleteLog }: MealCardProps)
     <GlassCardSimple
       padding={0}
       backgroundColor={meta.bgColor}
-      borderColor={meta.color + '30'}
-      style={styles.card}
+      borderColor={Colors.dashboard.stroke}
     >
       {/* Fejléc */}
       <Pressable style={styles.header} onPress={toggle}>
-        <View style={[styles.iconCircle, { backgroundColor: meta.color + '20' }]}>
+        <View style={styles.iconCircle}>
           <Text style={styles.mealEmoji}>{meta.emoji}</Text>
         </View>
         <View style={styles.headerText}>
@@ -71,7 +70,7 @@ export default function MealCard({ mealType, logs, onDeleteLog }: MealCardProps)
           <Text style={styles.mealCount}>{logs.length} {t('mealCard.items')}</Text>
         </View>
         <View style={styles.headerRight}>
-          <Text style={[styles.mealKcal, { color: meta.color }]}>
+          <Text style={styles.mealKcal}>
             {Math.round(totalKcal)} kcal
           </Text>
           <Text style={styles.chevron}>{expanded ? '▲' : '▼'}</Text>
@@ -99,7 +98,7 @@ export default function MealCard({ mealType, logs, onDeleteLog }: MealCardProps)
               </View>
               <View style={styles.entryRight}>
                 <Text style={styles.entryAmount}>{log.amount}g</Text>
-                <Text style={[styles.entryKcal, { color: meta.color }]}>
+                <Text style={styles.entryKcal}>
                   {Math.round(log.kcal)} kcal
                 </Text>
               </View>
@@ -121,48 +120,53 @@ export default function MealCard({ mealType, logs, onDeleteLog }: MealCardProps)
 }
 
 const styles = StyleSheet.create({
-  card: { overflow: 'hidden' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
-    gap: 10,
+    padding: 16,
+    gap: 12,
   },
   iconCircle: {
     width: 44,
     height: 44,
     borderRadius: 22,
+    backgroundColor: Colors.dashboard.card,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
   },
   mealEmoji: { fontSize: 22 },
   headerText: { flex: 1 },
-  mealLabel: { ...Typography.bodyMedium, color: Colors.text.primary },
-  mealCount: { ...Typography.caption, color: Colors.text.muted, marginTop: 1 },
-  headerRight: { alignItems: 'flex-end', gap: 2 },
-  mealKcal: { fontSize: 16, fontWeight: '800' },
-  chevron: { fontSize: 10, color: Colors.text.muted },
+  mealLabel: { ...Typography.subtitle, color: Colors.dashboard.stroke },
+  mealCount: { ...Typography.caption, color: Colors.text.secondary, marginTop: 2, fontWeight: '600' },
+  headerRight: { alignItems: 'flex-end', gap: 4 },
+  mealKcal: { fontSize: 16, fontWeight: '800', color: Colors.dashboard.stroke },
+  chevron: { fontSize: 12, color: Colors.dashboard.stroke },
   entries: {
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.06)',
-    paddingHorizontal: 14,
+    borderTopWidth: 1.5,
+    borderTopColor: Colors.dashboard.stroke,
+    backgroundColor: Colors.dashboard.card,
+    paddingHorizontal: 16,
+    borderBottomLeftRadius: 30, // Hogy ne takarja el a kártya sarkát
+    borderBottomRightRadius: 30,
   },
   entryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    gap: 8,
+    paddingVertical: 12,
+    gap: 10,
   },
   entryDivider: {
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomWidth: 1.5,
+    borderBottomColor: Colors.dashboard.strokeSoft,
   },
   entryMain: { flex: 1 },
-  entryName: { ...Typography.bodyMedium, color: Colors.text.primary, fontSize: 14 },
-  entryMacros: { ...Typography.caption, color: Colors.text.muted, marginTop: 2 },
-  entryRight: { alignItems: 'flex-end', gap: 1 },
-  entryAmount: { ...Typography.caption, color: Colors.text.muted },
-  entryKcal: { fontSize: 13, fontWeight: '700' },
+  entryName: { ...Typography.bodyMedium, color: Colors.dashboard.stroke, fontSize: 15 },
+  entryMacros: { ...Typography.caption, color: Colors.text.secondary, marginTop: 2, fontWeight: '500' },
+  entryRight: { alignItems: 'flex-end', gap: 2 },
+  entryAmount: { ...Typography.caption, color: Colors.text.secondary },
+  entryKcal: { fontSize: 14, fontWeight: '800', color: Colors.dashboard.stroke },
   deleteBtn: { padding: 4 },
-  deleteIcon: { fontSize: 12, color: Colors.text.muted },
+  deleteIcon: { fontSize: 14, color: Colors.dashboard.stroke, fontWeight: '900' },
 });

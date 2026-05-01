@@ -1,8 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
-import { Colors, Radius, Shadows, Typography } from '../../design/tokens';
+import { MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Colors, Radius, Typography } from '../../design/tokens';
 import { GlassCardSimple } from './GlassCard';
 
 interface WaterProgressBarProps {
@@ -11,21 +12,30 @@ interface WaterProgressBarProps {
   onAdd: (ml: number) => void;
 }
 
-const QUICK_ADD = [200, 300, 500];
+const QUICK_ADD = [250, 500];
 
 export default function WaterProgressBar({ totalMl, goalMl, onAdd }: WaterProgressBarProps) {
   const { t } = useTranslation();
   const pct = Math.min(totalMl / goalMl, 1);
-  const done = totalMl >= goalMl;
   const widthAnim = useRef(new Animated.Value(0)).current;
+  const stripeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    // Fill animáció
     Animated.spring(widthAnim, {
       toValue: pct,
       friction: 8,
       tension: 40,
       useNativeDriver: false,
     }).start();
+
+    Animated.loop(
+      Animated.timing(stripeAnim, {
+        toValue: 1,
+        duration: 20000,
+        useNativeDriver: true,
+      })
+    ).start();
   }, [pct]);
 
   const animWidth = widthAnim.interpolate({
@@ -33,52 +43,53 @@ export default function WaterProgressBar({ totalMl, goalMl, onAdd }: WaterProgre
     outputRange: ['0%', '100%'],
   });
 
+  const translateX = stripeAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -50], // a csíkok mozgása
+  });
+
   return (
     <GlassCardSimple
-      backgroundColor={done ? 'rgba(46,204,113,0.12)' : Colors.glass.white}
-      borderColor={done ? 'rgba(46,204,113,0.4)' : Colors.glass.border}
+      backgroundColor={Colors.dashboard.waterBg}
+      customRadius={{
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 32,
+        borderBottomRightRadius: 24,
+        borderBottomLeftRadius: 32,
+      }}
     >
-      {/* Fejléc */}
       <View style={styles.header}>
         <View style={styles.titleRow}>
-          <Text style={styles.dropEmoji}>💧</Text>
-          <Text style={styles.title}>{t('waterScreen.title')}</Text>
-          {done && <Text style={styles.doneBadge}>✅ {t('waterScreen.goalReached')}</Text>}
+          {/* Drop Ikon egy külön kis körben a HTML alapján */}
+          <View style={styles.iconCircle}>
+            {/* Hard shadow a kör mögött */}
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: Colors.dashboard.shadowHard, borderRadius: 20, top: 2, left: 2 }]} />
+            <View style={styles.iconCircleInner}>
+              <MaterialIcons name="water-drop" size={24} color={Colors.dashboard.waterIcon} />
+            </View>
+          </View>
+          
+          <View>
+            <Text style={styles.title}>{t('waterScreen.title')}</Text>
+            <Text style={styles.goal}>{`Napi cél: ${(goalMl / 1000).toFixed(1)}L`}</Text>
+          </View>
         </View>
-        <Text style={styles.amount}>
-          <Text style={[styles.current, done && styles.currentDone]}>
-            {totalMl}
-          </Text>
-          <Text style={styles.goal}> / {goalMl} ml</Text>
-        </Text>
+        <Text style={styles.current}>{(totalMl / 1000).toFixed(1)}L</Text>
       </View>
 
       {/* Progress sáv */}
       <View style={styles.track}>
         <Animated.View style={[styles.fillWrapper, { width: animWidth }]}>
           <LinearGradient
-            colors={done
-              ? ['#2ECC71', '#A8EDBC']
-              : ['#7EC8E3', '#4A90D9']
-            }
+            colors={['#b6cad2', '#d2e6ef']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            style={styles.fill}
+            style={StyleSheet.absoluteFillObject}
           />
+          <Animated.View style={[styles.fillInner, { transform: [{ translateX }] }]}>
+            <Text style={styles.stripesPattern}>//////// //////// //////// //////// //////// ////////</Text>
+          </Animated.View>
         </Animated.View>
-
-        {/* Hullám effect overlay */}
-        <View style={styles.waveOverlay} pointerEvents="none">
-          {[...Array(3)].map((_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.waveDot,
-                { left: `${25 + i * 25}%` as any, opacity: pct > (i + 1) * 0.25 ? 0.4 : 0 },
-              ]}
-            />
-          ))}
-        </View>
       </View>
 
       {/* Gyors hozzáadás gombok */}
@@ -88,28 +99,16 @@ export default function WaterProgressBar({ totalMl, goalMl, onAdd }: WaterProgre
             key={ml}
             style={({ pressed }) => [
               styles.addBtn,
-              done && styles.addBtnDone,
               pressed && styles.addBtnPressed,
             ]}
             onPress={() => onAdd(ml)}
+            hitSlop={8}
           >
-            <Text style={[styles.addBtnText, done && styles.addBtnTextDone]}>
-              +{ml}ml
-            </Text>
+            <MaterialIcons name="add" size={18} color={Colors.dashboard.stroke} />
+            <Text style={styles.addBtnText}>{`${ml} ml`}</Text>
           </Pressable>
         ))}
       </View>
-
-      {/* Motiváló szöveg */}
-      <Text style={styles.motivation}>
-        {pct === 0
-          ? `🌱 ${t('waterScreen.motivationStart')}`
-          : pct < 0.5
-          ? `💪 ${t('waterScreen.motivationHalf', { amount: goalMl - totalMl })}`
-          : pct < 1
-          ? `🎯 ${t('waterScreen.motivationAlmost', { amount: goalMl - totalMl })}`
-          : `🏆 ${t('waterScreen.motivationDone')}`}
-      </Text>
     </GlassCardSimple>
   );
 }
@@ -118,68 +117,82 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    alignItems: 'flex-start',
+    marginBottom: 20,
   },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dropEmoji: { fontSize: 20 },
-  title: { ...Typography.bodyMedium, color: Colors.text.primary },
-  doneBadge: {
-    fontSize: 11,
-    color: Colors.status.verified,
-    fontWeight: '700',
-    backgroundColor: Colors.status.verifiedBg,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: Radius.full,
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  iconCircle: {
+    width: 40,
+    height: 40,
   },
-  amount: {},
-  current: { fontSize: 18, fontWeight: '800', color: '#4A90D9' },
-  currentDone: { color: Colors.status.verified },
-  goal: { ...Typography.caption, color: Colors.text.muted },
-  track: {
-    height: 14,
-    backgroundColor: 'rgba(126,200,227,0.2)',
-    borderRadius: Radius.full,
-    overflow: 'hidden',
-    marginBottom: 14,
-    position: 'relative',
-  },
-  fillWrapper: { height: '100%' },
-  fill: { flex: 1, borderRadius: Radius.full },
-  waveOverlay: {
+  iconCircleInner: {
     ...StyleSheet.absoluteFillObject,
-    flexDirection: 'row',
+    backgroundColor: Colors.dashboard.card,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  waveDot: {
+  title: { fontSize: 20, fontWeight: '700', color: '#5e7178' },
+  goal: { fontSize: 14, fontWeight: '500', color: 'rgba(94, 113, 120, 0.8)' },
+  current: { fontSize: 24, fontWeight: '900', color: '#0b1e24' },
+  
+  track: {
+    height: 16,
+    backgroundColor: Colors.dashboard.card,
+    borderRadius: Radius.full,
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+    overflow: 'hidden',
+    marginBottom: 20,
+    // Belső shadow szimulálása
+  },
+  fillWrapper: { 
+    height: '100%',
+    borderRightWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+    borderTopRightRadius: Radius.full,
+    borderBottomRightRadius: Radius.full,
+    overflow: 'hidden',
+    alignItems: 'flex-end',
+    paddingRight: 8,
+  },
+  fillInner: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.3,
+    justifyContent: 'center',
+  },
+  stripesPattern: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#ffffff',
+    letterSpacing: 3,
     position: 'absolute',
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#fff',
+    top: -4,
+    left: -40,
+    width: 1000,
   },
-  btnRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  
+  btnRow: { flexDirection: 'row', gap: 12, marginTop: 8, marginBottom: 4 },
   addBtn: {
     flex: 1,
-    backgroundColor: 'rgba(126,200,227,0.15)',
-    borderRadius: Radius.full,
-    paddingVertical: 10,
-    alignItems: 'center',
+    minHeight: 40,
+    backgroundColor: Colors.dashboard.card,
+    borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: 'rgba(74,144,217,0.3)',
+    borderColor: Colors.dashboard.stroke,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
   },
-  addBtnDone: {
-    backgroundColor: 'rgba(46,204,113,0.12)',
-    borderColor: 'rgba(46,204,113,0.3)',
+    shadowColor: Colors.dashboard.shadowHard,
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 0,
   },
-  addBtnPressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
-  addBtnText: { ...Typography.label, color: '#2B8FCB' },
-  addBtnTextDone: { color: Colors.status.verified },
-  motivation: {
-    ...Typography.caption,
-    color: Colors.text.muted,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
+  addBtnPressed: { transform: [{ translateY: 2 }, { translateX: 2 }] },
+  addBtnText: { fontSize: 14, color: Colors.dashboard.stroke, fontWeight: '700' },
 });

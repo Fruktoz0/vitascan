@@ -1,93 +1,60 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Gradients, Typography, Radius } from '../../design/tokens';
+import { MaterialIcons } from '@expo/vector-icons';
+import { Colors, Radius, Typography } from '../../design/tokens';
+import { GlassCardSimple } from './GlassCard';
 
 interface MacroBarProps {
   label: string;
   value: number;       // aktuális g
   goal?: number;       // napi cél g (opcionális)
   unit?: string;
-  type: 'protein' | 'carbs' | 'fat' | 'fiber' | 'sugar' | 'kcal';
-  animate?: boolean;
+  type: 'protein' | 'carbs' | 'fat';
 }
 
 const MACRO_CONFIG = {
-  protein: { emoji: '💪', label: 'Fehérje', colors: Gradients.protein },
-  carbs:   { emoji: '🌾', label: 'Szénhidrát', colors: Gradients.carbs },
-  fat:     { emoji: '🥑', label: 'Zsír', colors: Gradients.fat },
-  fiber:   { emoji: '🌿', label: 'Rost', colors: Gradients.fiber },
-  sugar:   { emoji: '🍬', label: 'Cukor', colors: Colors.macro.sugarGrad },
-  kcal:    { emoji: '🔥', label: 'Kalória', colors: Gradients.cardOrange },
+  protein: {
+    label: 'Protein',
+    icon: 'egg-alt',
+    bgColor: Colors.dashboard.proteinBg,
+    trackColor: Colors.dashboard.proteinTrack,
+    fillColor: Colors.dashboard.proteinFill,
+    radii: {
+      borderTopLeftRadius: 16,
+      borderTopRightRadius: 16,
+      borderBottomRightRadius: 16,
+      borderBottomLeftRadius: 16,
+    }
+  },
+  carbs: {
+    label: 'Carbs',
+    icon: 'bakery-dining',
+    bgColor: Colors.dashboard.carbsBg,
+    trackColor: Colors.dashboard.carbsTrack,
+    fillColor: Colors.dashboard.carbsFill,
+    radii: {
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 16,
+      borderBottomRightRadius: 16,
+      borderBottomLeftRadius: 24,
+    }
+  },
+  fat: {
+    label: 'Fat',
+    icon: 'opacity',
+    bgColor: Colors.dashboard.fatBg,
+    trackColor: Colors.dashboard.fatTrack,
+    fillColor: Colors.dashboard.fatFill,
+    radii: {
+      borderTopLeftRadius: 16,
+      borderTopRightRadius: 24,
+      borderBottomRightRadius: 24,
+      borderBottomLeftRadius: 16,
+    }
+  },
 };
 
-export default function MacroBar({
-  label,
-  value,
-  goal,
-  unit = 'g',
-  type,
-  animate = true,
-}: MacroBarProps) {
-  const config = MACRO_CONFIG[type];
-  const pct = goal ? Math.min(value / goal, 1) : 0;
-  const widthAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (!animate) return;
-    Animated.spring(widthAnim, {
-      toValue: pct,
-      friction: 8,
-      tension: 40,
-      useNativeDriver: false,
-    }).start();
-  }, [pct]);
-
-  const animatedWidth = widthAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
-  });
-
-  const isOver = !!goal && value > goal;
-  const mainColor = Colors.macro[type];
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.labelRow}>
-          <Text style={styles.emoji}>{config.emoji}</Text>
-          <Text style={styles.label}>{label || config.label}</Text>
-        </View>
-        <View style={styles.valueRow}>
-          <Text style={[styles.value, { color: mainColor }]}>
-            {unit === 'kcal' ? Math.round(value) : Math.round(value * 10) / 10}
-          </Text>
-          <Text style={styles.unit}>{unit}</Text>
-          {goal && (
-            <Text style={styles.goal}>
-              {' '}/ {unit === 'kcal' ? Math.round(goal) : goal}{unit}
-            </Text>
-          )}
-        </View>
-      </View>
-
-      {goal && (
-        <View style={styles.track}>
-          <Animated.View style={[styles.fillWrapper, { width: animatedWidth }]}>
-            <LinearGradient
-              colors={config.colors as any}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={[styles.fill, isOver && styles.fillOver]}
-            />
-          </Animated.View>
-        </View>
-      )}
-    </View>
-  );
-}
-
-// Kompakt kártyás változat a Home screen-hez
+// Kompakt kártyás változat a Home screen-hez HTML alapján
 export function MacroChip({
   type,
   value,
@@ -98,71 +65,110 @@ export function MacroChip({
   goal?: number;
 }) {
   const config = MACRO_CONFIG[type];
-  const mainColor = Colors.macro[type];
-  const lightColor = Colors.macro[`${type}Light` as keyof typeof Colors.macro] as string;
-  const pct = goal ? Math.min(value / goal, 1) : null;
+  const pct = goal ? Math.min(value / goal, 1) : 0;
+  const widthAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(widthAnim, {
+      toValue: pct,
+      friction: 8,
+      tension: 40,
+      useNativeDriver: false,
+    }).start();
+  }, [pct]);
+
+  const animWidth = widthAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '100%'],
+  });
 
   return (
-    <View style={[chipStyles.card, { backgroundColor: lightColor, borderColor: mainColor + '30' }]}>
-      <Text style={chipStyles.emoji}>{config.emoji}</Text>
-      <Text style={[chipStyles.value, { color: mainColor }]}>
-        {Math.round(value * 10) / 10}g
-      </Text>
-      <Text style={chipStyles.label}>{config.label}</Text>
-      {pct !== null && (
-        <View style={chipStyles.track}>
-          <LinearGradient
-            colors={config.colors as any}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={[chipStyles.fill, { width: `${pct * 100}%` }]}
+    <GlassCardSimple
+      style={{ flex: 1, minHeight: 110 }}
+      innerStyle={{ flex: 1, justifyContent: 'space-between' }}
+      padding={12}
+      customRadius={config.radii}
+      backgroundColor={config.bgColor}
+      shadowOffset={3} // HTML-ben 3px_3px_0px_0px
+    >
+      <View style={styles.header}>
+        <Text style={styles.label}>{config.label}</Text>
+        <MaterialIcons
+          name={config.icon as keyof typeof MaterialIcons.glyphMap}
+          size={16}
+          color={
+            type === 'protein'
+              ? Colors.dashboard.proteinFill
+              : type === 'carbs'
+              ? Colors.dashboard.carbsFill
+              : Colors.dashboard.fatFill
+          }
+        />
+      </View>
+      
+      <View>
+        <Text style={styles.value}>{Math.round(value)}g</Text>
+        
+        <View style={[styles.track, { backgroundColor: config.trackColor }]}>
+          <Animated.View
+            style={[
+              styles.fill,
+              { backgroundColor: config.fillColor, width: animWidth },
+            ]}
           />
         </View>
-      )}
-    </View>
+        
+        {goal && (
+          <Text style={styles.goal}>/ {goal}g</Text>
+        )}
+      </View>
+    </GlassCardSimple>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { gap: 8 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  emoji: { fontSize: 16 },
-  label: { ...Typography.label, color: Colors.text.secondary },
-  valueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 1 },
-  value: { fontSize: 16, fontWeight: '800' },
-  unit: { ...Typography.caption, color: Colors.text.muted, marginLeft: 1 },
-  goal: { ...Typography.caption, color: Colors.text.muted },
-  track: {
-    height: 8,
-    backgroundColor: 'rgba(0,0,0,0.06)',
-    borderRadius: Radius.full,
-    overflow: 'hidden',
-  },
-  fillWrapper: { height: '100%' },
-  fill: { flex: 1, borderRadius: Radius.full },
-  fillOver: { opacity: 0.6 },
-});
-
-const chipStyles = StyleSheet.create({
-  card: {
-    flex: 1,
-    borderRadius: Radius.lg,
-    padding: 14,
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 4,
-    borderWidth: 1.5,
+    marginBottom: 8,
   },
-  emoji: { fontSize: 22 },
-  value: { fontSize: 18, fontWeight: '800' },
-  label: { ...Typography.caption, color: Colors.text.muted },
+  label: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.dashboard.tabInactive,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  icon: {
+    fontSize: 16,
+  },
+  value: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.dashboard.stroke,
+    marginBottom: 4,
+  },
   track: {
     width: '100%',
-    height: 5,
-    backgroundColor: 'rgba(0,0,0,0.08)',
+    height: 6,
     borderRadius: Radius.full,
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
     overflow: 'hidden',
-    marginTop: 2,
   },
-  fill: { height: '100%', borderRadius: Radius.full },
+  fill: {
+    height: '100%',
+    borderRightWidth: 1.5,
+    borderRightColor: Colors.dashboard.stroke,
+    borderTopRightRadius: Radius.full,
+    borderBottomRightRadius: Radius.full,
+  },
+  goal: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: Colors.dashboard.tabInactive,
+    marginTop: 4,
+    textAlign: 'right',
+  },
 });
