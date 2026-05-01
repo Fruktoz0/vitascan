@@ -68,7 +68,7 @@ export default function WaterProgressBar({ totalMl, goalMl, onAdd }: WaterProgre
               <MaterialIcons name="water-drop" size={24} color={Colors.dashboard.waterIcon} />
             </View>
           </View>
-          
+
           <View>
             <Text style={styles.title}>{t('waterScreen.title')}</Text>
             <Text style={styles.goal}>{`Napi cél: ${(goalMl / 1000).toFixed(1)}L`}</Text>
@@ -98,14 +98,17 @@ export default function WaterProgressBar({ totalMl, goalMl, onAdd }: WaterProgre
           <Pressable
             key={ml}
             style={({ pressed }) => [
-              styles.addBtn,
+              styles.addBtnWrapper,
               pressed && styles.addBtnPressed,
             ]}
             onPress={() => onAdd(ml)}
             hitSlop={8}
           >
-            <MaterialIcons name="add" size={18} color={Colors.dashboard.stroke} />
-            <Text style={styles.addBtnText}>{`${ml} ml`}</Text>
+            <View style={styles.addBtnShadow} />
+            <View style={styles.addBtn}>
+              <Text style={styles.addBtnPlus}>+</Text>
+              <Text style={styles.addBtnText}>{` ${ml} ml`}</Text>
+            </View>
           </Pressable>
         ))}
       </View>
@@ -137,7 +140,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '700', color: '#5e7178' },
   goal: { fontSize: 14, fontWeight: '500', color: 'rgba(94, 113, 120, 0.8)' },
   current: { fontSize: 24, fontWeight: '900', color: '#0b1e24' },
-  
+
   track: {
     height: 16,
     backgroundColor: Colors.dashboard.card,
@@ -148,7 +151,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     // Belső shadow szimulálása
   },
-  fillWrapper: { 
+  fillWrapper: {
     height: '100%',
     borderRightWidth: 1.5,
     borderColor: Colors.dashboard.stroke,
@@ -173,26 +176,33 @@ const styles = StyleSheet.create({
     left: -40,
     width: 1000,
   },
-  
+
   btnRow: { flexDirection: 'row', gap: 12, marginTop: 8, marginBottom: 4 },
-  addBtn: {
+  addBtnWrapper: {
     flex: 1,
-    minHeight: 40,
+  },
+  addBtnShadow: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Colors.dashboard.shadowHard,
+    borderRadius: 20,
+    top: 3,
+    left: 2,
+  },
+  addBtn: {
+    width: 150,
+    alignSelf: 'center',
+    marginBottom: 2,
+    marginRight: 2,
+    justifyContent: 'center',
+    height: 40,
     backgroundColor: Colors.dashboard.card,
-    borderRadius: 10,
+    borderRadius: 20,
     borderWidth: 1.5,
     borderColor: Colors.dashboard.stroke,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-    shadowColor: Colors.dashboard.shadowHard,
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 0,
   },
   addBtnPressed: { transform: [{ translateY: 2 }, { translateX: 2 }] },
-  addBtnText: { fontSize: 14, color: Colors.dashboard.stroke, fontWeight: '700' },
+  addBtnText: { fontSize: 13, color: Colors.dashboard.stroke, fontWeight: '800' },
+  addBtnPlus: { fontSize: 15, color: '#407a9b', fontWeight: '800' },
 });
