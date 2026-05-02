@@ -192,7 +192,7 @@ export default function FoodLibraryScreen() {
         </View>
 
         <View style={[styles.headerSide, { alignItems: 'flex-end' }]}>
-          <Pressable style={styles.calendarBtn}>
+          <Pressable style={styles.calendarBtn} onPress={() => router.push('/(tabs)/date-picker')}>
             <View style={styles.calendarBtnShadow} />
             <View style={styles.calendarBtnInner}>
               <MaterialIcons name="calendar-today" size={20} color={Colors.dashboard.stroke} />

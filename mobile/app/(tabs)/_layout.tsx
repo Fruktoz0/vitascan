@@ -129,6 +129,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="date-picker"
+        options={{
+          href: null,
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
         name="index"
         options={{ href: null }}
       />

@@ -15,6 +15,7 @@ import premiumRoutes from './modules/premium/premium.routes';
 import statsRoutes from './modules/stats/stats.routes';
 import onboardingRoutes from './modules/onboarding/onboarding.routes';
 import exportRoutes from './modules/export/export.routes';
+import weightRoutes from './modules/weight/weight.routes';
 
 const fastify = Fastify({
   logger: {
@@ -60,6 +61,7 @@ async function bootstrap() {
   await fastify.register(foodRoutes, { prefix: '/foods' });
   await fastify.register(logRoutes, { prefix: '/logs' });
   await fastify.register(waterRoutes, { prefix: '/water' });
+  await fastify.register(weightRoutes, { prefix: '/weight' });
   await fastify.register(profileRoutes, { prefix: '/profile' });
   await fastify.register(statsRoutes, { prefix: '/stats' });
   await fastify.register(onboardingRoutes, { prefix: '/onboarding' });

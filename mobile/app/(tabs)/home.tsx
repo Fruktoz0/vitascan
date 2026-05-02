@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 
 import i18n from '../../src/i18n';
 import { GlassCardSimple } from '../../src/components/ui/GlassCard';
@@ -15,7 +15,7 @@ import KcalRing from '../../src/components/ui/KcalRing';
 import { MacroChip } from '../../src/components/ui/MacroBar';
 import WaterProgressBar from '../../src/components/ui/WaterProgressBar';
 import { Colors, Radius, Spacing, Typography } from '../../src/design/tokens';
-import { statsApi, waterApi } from '../../src/services/api';
+import { statsApi, waterApi, weightApi } from '../../src/services/api';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useDateStore } from '../../src/stores/dateStore';
 
@@ -41,6 +41,7 @@ export default function HomeScreen() {
   const { selectedDate, changeDateBy, resetDate } = useDateStore();
   const [data, setData] = useState<any>(null);
   const [water, setWater] = useState<any>(null);
+  const [weight, setWeight] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -63,12 +64,14 @@ export default function HomeScreen() {
     setLoading(true);
     try {
       const dateStr = selectedDate.toISOString().split('T')[0];
-      const [summary, waterData] = await Promise.all([
+      const [summary, waterData, weightData] = await Promise.all([
         statsApi.day(dateStr),
         waterApi.getByDate(dateStr),
+        weightApi.getByDate(dateStr),
       ]);
       setData(summary);
       setWater(waterData);
+      setWeight(weightData);
     } catch {}
     setLoading(false);
   }, [selectedDate]);
@@ -88,6 +91,16 @@ export default function HomeScreen() {
       await waterApi.add(ml);
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setWater(await waterApi.getByDate(selectedDate.toISOString().split('T')[0]));
+    } catch {}
+  };
+
+  const handleAdjustWeight = async (delta: number) => {
+    try {
+      const dateStr = selectedDate.toISOString().split('T')[0];
+      const baseWeight = typeof weight?.weightKg === 'number' ? weight.weightKg : 72.5;
+      const nextWeight = Math.max(20, Math.min(500, Math.round((baseWeight + delta) * 10) / 10));
+      setWeight(await weightApi.setForDate(dateStr, nextWeight));
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch {}
   };
 
@@ -123,6 +136,10 @@ export default function HomeScreen() {
   const breakfastKcal = data?.byMealType?.BREAKFAST?.reduce((acc: number, l: any) => acc + l.kcal, 0) ?? 420;
   const lunchKcal = data?.byMealType?.LUNCH?.reduce((acc: number, l: any) => acc + l.kcal, 0) ?? 650;
   const dinnerKcal = data?.byMealType?.DINNER?.reduce((acc: number, l: any) => acc + l.kcal, 0) ?? 380;
+  const weightValue = typeof weight?.weightKg === 'number' ? weight.weightKg.toFixed(1) : '--';
+  const lastMeasuredText = weight?.lastMeasuredAt
+    ? t('homeScreen.weightLastMeasuredToday', 'Utolsó mérés: ma')
+    : t('homeScreen.weightNoMeasurement', 'Nincs mérés');
 
   return (
     <View style={styles.screen} {...panResponder.panHandlers}>
@@ -151,7 +168,7 @@ export default function HomeScreen() {
           </View>
           
           <View style={[styles.appBarSide, { alignItems: 'flex-end' }]}>
-            <Pressable style={styles.calendarBtn}>
+            <Pressable style={styles.calendarBtn} onPress={() => router.push('/(tabs)/date-picker')}>
                <View style={styles.calendarBtnShadow} />
                <View style={styles.calendarBtnInner}>
                  <MaterialIcons name="calendar-today" size={20} color={Colors.dashboard.stroke} />
@@ -234,6 +251,37 @@ export default function HomeScreen() {
             <Text style={styles.addFoodLabel}>{t('homeScreen.addFoodCta')}</Text>
           </View>
         </Pressable>
+
+        {/* Weight Tracking Card */}
+        <View style={styles.weightCardWrapper}>
+          <View style={styles.weightCardShadow} />
+          <View style={styles.weightCard}>
+            <View style={styles.weightTopRow}>
+              <View style={styles.weightTitleRow}>
+                <View style={styles.weightIconWrap}>
+                  <MaterialCommunityIcons name="weight" size={16} color={Colors.dashboard.stroke} />
+                </View>
+                <View>
+                  <Text style={styles.weightTitle}>Súly</Text>
+                  <Text style={styles.weightSub}>{lastMeasuredText}</Text>
+                </View>
+              </View>
+              <Text>
+                <Text style={styles.weightValueNum}>{weightValue}</Text>
+                <Text style={styles.weightValueUnit}> kg</Text>
+              </Text>
+            </View>
+
+            <View style={styles.weightActions}>
+              <Pressable style={styles.weightAdjustBtn} onPress={() => handleAdjustWeight(-0.1)}>
+                <Text style={styles.weightAdjustText}>−</Text>
+              </Pressable>
+              <Pressable style={styles.weightAdjustBtn} onPress={() => handleAdjustWeight(0.1)}>
+                <Text style={styles.weightAdjustText}>+</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
 
         {/* Water Tracking Card */}
         <WaterProgressBar 
@@ -482,5 +530,93 @@ const styles = StyleSheet.create({
     color: Colors.dashboard.stroke,
     fontSize: 20,
     fontWeight: '700',
+  },
+  weightCardWrapper: {
+    position: 'relative',
+    paddingRight: 4,
+    paddingBottom: 4,
+  },
+  weightCardShadow: {
+    ...StyleSheet.absoluteFillObject,
+    top: 4,
+    left: 4,
+    backgroundColor: Colors.dashboard.shadowHard,
+    borderRadius: 24,
+  },
+  weightCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
+    gap: 12,
+  },
+  weightTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  weightTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    flexShrink: 1,
+    paddingRight: 8,
+  },
+  weightIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E6D5C3',
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weightTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.dashboard.stroke,
+    lineHeight: 18,
+  },
+  weightSub: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#555555',
+    lineHeight: 14,
+    marginTop: 2,
+  },
+  weightValueNum: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.dashboard.stroke,
+  },
+  weightValueUnit: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.dashboard.stroke,
+  },
+  weightActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  weightAdjustBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+    backgroundColor: '#FCE4C4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weightAdjustText: {
+    fontSize: 22,
+    fontWeight: '500',
+    color: Colors.dashboard.stroke,
+    lineHeight: 24,
   },
 });

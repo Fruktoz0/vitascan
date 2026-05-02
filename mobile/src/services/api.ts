@@ -156,6 +156,23 @@ export const waterApi = {
   delete: (id: string) => request(`/water/${id}`, { method: 'DELETE' }),
 };
 
+// ─── Weight ───────────────────────────────────────────────────────────────────
+export const weightApi = {
+  getByDate: (date: string) => request<{
+    log: any | null;
+    weightKg: number | null;
+    deltaKg: number;
+    lastMeasuredAt: string | null;
+  }>(`/weight?date=${date}`),
+  setForDate: (date: string, weightKg: number) =>
+    request<{
+      log: any;
+      weightKg: number | null;
+      deltaKg: number;
+      lastMeasuredAt: string | null;
+    }>('/weight', { method: 'POST', body: JSON.stringify({ date, weightKg }) }),
+};
+
 // ─── Profile ──────────────────────────────────────────────────────────────────
 export const profileApi = {
   getMe: () => request<any>('/profile/me'),

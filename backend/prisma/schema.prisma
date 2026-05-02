@@ -27,6 +27,7 @@ model User {
   profile       UserProfile?
   refreshTokens RefreshToken[]
   waterLogs     WaterLog[]
+  weightLogs    WeightLog[]
 
   deletedAt DateTime? // Soft delete (GDPR - 30 napos türelmi idő)
   createdAt DateTime  @default(now())
@@ -127,6 +128,20 @@ model WaterLog {
 
   amountMl  Int // ivott víz ml-ben
   createdAt DateTime @default(now())
+}
+
+model WeightLog {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  weightKg  Float
+  loggedDate DateTime @db.Date
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, loggedDate])
+  @@index([userId, loggedDate])
 }
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
