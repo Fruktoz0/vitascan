@@ -28,6 +28,11 @@
     "english": "English",
     "switchLabel": "App language"
   },
+  "date": {
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "yesterday": "Yesterday"
+  },
   "food": {
     "libraryTitle": "Food library",
     "librarySubtitle": "VitaScan database",

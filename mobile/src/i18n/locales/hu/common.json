@@ -28,6 +28,11 @@
     "english": "Angol",
     "switchLabel": "App nyelve"
   },
+  "date": {
+    "today": "Ma",
+    "tomorrow": "Holnap",
+    "yesterday": "Tegnap"
+  },
   "food": {
     "libraryTitle": "Étel-könyvtár",
     "librarySubtitle": "VitaScan adatbázis",

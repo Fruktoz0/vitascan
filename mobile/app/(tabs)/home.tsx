@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { MaterialIcons } from '@expo/vector-icons';
 
+import i18n from '../../src/i18n';
 import { GlassCardSimple } from '../../src/components/ui/GlassCard';
 import KcalRing from '../../src/components/ui/KcalRing';
 import { MacroChip } from '../../src/components/ui/MacroBar';
@@ -40,6 +41,22 @@ export default function HomeScreen() {
   const [water, setWater] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Később ha lesz dátumválasztó be lehet kötni, most mindig a mai napot adja vissza (mint ahogy az API is most csak a mait kéri).
+  const getHeaderDateText = () => {
+    const today = new Date();
+    const current = new Date(); // Ide jönne a state
+    today.setHours(0, 0, 0, 0);
+    current.setHours(0, 0, 0, 0);
+    const diffTime = current.getTime() - today.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return t('date.today', 'Ma');
+    if (diffDays === 1) return t('date.tomorrow', 'Holnap');
+    if (diffDays === -1) return t('date.yesterday', 'Tegnap');
+    
+    return current.toLocaleDateString(i18n.language === 'hu' ? 'hu-HU' : 'en-US', { month: 'short', day: 'numeric' });
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -101,24 +118,28 @@ export default function HomeScreen() {
       {/* TopAppBar */}
       <SafeAreaView style={{ backgroundColor: 'rgba(252, 249, 248, 0.9)' }}>
         <View style={styles.topAppBar}>
-          <View style={styles.appBarLeft}>
+          <View style={styles.appBarSide}>
             <View style={styles.avatarWrapper}>
                <Image 
                   source={{ uri: 'https://i.pravatar.cc/150?img=32' }} 
                   style={styles.avatarImg} 
                />
             </View>
-            <Text style={styles.appName}>Vitascan</Text>
           </View>
           
-          <Pressable style={styles.calendarBtn}>
-             <View style={[StyleSheet.absoluteFillObject, { backgroundColor: Colors.dashboard.shadowHard, borderRadius: 20, top: 2, left: 2 }]} />
-             <View style={styles.calendarBtnInner}>
-               <MaterialIcons name="calendar-today" size={18} color={Colors.dashboard.stroke} />
-             </View>
-          </Pressable>
+          <View style={styles.appBarCenter}>
+            <Text style={styles.appName}>{getHeaderDateText()}</Text>
+          </View>
+          
+          <View style={[styles.appBarSide, { alignItems: 'flex-end' }]}>
+            <Pressable style={styles.calendarBtn}>
+               <View style={styles.calendarBtnShadow} />
+               <View style={styles.calendarBtnInner}>
+                 <MaterialIcons name="calendar-today" size={20} color={Colors.dashboard.stroke} />
+               </View>
+            </Pressable>
+          </View>
         </View>
-        <View style={styles.divider} />
       </SafeAreaView>
 
       <ScrollView
@@ -268,12 +289,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingVertical: 16,
+    paddingVertical: 8,
   },
-  appBarLeft: {
-    flexDirection: 'row',
+  appBarSide: {
+    zIndex: 2,
+  },
+  appBarCenter: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'center',
+    zIndex: 1,
   },
   avatarWrapper: {
     width: 40,
@@ -300,26 +325,21 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
   },
+  calendarBtnShadow: {
+    position: 'absolute', top: 2, left: 2, right: -2, bottom: -2,
+    backgroundColor: Colors.dashboard.shadowHard, borderRadius: 20,
+  },
   calendarBtnInner: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: Colors.dashboard.card,
-    borderWidth: 1.5,
+    backgroundColor: '#fff',
+    borderWidth: 1,
     borderColor: Colors.dashboard.stroke,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 16,
-    borderBottomRightRadius: 20,
-    borderBottomLeftRadius: 20,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
   calendarIcon: {
     fontSize: 18,
-  },
-  divider: {
-    height: 1.5,
-    backgroundColor: Colors.dashboard.stroke,
-    opacity: 0.1,
-    marginHorizontal: 24,
   },
 
   scroll: { padding: Spacing.xl, gap: Spacing.lg, paddingTop: Spacing.lg },
