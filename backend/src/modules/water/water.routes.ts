@@ -8,7 +8,32 @@ const AddWaterSchema = z.object({
 });
 
 const waterRoutes: FastifyPluginAsync = async (fastify) => {
-  // GET /water/today — napi összesítés
+  // GET /water?date=YYYY-MM-DD — napi összesítés (adott napra vagy mára)
+  fastify.get('/', { preHandler: authenticate }, async (request, reply) => {
+    const userId = request.user.userId;
+    const { date } = request.query as { date?: string };
+
+    const day = date ? new Date(date) : new Date();
+    day.setHours(0, 0, 0, 0);
+    const nextDay = new Date(day);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    const logs = await fastify.prisma.waterLog.findMany({
+      where: { userId, createdAt: { gte: day, lt: nextDay } },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const totalMl = logs.reduce((sum, l) => sum + l.amountMl, 0);
+
+    // Get personalized goal from profile
+    const profile = await fastify.prisma.userProfile.findUnique({ where: { userId } });
+    const goalMl = profile?.dailyWaterGoalMl ?? 
+      (profile?.weightKg ? calculateWaterGoal(profile.weightKg) : 2000);
+
+    return reply.send({ logs, totalMl, goalMl });
+  });
+
+  // GET /water/today — napi összesítés (kompatibilitás miatt megtartva)
   fastify.get('/today', { preHandler: authenticate }, async (request, reply) => {
     const userId = request.user.userId;
     const start = new Date();

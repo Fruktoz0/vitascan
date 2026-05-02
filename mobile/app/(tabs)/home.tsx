@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
-  RefreshControl, ActivityIndicator, Image,
+  RefreshControl, ActivityIndicator, Image, PanResponder
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -17,6 +17,7 @@ import WaterProgressBar from '../../src/components/ui/WaterProgressBar';
 import { Colors, Radius, Spacing, Typography } from '../../src/design/tokens';
 import { statsApi, waterApi } from '../../src/services/api';
 import { useAuthStore } from '../../src/stores/authStore';
+import { useDateStore } from '../../src/stores/dateStore';
 
 // Kisebb, leegyszerűsített Meal sor, hogy pont olyan legyen, mint a HTML-ben
 function MealRow({ label, kcal, onAdd }: { label: string, kcal: number, onAdd: () => void }) {
@@ -37,15 +38,15 @@ export default function HomeScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
+  const { selectedDate, changeDateBy, resetDate } = useDateStore();
   const [data, setData] = useState<any>(null);
   const [water, setWater] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Később ha lesz dátumválasztó be lehet kötni, most mindig a mai napot adja vissza (mint ahogy az API is most csak a mait kéri).
   const getHeaderDateText = () => {
     const today = new Date();
-    const current = new Date(); // Ide jönne a state
+    const current = new Date(selectedDate);
     today.setHours(0, 0, 0, 0);
     current.setHours(0, 0, 0, 0);
     const diffTime = current.getTime() - today.getTime();
@@ -59,19 +60,22 @@ export default function HomeScreen() {
   };
 
   const fetchData = useCallback(async () => {
+    setLoading(true);
     try {
+      const dateStr = selectedDate.toISOString().split('T')[0];
       const [summary, waterData] = await Promise.all([
-        statsApi.today(),
-        waterApi.getToday(),
+        statsApi.day(dateStr),
+        waterApi.getByDate(dateStr),
       ]);
       setData(summary);
       setWater(waterData);
     } catch {}
-  }, []);
+    setLoading(false);
+  }, [selectedDate]);
 
   useEffect(() => {
-    fetchData().finally(() => setLoading(false));
-  }, []);
+    fetchData();
+  }, [fetchData]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -83,11 +87,26 @@ export default function HomeScreen() {
     try {
       await waterApi.add(ml);
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setWater(await waterApi.getToday());
+      setWater(await waterApi.getByDate(selectedDate.toISOString().split('T')[0]));
     } catch {}
   };
 
-  if (loading) {
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        return Math.abs(gestureState.dx) > 30 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        if (gestureState.dx > 50) {
+          changeDateBy(-1);
+        } else if (gestureState.dx < -50) {
+          changeDateBy(1);
+        }
+      },
+    })
+  ).current;
+
+  if (loading && !data) {
     return (
       <View style={styles.screen}>
         <View style={styles.loadingCenter}>
@@ -106,7 +125,7 @@ export default function HomeScreen() {
   const dinnerKcal = data?.byMealType?.DINNER?.reduce((acc: number, l: any) => acc + l.kcal, 0) ?? 380;
 
   return (
-    <View style={styles.screen}>
+    <View style={styles.screen} {...panResponder.panHandlers}>
       {/* Background Grid Pattern (egyszerű fallback kód) */}
       <View style={styles.gridOverlay} pointerEvents="none" />
 

@@ -1,18 +1,20 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  Pressable, ActivityIndicator, Image,
+  Pressable, ActivityIndicator, Image, PanResponder,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import i18n from '../../src/i18n';
 
 import { Food, statsApi } from '../../src/services/api';
 import { BentoCard } from '../../src/components/ui/BentoCard';
 import AddFoodManualModal from '../../src/components/food/AddFoodManualModal';
 import FoodDetailModal from '../../src/components/food/FoodDetailModal';
 import { Colors, Spacing } from '../../src/design/tokens';
+import { useDateStore } from '../../src/stores/dateStore';
 
 // ─── MealItem ────────────────────────────────────────────────────────────────
 function MealItem({ name, meta, kcal, isLast }: { name: string; meta: string; kcal: number; isLast?: boolean }) {
@@ -99,6 +101,7 @@ function MealSection({ title, icon, iconBg, kcal, items, onAdd, onEdit }: MealSe
 export default function FoodLibraryScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { selectedDate, changeDateBy, resetDate } = useDateStore();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [manualVisible, setManualVisible] = useState(false);
@@ -106,16 +109,32 @@ export default function FoodLibraryScreen() {
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [selectedMealType, setSelectedMealType] = useState<'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK'>('SNACK');
 
+  const getHeaderDateText = () => {
+    const today = new Date();
+    const current = new Date(selectedDate);
+    today.setHours(0, 0, 0, 0);
+    current.setHours(0, 0, 0, 0);
+    const diffTime = current.getTime() - today.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return t('date.today', 'Ma');
+    if (diffDays === 1) return t('date.tomorrow', 'Holnap');
+    if (diffDays === -1) return t('date.yesterday', 'Tegnap');
+    
+    return current.toLocaleDateString(i18n.language === 'hu' ? 'hu-HU' : 'en-US', { month: 'short', day: 'numeric' });
+  };
+
   const fetchData = useCallback(async () => {
     try {
-      const summary = await statsApi.today();
+      const dateStr = selectedDate.toISOString().split('T')[0];
+      const summary = await statsApi.day(dateStr);
       setData(summary);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedDate]);
 
   useFocusEffect(
     useCallback(() => {
@@ -123,7 +142,22 @@ export default function FoodLibraryScreen() {
     }, [fetchData])
   );
 
-  if (loading) {
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        return Math.abs(gestureState.dx) > 30 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        if (gestureState.dx > 50) {
+          changeDateBy(-1);
+        } else if (gestureState.dx < -50) {
+          changeDateBy(1);
+        }
+      },
+    })
+  ).current;
+
+  if (loading && !data) {
     return (
       <View style={styles.loadingCenter}>
         <ActivityIndicator color={Colors.dashboard.stroke} size="large" />
@@ -141,31 +175,37 @@ export default function FoodLibraryScreen() {
   };
 
   return (
-    <View style={styles.screen}>
+    <View style={styles.screen} {...panResponder.panHandlers}>
       <View style={styles.doodleBg} pointerEvents="none" />
       
       {/* TopAppBar */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
+        <View style={styles.headerSide}>
           <Image 
             source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA-RQSQZ_v_tjuVpZrkLGpd0X7YTVa0peodbsQ-eYoFYSx152sgWxKtbgECEVbVug7pm-wQbjw08JnGq7fjD6Y_goSotSkftF-NdlBRCoUxs4O9F_jADgDiqSf8zEtGwImak_n9wzfHUlDsbZzEEtNRraM9fBzv9EvUc8vz2VbJEUvRChQdF97LtrVcOlG81dgRYhP_zpGZtt5e71L_bR4KiPXGyFBRPCzZHJLJSqRPkGHe9IraxiARfQNfyf8nPZFA7_bKex1rt9Y' }} 
             style={styles.avatar}
           />
-          <Text style={styles.headerTitle}>Vitascan</Text>
         </View>
-        <Pressable style={styles.calendarBtn}>
-          <View style={styles.calendarBtnShadow} />
-          <View style={styles.calendarBtnInner}>
-            <MaterialIcons name="calendar-today" size={20} color={Colors.dashboard.stroke} />
-          </View>
-        </Pressable>
+
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>{getHeaderDateText()}</Text>
+        </View>
+
+        <View style={[styles.headerSide, { alignItems: 'flex-end' }]}>
+          <Pressable style={styles.calendarBtn}>
+            <View style={styles.calendarBtnShadow} />
+            <View style={styles.calendarBtnInner}>
+              <MaterialIcons name="calendar-today" size={20} color={Colors.dashboard.stroke} />
+            </View>
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Daily Summary */}
         <View style={styles.summaryRow}>
           <View>
-            <Text style={styles.todayTitle}>Today</Text>
+            <Text style={styles.todayTitle}>{getHeaderDateText()}</Text>
             <Text style={styles.todaySubtitle}>
               {Math.round(totals.kcal).toLocaleString()} / {Math.round(goals.dailyKcalGoal).toLocaleString()} kcal
             </Text>
@@ -264,9 +304,19 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     backgroundColor: Colors.dashboard.page,
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: { width: 40, height: 40, borderRadius: 20, borderWidth: 0.8, borderColor: Colors.dashboard.stroke },
-  headerTitle: { fontSize: 24, fontWeight: '900', color: Colors.dashboard.stroke },
+  headerSide: {
+    flex: 1,
+    zIndex: 2,
+  },
+  headerCenter: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+    top: 22,
+  },
+  avatar: { width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, borderColor: Colors.dashboard.stroke },
+  headerTitle: { fontSize: 24, fontWeight: '900', color: Colors.dashboard.stroke, letterSpacing: -0.5 },
   calendarBtn: { width: 40, height: 40 },
   calendarBtnShadow: {
     position: 'absolute', top: 2, left: 2, right: -2, bottom: -2,

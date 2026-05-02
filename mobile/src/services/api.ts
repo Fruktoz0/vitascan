@@ -151,6 +151,7 @@ export const logApi = {
 // ─── Water ────────────────────────────────────────────────────────────────────
 export const waterApi = {
   getToday: () => request<{ logs: any[]; totalMl: number; goalMl: number }>('/water/today'),
+  getByDate: (date: string) => request<{ logs: any[]; totalMl: number; goalMl: number }>(`/water?date=${date}`),
   add: (amountMl: number) => request('/water', { method: 'POST', body: JSON.stringify({ amountMl }) }),
   delete: (id: string) => request(`/water/${id}`, { method: 'DELETE' }),
 };
