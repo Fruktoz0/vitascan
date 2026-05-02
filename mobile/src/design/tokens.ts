@@ -133,11 +133,6 @@ export const Colors = {
     primaryFixed: '#d9e6da',
     errorContainer: '#ffdad6',
     secondaryContainer: '#eadecc',
-
-    // Extra tokens
-    page: '#fcf9f8',
-    card: '#ffffff',
-    shadowHard: '#1c1b1b',
   },
 } as const;
 

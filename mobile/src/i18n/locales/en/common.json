@@ -59,6 +59,7 @@
     "errorTitle": "Error",
     "expertBadgeTitle": "Expert badge!",
     "expertBadgeBody": "The food creator has earned the Expert badge!",
+    "productDetailsTitle": "Product details",
     "manualAddTitle": "Add food",
     "manualAddSubtitle": "Manually added foods are stored as UNVERIFIED and become verified via community voting.",
     "baseData": "Basic data",
