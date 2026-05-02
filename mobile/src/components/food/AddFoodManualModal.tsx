@@ -6,6 +6,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import i18n from '../../i18n';
 import { Food, foodApi } from '../../services/api';
 import { GlassCardSimple } from '../ui/GlassCard';
@@ -21,6 +22,7 @@ interface Props {
 
 export default function AddFoodManualModal({ visible, prefillBarcode, prefillName, onClose, onCreated }: Props) {
   const { t } = useTranslation();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState(prefillName ?? prefillBarcode ?? '');
   const [loading, setLoading] = useState(false);
@@ -139,7 +141,10 @@ export default function AddFoodManualModal({ visible, prefillBarcode, prefillNam
             )}
           </GlassCardSimple>
 
-          <Pressable style={styles.scanCardWrap}>
+          <Pressable style={styles.scanCardWrap} onPress={() => {
+            onClose();
+            router.push('/(tabs)/scanner');
+          }}>
             <View style={styles.scanCardShadow} />
             <View style={styles.scanCard}>
               <View style={styles.scanIconWrap}>

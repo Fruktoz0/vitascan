@@ -348,14 +348,15 @@
     "dailyLimitReached": "You reached your daily limit. Upgrade to Premium for unlimited access!"
   },
   "scannerScreen": {
+    "title": "Scan",
     "cameraRequired": "Camera required",
     "cameraDesc": "Enable camera to scan barcodes.",
     "allow": "Allow",
     "analyzing": "Analyzing...",
-    "aimBarcode": "Point your camera at the barcode",
-    "inProgress": "In progress...",
+    "aimBarcode": "Place the barcode in\nthe frame",
+    "inProgress": "Searching...",
     "newFood": "New food",
-    "manualSearch": "Manual search"
+    "manualSearch": "Enter code\nmanually"
   },
   "mealCard": {
     "items": "items",

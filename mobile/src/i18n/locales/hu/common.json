@@ -348,14 +348,15 @@
     "dailyLimitReached": "Elérted a napi limitet. Válts Premiumra a korlátlan hozzáférésért!"
   },
   "scannerScreen": {
+    "title": "Szkennelés",
     "cameraRequired": "Kamera szükséges",
     "cameraDesc": "Engedélyezd a kamerát a vonalkódok beolvasásához.",
     "allow": "Engedélyezés",
     "analyzing": "Elemzés...",
-    "aimBarcode": "Irányítsd a kamerát a vonalkódra",
-    "inProgress": "Folyamatban...",
+    "aimBarcode": "Helyezd a vonalkódot a\nkeretbe",
+    "inProgress": "Keresés...",
     "newFood": "Új étel",
-    "manualSearch": "Kézi keresés"
+    "manualSearch": "Kód beírása\nmanuálisan"
   },
   "mealCard": {
     "items": "tétel",
