@@ -54,6 +54,7 @@
     "points": "pont",
     "verifiedStatus": "Közösségileg ellenőrzött (+5 felett)",
     "votesToVerify": "{{count}} szavazat hiányzik az ellenőrzöttséghez",
+    "verificationNote": "+5 pont felett ellenőrzöttnek számít",
     "enterAmount": "Add meg a mennyiséget!",
     "voteError": "Nem sikerült leadni a szavazatot.",
     "errorTitle": "Hiba",

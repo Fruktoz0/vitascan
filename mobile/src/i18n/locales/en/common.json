@@ -54,6 +54,7 @@
     "points": "points",
     "verifiedStatus": "Community verified (+5 and above)",
     "votesToVerify": "{{count}} votes missing for verification",
+    "verificationNote": "Considered verified above +5 points",
     "enterAmount": "Enter amount!",
     "voteError": "Could not submit your vote.",
     "errorTitle": "Error",

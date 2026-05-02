@@ -104,7 +104,7 @@ export default function FoodLibraryScreen() {
   const [manualVisible, setManualVisible] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
-  const [selectedMealType, setSelectedMealType] = useState<'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK' | 'OTHER'>('OTHER');
+  const [selectedMealType, setSelectedMealType] = useState<'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK'>('SNACK');
 
   const fetchData = useCallback(async () => {
     try {
@@ -135,7 +135,7 @@ export default function FoodLibraryScreen() {
   const goals = data?.goals ?? { dailyKcalGoal: 2200 };
   const meals = data?.byMealType ?? {};
 
-  const openAddFlow = (mealType: 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK' | 'OTHER') => {
+  const openAddFlow = (mealType: 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK') => {
     setSelectedMealType(mealType);
     setManualVisible(true);
   };

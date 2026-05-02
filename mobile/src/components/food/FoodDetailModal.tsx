@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, Modal, ScrollView,
   Pressable, TextInput, Alert, ActivityIndicator,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialIcons, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { Food, foodApi, logApi } from '../../services/api';
@@ -13,7 +14,7 @@ import { GlassCardSimple } from '../ui/GlassCard';
 import { GhostButton } from '../ui/Button';
 import { Colors, Spacing, Typography } from '../../design/tokens';
 
-const MEAL_TYPES = ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK', 'OTHER'] as const;
+const MEAL_TYPES = ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK'] as const;
 
 interface Props {
   food: Food | null;
@@ -100,105 +101,93 @@ function VoteButtons({ food, onVoted }: { food: Food; onVoted: (score: number, m
 
   return (
     <View style={voteStyles.container}>
-      <Text style={voteStyles.label}>{t('food.communityRating')}</Text>
-      <View style={voteStyles.row}>
+      <View style={voteStyles.headerRow}>
+        <View style={voteStyles.headerLeft}>
+          <MaterialIcons name="people-outline" size={24} color={Colors.dashboard.stroke} />
+          <Text style={voteStyles.title}>{t('food.communityRating')}</Text>
+        </View>
+        {score > 5 && (
+          <MaterialIcons name="verified" size={28} color="#00E676" />
+        )}
+      </View>
+
+      <View style={voteStyles.voteContainer}>
         {/* Le szavazat */}
-        <Pressable
-          style={[voteStyles.btn, myVote === -1 && voteStyles.btnDownActive]}
-          onPress={() => handleVote(-1)}
-          disabled={loading}
-        >
-          <Text style={voteStyles.btnEmoji}>👎</Text>
-          <Text style={[voteStyles.btnText, myVote === -1 && voteStyles.btnTextDownActive]}>
-            {t('food.inaccurate')}
-          </Text>
+        <Pressable style={voteStyles.btnWrapper} onPress={() => handleVote(-1)} disabled={loading}>
+          <View style={voteStyles.btnShadow} />
+          <View style={[voteStyles.btnInner, voteStyles.btnDownInner]}>
+            <MaterialIcons name="thumb-down-off-alt" size={16} color="#D32F2F" />
+            <Text style={voteStyles.btnTextDown}>
+              {t('food.inaccurate').toUpperCase()}
+            </Text>
+          </View>
         </Pressable>
 
         {/* Score */}
-        <View style={[
-          voteStyles.scoreBox,
-          score > 0 && voteStyles.scoreBoxPos,
-          score < 0 && voteStyles.scoreBoxNeg,
-        ]}>
+        <View style={voteStyles.scoreWrapper}>
           {loading ? (
-            <ActivityIndicator size="small" color={Colors.primary} />
+            <ActivityIndicator size="small" color={Colors.dashboard.stroke} />
           ) : (
-            <>
-              <Text style={[
-                voteStyles.scoreNum,
-                score > 0 && voteStyles.scoreNumPos,
-                score < 0 && voteStyles.scoreNumNeg,
-              ]}>
-                {score > 0 ? '+' : ''}{score}
-              </Text>
-              <Text style={voteStyles.scoreLabel}>{t('food.points')}</Text>
-            </>
+            <Text style={voteStyles.scoreNum}>
+              {score > 0 ? '+' : ''}{score}
+            </Text>
           )}
         </View>
 
         {/* Fel szavazat */}
-        <Pressable
-          style={[voteStyles.btn, myVote === 1 && voteStyles.btnUpActive]}
-          onPress={() => handleVote(1)}
-          disabled={loading}
-        >
-          <Text style={voteStyles.btnEmoji}>👍</Text>
-          <Text style={[voteStyles.btnText, myVote === 1 && voteStyles.btnTextUpActive]}>
-            {t('food.accurate')}
-          </Text>
+        <Pressable style={voteStyles.btnWrapper} onPress={() => handleVote(1)} disabled={loading}>
+          <View style={voteStyles.btnShadow} />
+          <View style={[voteStyles.btnInner, voteStyles.btnUpInner]}>
+            <MaterialIcons name="thumb-up-off-alt" size={16} color="#388E3C" />
+            <Text style={voteStyles.btnTextUp}>
+              {t('food.accurate').toUpperCase()}
+            </Text>
+          </View>
         </Pressable>
       </View>
 
       {/* Státusz info */}
-      <View style={voteStyles.statusRow}>
-        {food.status === 'VERIFIED' && (
-          <View style={voteStyles.verifiedBadge}>
-            <Text style={voteStyles.verifiedText}>✅ {t('food.verifiedStatus')}</Text>
-          </View>
-        )}
-        {food.status === 'UNVERIFIED' && (
-          <Text style={voteStyles.unverifiedText}>
-            💡 {t('food.votesToVerify', { count: 5 - (score > 0 ? score : 0) })}
-          </Text>
-        )}
-      </View>
+      <Text style={voteStyles.footerText}>{t('food.verificationNote')}</Text>
     </View>
   );
 }
 
 const voteStyles = StyleSheet.create({
-  container: { gap: Spacing.sm },
-  label: { ...Typography.label, color: Colors.text.secondary },
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  btn: {
-    flex: 1, alignItems: 'center', paddingVertical: 10,
-    backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 20,
-    gap: 3, borderWidth: 1.5, borderColor: 'transparent',
+  container: { gap: 12 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  title: { fontSize: 20, fontWeight: '800', color: Colors.dashboard.stroke },
+  voteContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.dashboard.surfaceContainerLow,
+    borderWidth: 0.8,
+    borderColor: Colors.dashboard.stroke,
+    borderRadius: 999,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
   },
-  btnUpActive: { backgroundColor: 'rgba(46,204,113,0.1)', borderColor: '#2ECC71' },
-  btnDownActive: { backgroundColor: 'rgba(231,76,60,0.1)', borderColor: '#E74C3C' },
-  btnEmoji: { fontSize: 22 },
-  btnText: { ...Typography.caption, color: Colors.text.muted },
-  btnTextUpActive: { color: '#2ECC71', fontWeight: '700' },
-  btnTextDownActive: { color: '#E74C3C', fontWeight: '700' },
-  scoreBox: {
-    width: 60, alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.04)',
-    borderRadius: 20, paddingVertical: 8,
+  btnWrapper: { flex: 1, position: 'relative', height: 42 },
+  btnShadow: {
+    position: 'absolute', top: 2, left: 2, right: -2, bottom: -2,
+    backgroundColor: Colors.dashboard.shadowHard, borderRadius: 999,
   },
-  scoreBoxPos: { backgroundColor: 'rgba(46,204,113,0.08)' },
-  scoreBoxNeg: { backgroundColor: 'rgba(231,76,60,0.08)' },
-  scoreNum: { fontSize: 20, fontWeight: '900', color: Colors.text.primary },
-  scoreNumPos: { color: '#2ECC71' },
-  scoreNumNeg: { color: '#E74C3C' },
-  scoreLabel: { ...Typography.caption, color: Colors.text.muted },
-  statusRow: { alignItems: 'center' },
-  verifiedBadge: {
-    backgroundColor: Colors.status.verifiedBg,
-    borderRadius: 999, paddingVertical: 4, paddingHorizontal: 12,
+  btnInner: {
+    ...StyleSheet.absoluteFillObject,
+    borderWidth: 0.8, borderColor: Colors.dashboard.stroke, borderRadius: 999,
+    alignItems: 'center', justifyContent: 'center', gap: 6,
+    flexDirection: 'row',
   },
-  verifiedText: { ...Typography.caption, color: Colors.status.verified, fontWeight: '700' },
-  unverifiedText: { ...Typography.caption, color: Colors.text.muted },
+  btnDownInner: { backgroundColor: '#FADBD8' },
+  btnUpInner: { backgroundColor: '#E8F5E9' },
+  btnTextDown: { fontSize: 13, fontWeight: '700', color: '#C0392B' },
+  btnTextUp: { fontSize: 13, fontWeight: '700', color: '#27AE60' },
+
+  scoreWrapper: { width: 60, alignItems: 'center', justifyContent: 'center' },
+  scoreNum: { fontSize: 24, fontWeight: '900', color: Colors.dashboard.stroke },
+
+  footerText: { textAlign: 'center', fontStyle: 'italic', fontSize: 12, color: Colors.text.muted, marginTop: 4 },
 });
 
 // ─── Fő modal ─────────────────────────────────────────────────────────────────
@@ -208,11 +197,11 @@ export default function FoodDetailModal({
   onClose,
   onLogAdded,
   logSource = 'SEARCH',
-  initialMealType = 'OTHER',
+  initialMealType = 'SNACK',
 }: Props) {
   const { t } = useTranslation();
   const [amount, setAmount] = useState('100');
-  const [mealType, setMealType] = useState<(typeof MEAL_TYPES)[number]>('OTHER');
+  const [mealType, setMealType] = useState<(typeof MEAL_TYPES)[number]>('SNACK');
   const [adding, setAdding] = useState(false);
   const [currentFood, setCurrentFood] = useState<Food | null>(null);
 
@@ -305,7 +294,7 @@ export default function FoodDetailModal({
             {/* Quantity Section */}
             <GlassCardSimple padding={20} radius={24} style={styles.sectionCard}>
               <View style={styles.sectionHeader}>
-                <MaterialCommunityIcons name="scale" size={24} color={Colors.dashboard.stroke} />
+                <Ionicons name="scale-outline" size={24} color={Colors.dashboard.stroke} />
                 <Text style={styles.sectionTitle}>{t('food.amount')}</Text>
                 <View style={styles.amountInputWrapper}>
                   <TextInput
@@ -361,7 +350,7 @@ export default function FoodDetailModal({
             {/* Macro Breakdown */}
             <GlassCardSimple padding={20} radius={24} style={styles.sectionCard}>
               <View style={styles.sectionHeaderSmall}>
-                <MaterialCommunityIcons name="chart-pie" size={24} color={Colors.dashboard.stroke} />
+                <Ionicons name="pie-chart-outline" size={24} color={Colors.dashboard.stroke} />
                 <Text style={styles.sectionTitle}>Makrotápanyagok</Text>
               </View>
               
@@ -392,22 +381,31 @@ export default function FoodDetailModal({
             </GlassCardSimple>
 
             {/* Étkezés típusa */}
-            <GlassCardSimple padding={20} radius={24}>
-              <Text style={styles.sectionTitleSmall}>{t('food.mealType')}</Text>
+            <GlassCardSimple padding={20} radius={24} style={styles.sectionCard}>
+              <View style={styles.sectionHeaderSmall}>
+                <Ionicons name="restaurant-outline" size={24} color={Colors.dashboard.stroke} />
+                <Text style={styles.sectionTitle}>{t('food.mealType')}</Text>
+              </View>
               <View style={styles.mealRow}>
-                {MEAL_TYPES.map((m) => (
-                  <Pressable key={m}
-                    style={[styles.mealBtn, mealType === m && styles.mealBtnActive]}
-                    onPress={() => setMealType(m)}>
-                    <Text style={[styles.mealBtnText, mealType === m && styles.mealBtnTextActive]}>
-                      {m === 'BREAKFAST' && `🌅 ${t('food.breakfast')}`}
-                      {m === 'LUNCH' && `☀️ ${t('food.lunch')}`}
-                      {m === 'DINNER' && `🌙 ${t('food.dinner')}`}
-                      {m === 'SNACK' && `🍎 ${t('food.snack')}`}
-                      {m === 'OTHER' && `🍽️ ${t('food.other')}`}
-                    </Text>
-                  </Pressable>
-                ))}
+                {MEAL_TYPES.map((m) => {
+                  const isActive = mealType === m;
+                  return (
+                    <View key={m} style={styles.mealBtnWrapper}>
+                      {isActive && <View style={styles.mealBtnShadowActive} />}
+                      <Pressable 
+                        style={[styles.mealBtnInner, isActive && styles.mealBtnInnerActive]} 
+                        onPress={() => setMealType(m)}
+                      >
+                        <Text style={[styles.mealBtnText, isActive && styles.mealBtnTextActive]}>
+                          {m === 'BREAKFAST' && t('food.breakfast')}
+                          {m === 'LUNCH' && t('food.lunch')}
+                          {m === 'DINNER' && t('food.dinner')}
+                          {m === 'SNACK' && t('food.snack')}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  );
+                })}
               </View>
             </GlassCardSimple>
 
@@ -426,17 +424,24 @@ export default function FoodDetailModal({
         </ScrollView>
 
         {/* Fixed Bottom Button */}
-        <View style={styles.footer}>
-          <Pressable style={styles.addBtn} onPress={handleAddLog} disabled={adding}>
-            <View style={styles.addBtnShadow} />
-            <View style={styles.addBtnInner}>
-              <MaterialIcons name="add-circle" size={24} color="#fff" />
-              <Text style={styles.addBtnLabel}>
-                {adding ? 'Folyamatban...' : t('food.addToLog')}
-              </Text>
-            </View>
-          </Pressable>
-        </View>
+        <KeyboardAvoidingView 
+          style={styles.keyboardAvoidingFooter}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+          pointerEvents="box-none"
+        >
+          <View style={styles.footer}>
+            <Pressable style={styles.addBtn} onPress={handleAddLog} disabled={adding}>
+              <View style={styles.addBtnShadow} />
+              <View style={styles.addBtnInner}>
+                <MaterialIcons name="add-circle" size={24} color="#fff" />
+                <Text style={styles.addBtnLabel}>
+                  {adding ? 'Folyamatban...' : t('food.addToLog')}
+                </Text>
+              </View>
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -588,22 +593,30 @@ const styles = StyleSheet.create({
   },
   extraNutri: { marginTop: Spacing.sm, gap: 0 },
   sectionTitleSmall: { fontSize: 14, fontWeight: '700', color: Colors.dashboard.onSurfaceVariant, marginBottom: 12 },
-  mealRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  mealBtn: {
-    paddingVertical: 8, paddingHorizontal: 16,
-    backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 999,
-    borderWidth: 1.5, borderColor: 'transparent',
+  mealRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingTop: 8 },
+  mealBtnWrapper: { position: 'relative', marginBottom: 4 },
+  mealBtnShadowActive: {
+    position: 'absolute', top: 3, left: 3, right: -3, bottom: -3,
+    backgroundColor: Colors.dashboard.shadowHard, borderRadius: 999,
   },
-  mealBtnActive: { borderColor: Colors.primary, backgroundColor: Colors.primarySoft },
-  mealBtnText: { fontSize: 12, color: Colors.dashboard.onSurfaceVariant, fontWeight: '600' },
-  mealBtnTextActive: { color: Colors.primary, fontWeight: '800' },
-  footer: {
+  mealBtnInner: {
+    backgroundColor: Colors.dashboard.surfaceContainerLow,
+    borderWidth: 0.8, borderColor: Colors.dashboard.stroke, borderRadius: 999,
+    paddingVertical: 10, paddingHorizontal: 20,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  mealBtnInnerActive: { backgroundColor: Colors.dashboard.softGreen },
+  mealBtnText: { fontSize: 14, color: Colors.dashboard.stroke, fontWeight: '500' },
+  mealBtnTextActive: { color: Colors.dashboard.nutritionIcon, fontWeight: '600' },
+  keyboardAvoidingFooter: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
+  },
+  footer: {
     padding: 24,
-    paddingBottom: 40,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
     backgroundColor: 'transparent',
   },
   addBtn: { height: 56, width: '100%' },
