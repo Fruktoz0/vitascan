@@ -1,4 +1,4 @@
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -31,6 +31,8 @@ const CARD_FRAME = {
   borderBottomLeftRadius: 13,
 } as const;
 
+type GlassInputOutlineIcon = 'email-outline' | 'lock-outline';
+
 function GlassInput({
   value, onChange, placeholder, icon,
   keyboardType = 'default', secure = false, autoComplete,
@@ -38,7 +40,7 @@ function GlassInput({
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
-  icon: string;
+  icon: GlassInputOutlineIcon;
   keyboardType?: any;
   secure?: boolean;
   autoComplete?: any;
@@ -47,10 +49,10 @@ function GlassInput({
 
   return (
     <View style={[inputStyles.wrapper, focused && inputStyles.wrapperFocused]}>
-      <MaterialIcons
-        name={icon as any}
+      <MaterialCommunityIcons
+        name={icon}
         size={18}
-        color={'#4f5d77'}
+        color="#4f5d77"
         style={inputStyles.icon}
       />
       <TextInput
@@ -191,7 +193,7 @@ export default function LoginScreen() {
               >
                 {/* Email mező */}
                 <GlassInput
-                  icon="mail"
+                  icon="email-outline"
                   value={email}
                   onChange={setEmail}
                   placeholder="you@example.com"
@@ -202,7 +204,7 @@ export default function LoginScreen() {
                 {/* Jelszó mező + Elfelejtett jelszó */}
                 <View style={styles.passwordBlock}>
                   <GlassInput
-                    icon="lock"
+                    icon="lock-outline"
                     value={password}
                     onChange={setPassword}
                     placeholder="••••••••"

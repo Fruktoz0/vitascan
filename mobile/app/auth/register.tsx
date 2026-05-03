@@ -2,60 +2,64 @@ import React, { useState, useRef } from 'react';
 import {
   View, Text, TextInput, Pressable, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView,
-  Alert, Animated,
+  Alert, Animated, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { GlassCardSimple } from '../../src/components/ui/GlassCard';
-import { PrimaryButton } from '../../src/components/ui/Button';
-import { Colors, Radius, Spacing, Typography } from '../../src/design/tokens';
+import { Colors, Spacing } from '../../src/design/tokens';
 import { useAuthStore } from '../../src/stores/authStore';
 import { ApiError } from '../../src/services/api';
 import { CharacterIcon, SparkleIcon } from '../../src/components/ui/CharacterIcon';
 
+// Mint CTA + kártya: ugyanaz a „kézzel rajzolt” logika, mint a login kártyán (kissé más sarokértékek)
+const REGISTER_CARD_FRAME = {
+  borderTopLeftRadius: 28,
+  borderTopRightRadius: 12,
+  borderBottomRightRadius: 32,
+  borderBottomLeftRadius: 14,
+} as const;
+
+const SUBMIT_BTN_FRAME = {
+  borderTopLeftRadius: 10,
+  borderTopRightRadius: 4,
+  borderBottomRightRadius: 8,
+  borderBottomLeftRadius: 5,
+} as const;
+
+type OutlineFieldIcon = 'account-outline' | 'email-outline' | 'lock-outline';
+
 function CustomInput({
-  label, value, onChange, placeholder, icon, secure = false, keyboardType = 'default', isAlt = false,
+  label, value, onChange, placeholder, icon, secure = false, keyboardType = 'default',
 }: {
-  label: string; value: string; onChange: (v: string) => void;
-  placeholder: string; icon: keyof typeof MaterialIcons.glyphMap; secure?: boolean; keyboardType?: any; isAlt?: boolean;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  icon: OutlineFieldIcon;
+  secure?: boolean;
+  keyboardType?: any;
 }) {
   const [focused, setFocused] = useState(false);
-  
-  // Design reference uses alternating radii: wobbly-border vs wobbly-border-alt
-  const radii = isAlt ? {
-    borderTopLeftRadius: 15,
-    borderTopRightRadius: 60,
-    borderBottomRightRadius: 15,
-    borderBottomLeftRadius: 40,
-  } : {
-    borderTopLeftRadius: 60,
-    borderTopRightRadius: 15,
-    borderBottomRightRadius: 40,
-    borderBottomLeftRadius: 15,
-  };
 
   return (
     <View style={inputStyles.wrap}>
       <Text style={inputStyles.label}>{label}</Text>
-      <View style={[
-        inputStyles.inputContainer, 
-        radii,
-        focused && { backgroundColor: Colors.dashboard.waterBg, borderColor: Colors.dashboard.stroke }
-      ]}>
-        <MaterialIcons 
-          name={icon} 
-          size={20} 
-          color={Colors.dashboard.onSurfaceVariant} 
-          style={inputStyles.icon} 
+      <View style={[inputStyles.wrapper, focused && inputStyles.wrapperFocused]}>
+        <MaterialCommunityIcons
+          name={icon}
+          size={18}
+          color="#4f5d77"
+          style={inputStyles.icon}
         />
         <TextInput
-          style={inputStyles.input}
+          style={inputStyles.textInput}
           value={value}
           onChangeText={onChange}
           placeholder={placeholder}
-          placeholderTextColor={Colors.text.muted}
+          placeholderTextColor={Colors.dashboard.onSurfaceVariant}
           secureTextEntry={secure}
           autoCapitalize="none"
           keyboardType={keyboardType}
@@ -67,30 +71,40 @@ function CustomInput({
   );
 }
 
+// Mezők: login GlassInput-t követik (négyzetes, bézs háttér, bal ikon)
 const inputStyles = StyleSheet.create({
-  wrap: { gap: 8 },
-  label: { 
-    fontSize: 14, 
-    fontWeight: '700', 
+  wrap: { gap: Spacing.sm },
+  label: {
+    fontSize: 14,
+    fontWeight: '700',
     color: Colors.dashboard.stroke,
     marginLeft: 4,
   },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.dashboard.page,
-    borderWidth: 1.5,
+  wrapper: {
+    borderWidth: 1.2,
     borderColor: Colors.dashboard.stroke,
-    paddingHorizontal: Spacing.lg,
-    height: 56,
+    backgroundColor: '#ece9e6',
+    borderRadius: 2,
+    minHeight: 50,
+    justifyContent: 'center',
+  },
+  wrapperFocused: {
+    borderColor: '#121212',
+    backgroundColor: '#f3f1ef',
   },
   icon: {
-    marginRight: Spacing.md,
+    position: 'absolute',
+    left: 12,
+    top: 15,
+    zIndex: 1,
   },
-  input: {
-    flex: 1,
-    fontSize: 16,
+  textInput: {
+    fontSize: 17,
+    lineHeight: 22,
     color: Colors.dashboard.stroke,
+    paddingLeft: 42,
+    paddingRight: 12,
+    paddingVertical: 11,
   },
 });
 
@@ -167,7 +181,7 @@ export default function RegisterScreen() {
                 <SparkleIcon style={styles.sparkle} color={Colors.dashboard.stroke} />
               </View>
               <Text style={styles.subtitle}>{t('auth.joinCommunity')}</Text>
-              
+
               <View style={styles.characterContainer}>
                 <CharacterIcon style={styles.character} />
                 <View style={styles.characterBubble} />
@@ -179,14 +193,10 @@ export default function RegisterScreen() {
               <GlassCardSimple
                 backgroundColor={Colors.dashboard.card}
                 borderColor={Colors.dashboard.stroke}
+                borderWidth={1.2}
                 padding={Spacing['3xl']}
                 shadowOffset={6}
-                customRadius={{
-                  borderTopLeftRadius: 15,
-                  borderTopRightRadius: 15,
-                  borderBottomRightRadius: 15,
-                  borderBottomLeftRadius: 15,
-                }}
+                customRadius={REGISTER_CARD_FRAME}
                 style={styles.card}
               >
                 <View style={styles.fields}>
@@ -195,23 +205,22 @@ export default function RegisterScreen() {
                     value={username}
                     onChange={setUsername}
                     placeholder={t('auth.usernamePlaceholder')}
-                    icon="person"
+                    icon="account-outline"
                   />
                   <CustomInput
                     label={t('email')}
                     value={email}
                     onChange={setEmail}
                     placeholder={t('auth.emailPlaceholder')}
-                    icon="email"
+                    icon="email-outline"
                     keyboardType="email-address"
-                    isAlt
                   />
                   <CustomInput
                     label={t('auth.passwordMin')}
                     value={password}
                     onChange={setPassword}
                     placeholder="••••••••"
-                    icon="lock"
+                    icon="lock-outline"
                     secure
                   />
                   <CustomInput
@@ -219,9 +228,8 @@ export default function RegisterScreen() {
                     value={password2}
                     onChange={setPassword2}
                     placeholder="••••••••"
-                    icon="lock"
+                    icon="lock-outline"
                     secure
-                    isAlt
                   />
                   {password2 !== '' && password !== password2 && (
                     <Text style={styles.mismatch}>⚠️ {t('auth.passwordMismatchInline')}</Text>
@@ -232,7 +240,7 @@ export default function RegisterScreen() {
                 <Pressable style={styles.checkRow} onPress={() => setAccepted(!accepted)}>
                   <View style={[
                     styles.checkbox,
-                    accepted && { backgroundColor: Colors.dashboard.primaryFixed }
+                    accepted && { backgroundColor: Colors.dashboard.primaryFixed },
                   ]}>
                     {accepted && <MaterialIcons name="check" size={16} color={Colors.dashboard.stroke} />}
                   </View>
@@ -243,31 +251,52 @@ export default function RegisterScreen() {
                   </Text>
                 </Pressable>
 
-                <PrimaryButton
-                  label={t('auth.registerArrow')}
-                  onPress={handleRegister}
-                  loading={loading}
-                  disabled={!accepted}
-                  style={styles.registerBtn}
-                />
+                {/* Minta: világos menta gomb, szabálytalan sarkok, kemény árnyék (login gomb mintája, Pressable + belső View) */}
+                <View style={[styles.submitBtnOuter, !accepted && styles.submitBtnOuterDim]}>
+                  <View style={styles.submitBtnShadow} pointerEvents="none" />
+                  <Pressable
+                    onPress={handleRegister}
+                    disabled={!accepted || loading}
+                    android_ripple={{ color: 'rgba(26,26,26,0.08)' }}
+                    style={({ pressed }) => [
+                      styles.submitBtnHit,
+                      pressed && accepted && !loading && styles.submitBtnPressed,
+                    ]}
+                  >
+                    <View style={styles.submitBtnFace}>
+                      {loading ? (
+                        <ActivityIndicator color={Colors.dashboard.stroke} />
+                      ) : (
+                        <View style={styles.submitBtnRow}>
+                          <Text style={styles.submitBtnText}>{t('auth.registerCta')}</Text>
+                          <MaterialIcons name="arrow-forward" size={22} color={Colors.dashboard.stroke} />
+                        </View>
+                      )}
+                    </View>
+                  </Pressable>
+                </View>
               </GlassCardSimple>
             </Animated.View>
 
             {/* Divider */}
             <View style={styles.dividerContainer}>
               <View style={styles.dividerLine} />
-              <View style={styles.dividerBox}>
-                <Text style={styles.dividerText}>VAGY</Text>
+              <View style={styles.dividerLabel}>
+                <Text style={styles.dividerText}>{t('common.or')}</Text>
               </View>
               <View style={styles.dividerLine} />
             </View>
 
             {/* Login Link */}
             <View style={styles.footer}>
-              <Text style={styles.footerText}>{t('auth.hasAccount')} </Text>
+              <Text style={styles.footerText} numberOfLines={1}>
+                {t('auth.hasAccount')}{' '}
+              </Text>
               <Link href="/auth/login" asChild>
                 <Pressable hitSlop={8}>
-                  <Text style={styles.footerLink}>{t('auth.loginLink')}</Text>
+                  <Text style={styles.footerLink} numberOfLines={1}>
+                    {t('auth.loginLink')}
+                  </Text>
                 </Pressable>
               </Link>
             </View>
@@ -320,11 +349,13 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: Spacing.xl,
     paddingBottom: Spacing['6xl'],
+    justifyContent: 'center',
+    gap: Spacing.xl,
   },
   header: {
     alignItems: 'center',
     marginTop: Spacing.xl,
-    marginBottom: Spacing['2xl'],
+    marginBottom: 0,
   },
   titleContainer: {
     flexDirection: 'row',
@@ -346,7 +377,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '500',
     color: Colors.dashboard.onSurfaceVariant,
-    marginBottom: Spacing['2xl'],
+    marginBottom: Spacing.md,
   },
   characterContainer: {
     position: 'relative',
@@ -372,10 +403,14 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   card: {
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
+    marginTop: Spacing['3xl'],
     marginBottom: Spacing.xl,
   },
   fields: {
-    gap: Spacing.xl,
+    gap: Spacing['2xl'],
     marginBottom: Spacing.xl,
   },
   mismatch: {
@@ -391,13 +426,14 @@ const styles = StyleSheet.create({
     marginBottom: Spacing['2xl'],
   },
   checkbox: {
-    width: 24, height: 24,
+    width: 24,
+    height: 24,
     borderRadius: 6,
-    borderWidth: 1.5,
+    borderWidth: 1.2,
     borderColor: Colors.dashboard.stroke,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.dashboard.page,
+    backgroundColor: Colors.dashboard.card,
   },
   checkText: {
     flex: 1,
@@ -409,32 +445,77 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textDecorationLine: 'underline',
   },
-  registerBtn: {
+  submitBtnOuter: {
     marginTop: Spacing.sm,
+    paddingRight: 4,
+    paddingBottom: 4,
+    position: 'relative',
+  },
+  submitBtnOuterDim: {
+    opacity: 0.52,
+  },
+  submitBtnShadow: {
+    ...StyleSheet.absoluteFillObject,
+    top: 4,
+    left: 4,
+    right: 0,
+    bottom: 0,
+    backgroundColor: Colors.dashboard.shadowHard,
+    ...SUBMIT_BTN_FRAME,
+    zIndex: 0,
+  },
+  submitBtnHit: {
+    position: 'relative',
+    zIndex: 1,
+    alignSelf: 'stretch',
+    elevation: 8,
+  },
+  submitBtnFace: {
+    width: '100%',
+    backgroundColor: Colors.dashboard.blobMint,
+    borderWidth: 1,
+    borderColor: Colors.dashboard.stroke,
+    ...SUBMIT_BTN_FRAME,
+    paddingVertical: 16,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  submitBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  submitBtnText: {
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '700',
+    color: Colors.dashboard.stroke,
+  },
+  submitBtnPressed: {
+    transform: [{ translateX: 4 }, { translateY: 4 }],
   },
   dividerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     marginVertical: Spacing['2xl'],
-    gap: Spacing.md,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: Colors.dashboard.stroke,
-    borderStyle: 'dashed',
-    borderRadius: 1,
     borderWidth: 0.5,
     borderColor: Colors.dashboard.stroke,
+    borderStyle: 'dashed',
   },
-  dividerBox: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.xs,
-    borderWidth: 1.5,
+  dividerLabel: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderWidth: 0.8,
     borderColor: Colors.dashboard.stroke,
-    borderRadius: 8,
     backgroundColor: Colors.dashboard.page,
+    marginHorizontal: 8,
+    borderRadius: 6,
   },
   dividerText: {
     fontSize: 14,
@@ -442,7 +523,10 @@ const styles = StyleSheet.create({
     color: Colors.dashboard.onSurfaceVariant,
   },
   footer: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: Spacing['3xl'],
   },
   footerText: {
@@ -454,6 +538,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.dashboard.nutritionIcon,
     textDecorationLine: 'underline',
-    marginTop: 4,
   },
 });
