@@ -1,37 +1,63 @@
-import React, { useState, useRef } from 'react';
+import { MaterialIcons } from '@expo/vector-icons';
+import { Link, useRouter } from 'expo-router';
+import React, { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
-  View, Text, TextInput, Pressable, StyleSheet,
-  KeyboardAvoidingView, Platform, ScrollView,
-  Alert, ActivityIndicator, Animated,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Link, useRouter } from 'expo-router';
-import { useTranslation } from 'react-i18next';
-import AnimatedMeshBackground from '../../src/components/ui/AnimatedMeshBackground';
+import Svg, { Path } from 'react-native-svg';
+import DoodleCharacter from '../../src/components/ui/DoodleCharacter';
 import { GlassCardSimple } from '../../src/components/ui/GlassCard';
-import { PrimaryButton } from '../../src/components/ui/Button';
-import { Colors, Gradients, Radius, Spacing, Typography } from '../../src/design/tokens';
-import { useAuthStore } from '../../src/stores/authStore';
+import { Colors, Spacing } from '../../src/design/tokens';
 import { ApiError } from '../../src/services/api';
+import { useAuthStore } from '../../src/stores/authStore';
+
+const CARD_FRAME = {
+  borderTopLeftRadius: 8,
+  borderTopRightRadius: 6,
+  borderBottomRightRadius: 10,
+  borderBottomLeftRadius: 7,
+} as const;
 
 function GlassInput({
-  label, value, onChange, placeholder,
+  value, onChange, placeholder, icon,
   keyboardType = 'default', secure = false, autoComplete,
 }: {
-  label: string; value: string; onChange: (v: string) => void;
-  placeholder: string; keyboardType?: any; secure?: boolean; autoComplete?: any;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  icon: string;
+  keyboardType?: any;
+  secure?: boolean;
+  autoComplete?: any;
 }) {
   const [focused, setFocused] = useState(false);
+
   return (
-    <View style={inputStyles.wrap}>
-      <Text style={inputStyles.label}>{label}</Text>
+    <View style={[inputStyles.wrapper, focused && inputStyles.wrapperFocused]}>
+      <MaterialIcons
+        name={icon as any}
+        size={18}
+        color={'#4f5d77'}
+        style={inputStyles.icon}
+      />
       <TextInput
-        style={[inputStyles.input, focused && inputStyles.inputFocused]}
+        style={inputStyles.textInput}
         value={value}
         onChangeText={onChange}
         placeholder={placeholder}
-        placeholderTextColor={Colors.text.muted}
+        placeholderTextColor={Colors.dashboard.onSurfaceVariant}
         keyboardType={keyboardType}
         secureTextEntry={secure}
         autoCapitalize="none"
@@ -44,20 +70,34 @@ function GlassInput({
 }
 
 const inputStyles = StyleSheet.create({
-  wrap: { gap: 6 },
-  label: { ...Typography.label, color: Colors.text.secondary },
-  input: {
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    borderRadius: Radius.md,
-    padding: Spacing.md,
-    fontSize: 16,
-    color: Colors.text.primary,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.5)',
+  // bg-surface border-[0.8px] border-[#1A1A1A] py-3 pl-12 pr-4
+  wrapper: {
+    borderWidth: 1.2,
+    borderColor: Colors.dashboard.stroke,
+    backgroundColor: '#ece9e6',
+    borderRadius: 2,
+    minHeight: 50,
+    justifyContent: 'center',
   },
-  inputFocused: {
-    borderColor: Colors.primary,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+  wrapperFocused: {
+    borderColor: '#121212',
+    backgroundColor: '#f3f1ef',
+  },
+  // absolute left-4 top-1/2 -translate-y-1/2  →  left: 16, vertically centred via top
+  icon: {
+    position: 'absolute',
+    left: 12,
+    top: 15,
+    zIndex: 1,
+  },
+  // pl-12 (48px) pr-4 (16px) py-3 (12px)  font-body-md (16px/1.6)
+  textInput: {
+    fontSize: 17,
+    lineHeight: 22,
+    color: Colors.dashboard.stroke,
+    paddingLeft: 42,
+    paddingRight: 12,
+    paddingVertical: 11,
   },
 });
 
@@ -70,7 +110,6 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Shake animáció hiba esetén
   const shakeX = useRef(new Animated.Value(0)).current;
   const shake = () => {
     Animated.sequence([
@@ -102,7 +141,12 @@ export default function LoginScreen() {
   };
 
   return (
-    <AnimatedMeshBackground colors={Gradients.meshMain} style={{ flex: 1 }}>
+    <View style={styles.container}>
+      {/* Háttér dekoratív blob-ok */}
+      <View style={[styles.blob, styles.blob1]} />
+      <View style={[styles.blob, styles.blob2]} />
+      <View style={[styles.blob, styles.blob3]} />
+
       <SafeAreaView style={{ flex: 1 }}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -113,98 +157,294 @@ export default function LoginScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Logo */}
+            {/* Fejléc / Logo */}
             <View style={styles.logoArea}>
-              <LinearGradient
-                colors={['rgba(255,255,255,0.4)', 'rgba(255,255,255,0.15)']}
-                style={styles.logoBubble}
-              >
-                <Text style={styles.logoEmoji}>🥗</Text>
-              </LinearGradient>
-              <Text style={styles.appName}>VitaScan</Text>
-              <Text style={styles.tagline}>{t('auth.welcomeBack')}</Text>
+              <View>
+                <Text style={styles.appName}>Vitascan</Text>
+                <View style={styles.sparkle}>
+                  <Svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <Path
+                      d="M12 3v3m0 12v3m9-9h-3M6 12H3m14.485-6.364l-2.121 2.121M7.636 17.657l-2.121 2.121m14.485 0l-2.121-2.121M7.636 6.343L5.515 4.222"
+                      stroke={Colors.dashboard.stroke}
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </Svg>
+                </View>
+              </View>
+              <Text style={styles.tagline}>{t('auth.healthAndNutrition')}</Text>
+              <DoodleCharacter size={100} style={styles.doodle} />
             </View>
 
-            {/* Kártya */}
+            {/* ── Login kártya ── */}
             <Animated.View style={{ transform: [{ translateX: shakeX }] }}>
               <GlassCardSimple
-                backgroundColor={Colors.glass.whiteStrong}
-                borderColor={Colors.glass.border}
-                padding={Spacing['2xl']}
-                radius={Radius['3xl']}
+                backgroundColor={Colors.dashboard.card}
+                borderColor={Colors.dashboard.stroke}
+                borderWidth={1.2}
+                padding={16}
+                customRadius={CARD_FRAME}
+                shadowOffset={5}
                 style={styles.card}
               >
-                <Text style={styles.cardTitle}>{t('auth.loginTitle')}</Text>
+                {/* Email mező */}
+                <GlassInput
+                  icon="mail"
+                  value={email}
+                  onChange={setEmail}
+                  placeholder="you@example.com"
+                  keyboardType="email-address"
+                  autoComplete="email"
+                />
 
-                <View style={styles.fields}>
+                {/* Jelszó mező + Elfelejtett jelszó */}
+                <View style={styles.passwordBlock}>
                   <GlassInput
-                    label={t('email')}
-                    value={email}
-                    onChange={setEmail}
-                    placeholder={t('auth.emailPlaceholder')}
-                    keyboardType="email-address"
-                    autoComplete="email"
-                  />
-                  <GlassInput
-                    label={t('password')}
+                    icon="lock"
                     value={password}
                     onChange={setPassword}
                     placeholder="••••••••"
                     secure
                     autoComplete="password"
                   />
+                  <Pressable style={styles.forgotPass} hitSlop={8}>
+                    <Text style={styles.forgotPassText}>{t('auth.forgotPassword')}</Text>
+                  </Pressable>
                 </View>
 
-                <PrimaryButton
-                  label={t('login')}
-                  onPress={handleLogin}
-                  loading={loading}
-                  style={styles.btn}
-                />
+                {/* ── Belépés gomb (hard shadow + wobbly) ── */}
+                {/* Outer wrapper reservál helyet a 4px hard shadownak */}
+                <View style={styles.btnWrapper}>
+                  {/* Eltolt fekete árnyék réteg */}
+                  <View style={styles.btnShadow} />
+                  <Pressable
+                    onPress={handleLogin}
+                    disabled={loading}
+                    style={({ pressed }) => [
+                      styles.loginBtn,
+                      pressed && styles.btnPressed,
+                    ]}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color={Colors.dashboard.onSecondary} />
+                    ) : (
+                      <>
+                        <Text style={styles.loginBtnText}>{t('login')}</Text>
+                        <MaterialIcons name="arrow-forward" size={26} color={Colors.dashboard.onSecondary} />
+                      </>
+                    )}
+                  </Pressable>
+                </View>
               </GlassCardSimple>
             </Animated.View>
+
+            {/* Elválasztó */}
+            <View style={styles.dividerContainer}>
+              <View style={styles.dividerLine} />
+              <View style={styles.dividerLabel}>
+                <Text style={styles.dividerText}>{t('common.or')}</Text>
+              </View>
+              <View style={styles.dividerLine} />
+            </View>
 
             {/* Regisztráció link */}
             <View style={styles.footer}>
               <Text style={styles.footerText}>{t('auth.noAccount')} </Text>
               <Link href="/auth/register" asChild>
                 <Pressable hitSlop={8}>
-                  <Text style={styles.footerLink}>{t('auth.registerLink')}</Text>
+                  <Text style={styles.footerLink}>{t('register')}</Text>
                 </Pressable>
               </Link>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </AnimatedMeshBackground>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.dashboard.page,
+  },
+
+  // ── Háttér dekoráció ──
+  blob: {
+    position: 'absolute',
+    borderWidth: 0.8,
+    borderColor: Colors.dashboard.stroke,
+    opacity: 0.6,
+  },
+  blob1: {
+    top: 40,
+    left: 20,
+    width: 96,
+    height: 96,
+    backgroundColor: Colors.dashboard.softBlue,
+    borderRadius: 40,
+    transform: [{ rotate: '-15deg' }],
+  },
+  blob2: {
+    bottom: 80,
+    right: 20,
+    width: 128,
+    height: 128,
+    backgroundColor: Colors.dashboard.softGreen,
+    borderRadius: 60,
+    transform: [{ rotate: '15deg' }],
+  },
+  blob3: {
+    top: '25%',
+    right: 40,
+    width: 64,
+    height: 64,
+    backgroundColor: Colors.dashboard.blobPeach,
+    borderRadius: 30,
+    transform: [{ rotate: '30deg' }],
+  },
+
+  // ── Scroll ──
   scroll: {
-    flexGrow: 1, padding: Spacing.xl,
-    justifyContent: 'center', gap: Spacing.xl,
+    flexGrow: 1,
+    padding: Spacing.xl,
+    justifyContent: 'center',
+    gap: Spacing.xl,
   },
-  logoArea: { alignItems: 'center', gap: Spacing.sm },
-  logoBubble: {
-    width: 88, height: 88, borderRadius: 44,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: 'rgba(255,255,255,0.5)',
-    shadowColor: '#FF6B35', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3, shadowRadius: 20, elevation: 8,
+
+  // ── Logo terület ──
+  logoArea: {
+    alignItems: 'center',
   },
-  logoEmoji: { fontSize: 48 },
-  appName: { fontSize: 36, fontWeight: '900', color: '#fff', letterSpacing: -1 },
-  tagline: { ...Typography.body, color: 'rgba(255,255,255,0.8)' },
+  appName: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: Colors.dashboard.nutritionIcon,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  sparkle: {
+    position: 'absolute',
+    top: -10,
+    right: -25,
+  },
+  tagline: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: Colors.dashboard.onSurfaceVariant,
+    marginTop: 4,
+  },
+  doodle: {
+    marginTop: Spacing.md,
+    marginBottom: -Spacing.xl,
+    zIndex: 20,
+  },
+
+  // ── Kártya ──
   card: {
-    shadowColor: 'rgba(31,38,135,0.2)',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 1, shadowRadius: 40, elevation: 12,
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
   },
-  cardTitle: { ...Typography.subtitle, color: Colors.text.primary, marginBottom: Spacing.lg },
-  fields: { gap: Spacing.md, marginBottom: Spacing.lg },
-  btn: {},
-  footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-  footerText: { ...Typography.body, color: 'rgba(255,255,255,0.85)' },
-  footerLink: { ...Typography.bodyMedium, color: '#fff', textDecorationLine: 'underline' },
+
+  // gap-md (24px) az email és a jelszó blokk között
+  passwordBlock: {
+    marginTop: 12,
+  },
+
+  // Elfelejtett jelszó: jobb oldali, aláhúzott, 14px bold, primary szín
+  forgotPass: {
+    alignSelf: 'flex-end',
+    marginTop: 8,
+  },
+  forgotPassText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#4f5d77',
+    textDecorationLine: 'underline',
+  },
+
+  // ── Gomb (hard shadow + wobbly) ──
+  // mt-4 (16px) az előző mezőtől, paddingRight/Bottom 4px a shadow helynek
+  btnWrapper: {
+    marginTop: 18,
+    paddingRight: 5,
+    paddingBottom: 5,
+  },
+  // Eltolt szilárd fekete árnyék: shadow-[4px_4px_0px_0px_rgba(28,27,27,1)]
+  btnShadow: {
+    ...StyleSheet.absoluteFillObject,
+    top: 5,
+    left: 4,
+    backgroundColor: Colors.dashboard.shadowHard,
+    borderRadius: 2,
+  },
+  // bg-secondary (#655d4f) border-[0.8px] py-4 px-8 font-headline-md
+  loginBtn: {
+    backgroundColor: '#635d52',
+    borderWidth: 1.2,
+    borderColor: Colors.dashboard.stroke,
+    borderRadius: 2,
+    paddingVertical: 14,
+    paddingHorizontal: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  btnPressed: {
+    transform: [{ translateX: 4 }, { translateY: 4 }],
+  },
+  // font-headline-md: 24px / 700
+  loginBtnText: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: Colors.dashboard.onSecondary,
+    letterSpacing: 0.4,
+  },
+
+  // ── Elválasztó ──
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    borderWidth: 0.5,
+    borderColor: Colors.dashboard.stroke,
+    borderStyle: 'dashed',
+  },
+  dividerLabel: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderWidth: 0.8,
+    borderColor: Colors.dashboard.stroke,
+    backgroundColor: Colors.dashboard.page,
+    marginHorizontal: 8,
+    borderRadius: 6,
+  },
+  dividerText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.dashboard.onSurfaceVariant,
+  },
+
+  // ── Lábléc ──
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 16,
+    color: Colors.dashboard.onSurfaceVariant,
+  },
+  footerLink: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.dashboard.nutritionIcon,
+    textDecorationLine: 'underline',
+  },
 });

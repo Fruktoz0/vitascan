@@ -1,12 +1,12 @@
-import React from 'react';
-import { View, ViewStyle, StyleSheet, StyleProp } from 'react-native';
 import { BlurView } from 'expo-blur';
+import React from 'react';
+import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { Colors, Radius, Shadows } from '../../design/tokens';
 
 interface GlassCardProps {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
-  intensity?: number;        // blur erőssége: 0–100
+  intensity?: number;
   tint?: 'light' | 'dark' | 'default';
   padding?: number;
   radius?: number;
@@ -14,7 +14,6 @@ interface GlassCardProps {
   noShadow?: boolean;
 }
 
-// Az eredeti GlassCard megtartása a kompatibilitás miatt
 export default function GlassCard({
   children,
   style,
@@ -53,7 +52,6 @@ export default function GlassCard({
   );
 }
 
-// Új BentoCard a "Tactile Cartooning" stílus alapján
 export function GlassCardSimple({
   children,
   style,
@@ -63,10 +61,12 @@ export function GlassCardSimple({
   customRadius,
   backgroundColor = Colors.dashboard.card,
   borderColor = Colors.dashboard.stroke,
+  borderWidth = 1.5,
   noShadow = false,
   shadowOffset = 4,
-}: Omit<GlassCardProps, 'intensity' | 'tint'> & { 
+}: Omit<GlassCardProps, 'intensity' | 'tint'> & {
   backgroundColor?: string;
+  borderWidth?: number;
   shadowOffset?: number;
   innerStyle?: StyleProp<ViewStyle>;
   customRadius?: {
@@ -76,11 +76,10 @@ export function GlassCardSimple({
     borderBottomLeftRadius?: number;
   };
 }) {
-  const radii = customRadius || { borderRadius: radius };
-  
+  const radii = customRadius ?? { borderRadius: radius };
+
   return (
     <View style={[style, !noShadow && { paddingBottom: shadowOffset, paddingRight: shadowOffset }]}>
-      {/* Képregényes "Hard Shadow" effektus (fekete, eltolt, nincs blur) */}
       {!noShadow && (
         <View
           style={[
@@ -90,22 +89,20 @@ export function GlassCardSimple({
               top: shadowOffset,
               left: shadowOffset,
             },
-            radii
+            radii,
           ]}
         />
       )}
-      
-      {/* Fő tartalom */}
       <View
         style={[
           {
             backgroundColor,
             padding,
-            borderWidth: 1.5, // ~0.8px in HTML, de RN-ben 1.5 mutat jobban nagy felbontáson
+            borderWidth,
             borderColor,
           },
           radii,
-          innerStyle
+          innerStyle,
         ]}
       >
         {children}

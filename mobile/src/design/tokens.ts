@@ -122,6 +122,9 @@ export const Colors = {
     tabActive: '#eadecc', // secondary-container
     tabInactive: '#434844', // on-surface-variant
 
+    secondary: '#655d4f',
+    onSecondary: '#ffffff',
+
     // Bento specific
     surfaceContainerLow: '#f6f3f2',
     surfaceContainer: '#f0eded',

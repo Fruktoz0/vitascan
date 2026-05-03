@@ -21,7 +21,8 @@
     "close": "Bezárás",
     "save": "Mentés",
     "search": "Keresés",
-    "language": "Nyelv"
+    "language": "Nyelv",
+    "or": "VAGY"
   },
   "language": {
     "hungarian": "Magyar",
@@ -182,7 +183,9 @@
     "loginMissingData": "Add meg az email-t és a jelszót.",
     "loginFailedTitle": "Sikertelen bejelentkezés",
     "welcomeBack": "Üdv újra! 👋",
+    "healthAndNutrition": "Health & Nutrition",
     "loginTitle": "Bejelentkezés",
+    "forgotPassword": "Elfelejtett jelszó?",
     "emailPlaceholder": "pelda@email.com",
     "noAccount": "Még nincs fiókod?",
     "registerLink": "Regisztráció →",

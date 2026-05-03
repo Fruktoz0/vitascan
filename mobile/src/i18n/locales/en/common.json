@@ -21,7 +21,8 @@
     "close": "Close",
     "save": "Save",
     "search": "Search",
-    "language": "Language"
+    "language": "Language",
+    "or": "OR"
   },
   "language": {
     "hungarian": "Hungarian",
@@ -182,7 +183,9 @@
     "loginMissingData": "Please provide email and password.",
     "loginFailedTitle": "Login failed",
     "welcomeBack": "Welcome back! 👋",
+    "healthAndNutrition": "Health & Nutrition",
     "loginTitle": "Login",
+    "forgotPassword": "Forgot password?",
     "emailPlaceholder": "example@email.com",
     "noAccount": "No account yet?",
     "registerLink": "Register →",

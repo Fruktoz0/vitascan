@@ -5,52 +5,93 @@ import {
   Alert, Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Link, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import AnimatedMeshBackground from '../../src/components/ui/AnimatedMeshBackground';
+import { MaterialIcons } from '@expo/vector-icons';
 import { GlassCardSimple } from '../../src/components/ui/GlassCard';
 import { PrimaryButton } from '../../src/components/ui/Button';
-import { Colors, Gradients, Radius, Spacing, Typography } from '../../src/design/tokens';
+import { Colors, Radius, Spacing, Typography } from '../../src/design/tokens';
 import { useAuthStore } from '../../src/stores/authStore';
 import { ApiError } from '../../src/services/api';
+import { CharacterIcon, SparkleIcon } from '../../src/components/ui/CharacterIcon';
 
-function GlassInput({
-  label, value, onChange, placeholder, secure = false, keyboardType = 'default',
+function CustomInput({
+  label, value, onChange, placeholder, icon, secure = false, keyboardType = 'default', isAlt = false,
 }: {
   label: string; value: string; onChange: (v: string) => void;
-  placeholder: string; secure?: boolean; keyboardType?: any;
+  placeholder: string; icon: keyof typeof MaterialIcons.glyphMap; secure?: boolean; keyboardType?: any; isAlt?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
+  
+  // Design reference uses alternating radii: wobbly-border vs wobbly-border-alt
+  const radii = isAlt ? {
+    borderTopLeftRadius: 15,
+    borderTopRightRadius: 60,
+    borderBottomRightRadius: 15,
+    borderBottomLeftRadius: 40,
+  } : {
+    borderTopLeftRadius: 60,
+    borderTopRightRadius: 15,
+    borderBottomRightRadius: 40,
+    borderBottomLeftRadius: 15,
+  };
+
   return (
     <View style={inputStyles.wrap}>
       <Text style={inputStyles.label}>{label}</Text>
-      <TextInput
-        style={[inputStyles.input, focused && inputStyles.focused]}
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={Colors.text.muted}
-        secureTextEntry={secure}
-        autoCapitalize="none"
-        keyboardType={keyboardType}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-      />
+      <View style={[
+        inputStyles.inputContainer, 
+        radii,
+        focused && { backgroundColor: Colors.dashboard.waterBg, borderColor: Colors.dashboard.stroke }
+      ]}>
+        <MaterialIcons 
+          name={icon} 
+          size={20} 
+          color={Colors.dashboard.onSurfaceVariant} 
+          style={inputStyles.icon} 
+        />
+        <TextInput
+          style={inputStyles.input}
+          value={value}
+          onChangeText={onChange}
+          placeholder={placeholder}
+          placeholderTextColor={Colors.text.muted}
+          secureTextEntry={secure}
+          autoCapitalize="none"
+          keyboardType={keyboardType}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+        />
+      </View>
     </View>
   );
 }
 
 const inputStyles = StyleSheet.create({
-  wrap: { gap: 6 },
-  label: { ...Typography.label, color: Colors.text.secondary },
-  input: {
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    borderRadius: Radius.md, padding: Spacing.md,
-    fontSize: 15, color: Colors.text.primary,
-    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.5)',
+  wrap: { gap: 8 },
+  label: { 
+    fontSize: 14, 
+    fontWeight: '700', 
+    color: Colors.dashboard.stroke,
+    marginLeft: 4,
   },
-  focused: { borderColor: Colors.primary, backgroundColor: 'rgba(255,255,255,0.92)' },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.dashboard.page,
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+    paddingHorizontal: Spacing.lg,
+    height: 56,
+  },
+  icon: {
+    marginRight: Spacing.md,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    color: Colors.dashboard.stroke,
+  },
 });
 
 export default function RegisterScreen() {
@@ -102,19 +143,13 @@ export default function RegisterScreen() {
     }
   };
 
-  // Jelszó erősség jelző
-  const pwStrength = (() => {
-    if (!password) return null;
-    if (password.length < 6) return { label: t('auth.passwordWeak'), color: '#E74C3C', pct: 0.25 };
-    if (password.length < 10) return { label: t('auth.passwordMedium'), color: '#F5A623', pct: 0.6 };
-    return { label: t('auth.passwordStrong'), color: '#2ECC71', pct: 1 };
-  })();
-
   return (
-    <AnimatedMeshBackground
-      colors={[...Gradients.meshMain].reverse()}
-      style={{ flex: 1 }}
-    >
+    <View style={styles.container}>
+      {/* Decorative Floating Doodles */}
+      <View style={[styles.bubble, styles.bubble1]} />
+      <View style={[styles.bubble, styles.bubble2]} />
+      <View style={[styles.bubble, styles.bubble3]} />
+
       <SafeAreaView style={{ flex: 1 }}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -125,67 +160,68 @@ export default function RegisterScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Logo */}
-            <View style={styles.logoArea}>
-              <LinearGradient
-                colors={['rgba(255,255,255,0.4)', 'rgba(255,255,255,0.15)']}
-                style={styles.logoBubble}
-              >
-                <Text style={styles.logoEmoji}>🥗</Text>
-              </LinearGradient>
-              <Text style={styles.appName}>VitaScan</Text>
-              <Text style={styles.tagline}>{t('auth.joinCommunity')}</Text>
+            {/* Header / Logo */}
+            <View style={styles.header}>
+              <View style={styles.titleContainer}>
+                <Text style={styles.title}>Vitascan</Text>
+                <SparkleIcon style={styles.sparkle} color={Colors.dashboard.stroke} />
+              </View>
+              <Text style={styles.subtitle}>{t('auth.joinCommunity')}</Text>
+              
+              <View style={styles.characterContainer}>
+                <CharacterIcon style={styles.character} />
+                <View style={styles.characterBubble} />
+              </View>
             </View>
 
-            {/* Kártya */}
+            {/* Registration Form Card */}
             <Animated.View style={{ transform: [{ translateX: shakeX }] }}>
               <GlassCardSimple
-                backgroundColor={Colors.glass.whiteStrong}
-                borderColor={Colors.glass.border}
-                padding={Spacing['2xl']}
-                radius={Radius['3xl']}
+                backgroundColor={Colors.dashboard.card}
+                borderColor={Colors.dashboard.stroke}
+                padding={Spacing['3xl']}
+                shadowOffset={6}
+                customRadius={{
+                  borderTopLeftRadius: 15,
+                  borderTopRightRadius: 15,
+                  borderBottomRightRadius: 15,
+                  borderBottomLeftRadius: 15,
+                }}
                 style={styles.card}
               >
-                <Text style={styles.cardTitle}>{t('register')}</Text>
-
                 <View style={styles.fields}>
-                  <GlassInput
+                  <CustomInput
                     label={t('username')}
                     value={username}
                     onChange={setUsername}
                     placeholder={t('auth.usernamePlaceholder')}
+                    icon="person"
                   />
-                  <GlassInput
+                  <CustomInput
                     label={t('email')}
                     value={email}
                     onChange={setEmail}
                     placeholder={t('auth.emailPlaceholder')}
+                    icon="email"
                     keyboardType="email-address"
+                    isAlt
                   />
-                  <View>
-                    <GlassInput
-                      label={t('auth.passwordMin')}
-                      value={password}
-                      onChange={setPassword}
-                      placeholder="••••••••"
-                      secure
-                    />
-                    {/* Jelszó erősség sáv */}
-                    {pwStrength && (
-                      <View style={styles.pwStrengthWrap}>
-                        <View style={styles.pwTrack}>
-                          <View style={[styles.pwFill, { width: `${pwStrength.pct * 100}%`, backgroundColor: pwStrength.color }]} />
-                        </View>
-                        <Text style={[styles.pwLabel, { color: pwStrength.color }]}>{pwStrength.label}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <GlassInput
+                  <CustomInput
+                    label={t('auth.passwordMin')}
+                    value={password}
+                    onChange={setPassword}
+                    placeholder="••••••••"
+                    icon="lock"
+                    secure
+                  />
+                  <CustomInput
                     label={t('auth.confirmPassword')}
                     value={password2}
                     onChange={setPassword2}
                     placeholder="••••••••"
+                    icon="lock"
                     secure
+                    isAlt
                   />
                   {password2 !== '' && password !== password2 && (
                     <Text style={styles.mismatch}>⚠️ {t('auth.passwordMismatchInline')}</Text>
@@ -194,12 +230,12 @@ export default function RegisterScreen() {
 
                 {/* GDPR checkbox */}
                 <Pressable style={styles.checkRow} onPress={() => setAccepted(!accepted)}>
-                  <LinearGradient
-                    colors={accepted ? (Gradients.cardOrange as any) : ['#E8E8E8', '#E8E8E8']}
-                    style={styles.checkbox}
-                  >
-                    {accepted && <Text style={styles.checkmark}>✓</Text>}
-                  </LinearGradient>
+                  <View style={[
+                    styles.checkbox,
+                    accepted && { backgroundColor: Colors.dashboard.primaryFixed }
+                  ]}>
+                    {accepted && <MaterialIcons name="check" size={16} color={Colors.dashboard.stroke} />}
+                  </View>
                   <Text style={styles.checkText}>
                     {t('auth.acceptPrefix')}{' '}
                     <Text style={styles.checkLink}>{t('auth.privacyPolicy')}</Text>
@@ -212,12 +248,21 @@ export default function RegisterScreen() {
                   onPress={handleRegister}
                   loading={loading}
                   disabled={!accepted}
-                  style={styles.btn}
+                  style={styles.registerBtn}
                 />
               </GlassCardSimple>
             </Animated.View>
 
-            {/* Login link */}
+            {/* Divider */}
+            <View style={styles.dividerContainer}>
+              <View style={styles.dividerLine} />
+              <View style={styles.dividerBox}>
+                <Text style={styles.dividerText}>VAGY</Text>
+              </View>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Login Link */}
             <View style={styles.footer}>
               <Text style={styles.footerText}>{t('auth.hasAccount')} </Text>
               <Link href="/auth/login" asChild>
@@ -229,54 +274,186 @@ export default function RegisterScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </AnimatedMeshBackground>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.dashboard.page,
+  },
+  bubble: {
+    position: 'absolute',
+    borderWidth: 0.8,
+    borderColor: Colors.dashboard.stroke,
+    opacity: 0.6,
+  },
+  bubble1: {
+    top: 40,
+    left: -20,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: Colors.dashboard.softBlue,
+    transform: [{ scaleX: 1.2 }],
+  },
+  bubble2: {
+    bottom: 80,
+    right: -20,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: Colors.dashboard.primaryFixed,
+    transform: [{ rotate: '15deg' }],
+  },
+  bubble3: {
+    top: '20%',
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Colors.dashboard.errorContainer,
+    opacity: 0.5,
+  },
   scroll: {
-    flexGrow: 1, padding: Spacing.xl,
-    justifyContent: 'center', gap: Spacing.xl,
+    flexGrow: 1,
+    padding: Spacing.xl,
+    paddingBottom: Spacing['6xl'],
   },
-  logoArea: { alignItems: 'center', gap: Spacing.sm },
-  logoBubble: {
-    width: 80, height: 80, borderRadius: 40,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: 'rgba(255,255,255,0.5)',
-    shadowColor: '#FF6B35', shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3, shadowRadius: 16, elevation: 8,
+  header: {
+    alignItems: 'center',
+    marginTop: Spacing.xl,
+    marginBottom: Spacing['2xl'],
   },
-  logoEmoji: { fontSize: 42 },
-  appName: { fontSize: 32, fontWeight: '900', color: '#fff', letterSpacing: -1 },
-  tagline: { ...Typography.body, color: 'rgba(255,255,255,0.8)' },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  title: {
+    fontSize: 48,
+    fontWeight: '800',
+    fontStyle: 'italic',
+    color: Colors.dashboard.nutritionIcon,
+    marginBottom: Spacing.xs,
+  },
+  sparkle: {
+    position: 'absolute',
+    right: -24,
+    top: -10,
+  },
+  subtitle: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: Colors.dashboard.onSurfaceVariant,
+    marginBottom: Spacing['2xl'],
+  },
+  characterContainer: {
+    position: 'relative',
+    width: 100,
+    height: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  character: {
+    zIndex: 2,
+  },
+  characterBubble: {
+    position: 'absolute',
+    right: -30,
+    top: 10,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.dashboard.errorContainer,
+    borderWidth: 0.8,
+    borderColor: Colors.dashboard.stroke,
+    opacity: 0.4,
+    zIndex: 1,
+  },
   card: {
-    shadowColor: 'rgba(31,38,135,0.2)',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 1, shadowRadius: 40, elevation: 12,
+    marginBottom: Spacing.xl,
   },
-  cardTitle: { ...Typography.subtitle, color: Colors.text.primary, marginBottom: Spacing.lg },
-  fields: { gap: Spacing.md, marginBottom: Spacing.lg },
-  pwStrengthWrap: {
-    flexDirection: 'row', alignItems: 'center',
-    gap: Spacing.sm, marginTop: 6,
+  fields: {
+    gap: Spacing.xl,
+    marginBottom: Spacing.xl,
   },
-  pwTrack: { flex: 1, height: 4, backgroundColor: '#EEE', borderRadius: 2, overflow: 'hidden' },
-  pwFill: { height: '100%', borderRadius: 2 },
-  pwLabel: { ...Typography.caption, fontWeight: '700', width: 48 },
-  mismatch: { ...Typography.caption, color: Colors.status.banned, marginTop: 2 },
+  mismatch: {
+    fontSize: 12,
+    color: Colors.status.banned,
+    marginTop: -Spacing.md,
+    marginLeft: 4,
+  },
   checkRow: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    gap: Spacing.sm, marginBottom: Spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginBottom: Spacing['2xl'],
   },
   checkbox: {
-    width: 24, height: 24, borderRadius: 7,
-    alignItems: 'center', justifyContent: 'center', marginTop: 1,
+    width: 24, height: 24,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.dashboard.page,
   },
-  checkmark: { color: '#fff', fontSize: 13, fontWeight: '900' },
-  checkText: { flex: 1, ...Typography.caption, color: Colors.text.secondary, lineHeight: 20 },
-  checkLink: { color: Colors.primary, fontWeight: '700' },
-  btn: {},
-  footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-  footerText: { ...Typography.body, color: 'rgba(255,255,255,0.85)' },
-  footerLink: { ...Typography.bodyMedium, color: '#fff', textDecorationLine: 'underline' },
+  checkText: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.dashboard.onSurfaceVariant,
+  },
+  checkLink: {
+    color: Colors.dashboard.nutritionIcon,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+  registerBtn: {
+    marginTop: Spacing.sm,
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: Spacing['2xl'],
+    gap: Spacing.md,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.dashboard.stroke,
+    borderStyle: 'dashed',
+    borderRadius: 1,
+    borderWidth: 0.5,
+    borderColor: Colors.dashboard.stroke,
+  },
+  dividerBox: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xs,
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+    borderRadius: 8,
+    backgroundColor: Colors.dashboard.page,
+  },
+  dividerText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.dashboard.onSurfaceVariant,
+  },
+  footer: {
+    alignItems: 'center',
+    marginBottom: Spacing['3xl'],
+  },
+  footerText: {
+    fontSize: 16,
+    color: Colors.dashboard.onSurfaceVariant,
+  },
+  footerLink: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.dashboard.nutritionIcon,
+    textDecorationLine: 'underline',
+    marginTop: 4,
+  },
 });
