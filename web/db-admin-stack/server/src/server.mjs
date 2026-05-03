@@ -1,4 +1,5 @@
-import { createReadStream, promises as fs } from 'node:fs';
+import { createReadStream, createWriteStream, promises as fs } from 'node:fs';
+import { createInterface } from 'node:readline';
 import { join, resolve, relative, sep } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -76,11 +77,197 @@ function fileIsInsideDir(dirAbs, fileAbs) {
 
 function isIgnorablePgRestoreTransactionTimeoutError(stderrText) {
   if (!stderrText) return false;
-  return (
-    stderrText.includes('unrecognized configuration parameter "transaction_timeout"') &&
-    stderrText.includes('Command was: SET transaction_timeout = 0;') &&
-    stderrText.includes('errors ignored on restore: 1')
-  );
+  if (!/unrecognized configuration parameter ["']transaction_timeout["']/i.test(stderrText)) return false;
+  if (/duplicate key value violates unique constraint/i.test(stderrText)) return false;
+  return true;
+}
+
+function parsePgUrl(raw) {
+  const s = String(raw).replace(/^postgres(ql)?:/i, 'postgresql:');
+  const u = new URL(s);
+  const database = decodeURIComponent((u.pathname || '/').replace(/^\//, '') || 'postgres');
+  return {
+    user: decodeURIComponent(u.username || 'postgres'),
+    password: u.password ? decodeURIComponent(u.password) : '',
+    host: u.hostname,
+    port: u.port || '5432',
+    database,
+  };
+}
+
+function buildPsqlEnv() {
+  const p = parsePgUrl(DATABASE_URL);
+  return { ...process.env, PGPASSWORD: p.password };
+}
+
+/** pg_restore -f kimenetből kiszűrjük a régi szerveren hibázó SET sorokat. */
+async function filterPgRestoreSqlFile(srcPath, destPath) {
+  const rl = createInterface({ input: createReadStream(srcPath), crlfDelay: Infinity });
+  const out = createWriteStream(destPath);
+  for await (const line of rl) {
+    if (/^\s*SET\s+transaction_timeout\b/i.test(line)) continue;
+    if (/^\s*SET\s+idle_in_transaction_session_timeout\b/i.test(line)) continue;
+    if (!out.write(`${line}\n`)) {
+      await new Promise((r) => out.once('drain', r));
+    }
+  }
+  out.end();
+  rl.close();
+  await new Promise((res, rej) => out.on('finish', res).on('error', rej));
+}
+
+/**
+ * Szelektív adatbetöltés: üres ideiglenes DB-be restore, majd FDW-n keresztül
+ * INSERT ... ON CONFLICT DO NOTHING a cél DB-be (létező sorok megmaradnak).
+ */
+async function mergeDataFromCustomFormat(dumpPath, log) {
+  const p = parsePgUrl(DATABASE_URL);
+  const env = buildPsqlEnv();
+  const mergeDb = `vitascan_merge_${Date.now()}`;
+  const maintenanceDb = 'postgres';
+  const sqlRaw = join(BACKUP_DIR, `_merge_raw_${Date.now()}.sql`);
+  const sqlFiltered = join(BACKUP_DIR, `_merge_flt_${Date.now()}.sql`);
+  const mergeSql = join(BACKUP_DIR, `_merge_ins_${Date.now()}.sql`);
+
+  const psql = (database, args) =>
+    execFileAsync('psql', ['-h', p.host, '-p', p.port, '-U', p.user, '-d', database, ...args], {
+      env,
+      maxBuffer: 512 * 1024 * 1024,
+    });
+
+  const dropMergeDb = async () => {
+    try {
+      await execFileAsync(
+        'dropdb',
+        ['-h', p.host, '-p', p.port, '-U', p.user, '--if-exists', mergeDb],
+        { env, maxBuffer: 16 * 1024 * 1024 },
+      );
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const cleanupFdwOnMain = async () => {
+    try {
+      await psql(p.database, [
+        '-v',
+        'ON_ERROR_STOP=0',
+        '-c',
+        'DROP SERVER IF EXISTS vitascan_merge_srv CASCADE; DROP SCHEMA IF EXISTS vitascan_merge_fdw CASCADE;',
+      ]);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  try {
+    await psql(maintenanceDb, [
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-c',
+      `CREATE DATABASE "${mergeDb.replace(/"/g, '""')}" OWNER "${p.user.replace(/"/g, '""')}";`,
+    ]);
+  } catch (e) {
+    log.error(e);
+    throw new Error(
+      `Ideiglenes adatbázis létrehozása sikertelen (${mergeDb}). ` +
+        `A felhasználónak jog kell a(z) "${maintenanceDb}" adatbázison (pl. CREATEDB / tulajdonos). ` +
+        (e?.stderr?.toString() || e?.message || ''),
+    );
+  }
+
+  try {
+    await execFileAsync('pg_restore', ['-f', sqlRaw, dumpPath], {
+      env,
+      maxBuffer: 512 * 1024 * 1024,
+    });
+    await filterPgRestoreSqlFile(sqlRaw, sqlFiltered);
+    await psql(mergeDb, ['-v', 'ON_ERROR_STOP=1', '-f', sqlFiltered]);
+
+    let pgVer = 0;
+    try {
+      const { stdout } = await execFileAsync(
+        'psql',
+        ['-h', p.host, '-p', p.port, '-U', p.user, '-d', p.database, '-t', '-A', '-c', 'SHOW server_version_num;'],
+        { env, maxBuffer: 1024 * 1024 },
+      );
+      pgVer = parseInt(String(stdout).trim(), 10) || 0;
+    } catch {
+      pgVer = 0;
+    }
+    if (pgVer < 150000) {
+      throw new Error(
+        `A szelektív összefésüléshez PostgreSQL 15+ kell (server_version_num >= 150000; most: ${pgVer || 'ismeretlen'}). ` +
+          'Frissítsd a szervert, vagy importálj egy üres példányra és cseréld le az adatbázist.',
+      );
+    }
+
+    const esc = (s) => String(s).replace(/'/g, "''");
+    const fdwSql = `
+BEGIN;
+CREATE EXTENSION IF NOT EXISTS postgres_fdw;
+DROP SCHEMA IF EXISTS vitascan_merge_fdw CASCADE;
+CREATE SCHEMA vitascan_merge_fdw;
+DROP SERVER IF EXISTS vitascan_merge_srv CASCADE;
+CREATE SERVER vitascan_merge_srv FOREIGN DATA WRAPPER postgres_fdw
+  OPTIONS (host '${esc(p.host)}', dbname '${esc(mergeDb)}', port '${esc(p.port)}');
+DROP USER MAPPING IF EXISTS FOR CURRENT_USER SERVER vitascan_merge_srv;
+CREATE USER MAPPING FOR CURRENT_USER SERVER vitascan_merge_srv
+  OPTIONS (user '${esc(p.user)}', password '${esc(p.password)}');
+IMPORT FOREIGN SCHEMA public EXCEPT (_prisma_migrations) FROM SERVER vitascan_merge_srv INTO vitascan_merge_fdw;
+SET session_replication_role = replica;
+DO $merge$
+DECLARE tbl text;
+BEGIN
+  FOREACH tbl IN ARRAY ARRAY[
+    'User','UserProfile','Food','Vote','DailyLog','WaterLog','WeightLog','RefreshToken','SystemSetting'
+  ]
+  LOOP
+    IF EXISTS (
+      SELECT 1 FROM information_schema.foreign_tables
+      WHERE foreign_table_schema = 'vitascan_merge_fdw' AND foreign_table_name = tbl
+    ) THEN
+      EXECUTE format(
+        'INSERT INTO public.%I SELECT * FROM vitascan_merge_fdw.%I ON CONFLICT DO NOTHING',
+        tbl, tbl
+      );
+    END IF;
+  END LOOP;
+END $merge$;
+SET session_replication_role = DEFAULT;
+DROP SERVER IF EXISTS vitascan_merge_srv CASCADE;
+DROP SCHEMA IF EXISTS vitascan_merge_fdw CASCADE;
+COMMIT;
+`;
+    await fs.writeFile(mergeSql, fdwSql, 'utf8');
+    try {
+      await psql(p.database, ['-v', 'ON_ERROR_STOP=1', '-f', mergeSql]);
+    } catch (e) {
+      await cleanupFdwOnMain();
+      const errText = e?.stderr?.toString() || e?.message || '';
+      if (/postgres_fdw|permission denied to create extension/i.test(errText)) {
+        throw new Error(
+          'A postgres_fdw kiterjesztés nem telepíthető vagy nincs jogosultság. ' +
+            'A szelektív összefésüléshez a cél adatbázis szuperfelhasználója (vagy megfelelő jog) szükséges. ' +
+            errText,
+        );
+      }
+      throw e;
+    }
+
+    return {
+      message:
+        'Szelektív adatfrissítés kész: a mentésben lévő sorok közül a már létező elsődleges kulcsok (és a SystemSetting kulcs) kimaradtak; az újak bekerültek. A _prisma_migrations táblát nem módosítjuk.',
+    };
+  } catch (e) {
+    await cleanupFdwOnMain();
+    throw e;
+  } finally {
+    await dropMergeDb();
+    await fs.unlink(sqlRaw).catch(() => {});
+    await fs.unlink(sqlFiltered).catch(() => {});
+    await fs.unlink(mergeSql).catch(() => {});
+  }
 }
 
 let cronTask = null;
@@ -373,14 +560,10 @@ app.post('/data-update', async (req, reply) => {
       await execFileAsync('psql', [PG_CLI_URL, '-v', 'ON_ERROR_STOP=1', '-f', target], {
         maxBuffer: 64 * 1024 * 1024,
       });
-    } else {
-      await execFileAsync(
-        'pg_restore',
-        ['--no-owner', '--no-privileges', '--data-only', '-d', PG_CLI_URL, target],
-        { maxBuffer: 64 * 1024 * 1024 },
-      );
+      return reply.send({ message: 'SQL fájl lefuttatva.' });
     }
-    reply.send({ message: 'Adatfrissítés sikeres. A meglévő adatok megmaradtak.' });
+    const result = await mergeDataFromCustomFormat(target, req.log);
+    return reply.send(result);
   } catch (e) {
     const stderr = e?.stderr?.toString?.() || '';
     if (isIgnorablePgRestoreTransactionTimeoutError(stderr)) {
@@ -389,7 +572,7 @@ app.post('/data-update', async (req, reply) => {
       });
     }
     req.log.error(e);
-    reply.code(500).send({ error: stderr || e?.message || 'Adatfrissítés hiba.' });
+    reply.code(500).send({ error: stderr || e?.message || String(e) || 'Adatfrissítés hiba.' });
   } finally {
     await fs.unlink(target).catch(() => {});
   }

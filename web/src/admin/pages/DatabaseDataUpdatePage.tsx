@@ -106,7 +106,11 @@ export function DatabaseDataUpdatePage() {
                 </div>
                 <div>
                   <strong>Ami történik</strong>
-                  <p>Új sorok hozzáadása a meglévő táblákhoz. A már létező adatok érintetlenül maradnak.</p>
+                  <p>
+                    A mentés tartalmát ideiglenes adatbázisba töltjük, majd a célba csak azok a sorok kerülnek, amelyek
+                    ütközés nélkül beszúrhatók (minden egyedi kulcs / elsődleges kulcs szerint létező sor kimarad).
+                    A <code>_prisma_migrations</code> táblát nem módosítjuk.
+                  </p>
                 </div>
               </div>
 
@@ -119,7 +123,11 @@ export function DatabaseDataUpdatePage() {
                 </div>
                 <div>
                   <strong>Támogatott formátumok</strong>
-                  <p><code>.sql</code> — INSERT/UPSERT utasításokkal<br/><code>.dump</code> / <code>.backup</code> — pg_dump adat-export (csak adat, séma nélkül)</p>
+                  <p>
+                    <code>.sql</code> — közvetlenül psql-lel fut.<br />
+                    <code>.dump</code> / <code>.backup</code> — PostgreSQL 15+ és <code>postgres_fdw</code> kiterjesztés
+                    szükséges; a régi kliens <code>transaction_timeout</code> sorai szűrve vannak.
+                  </p>
                 </div>
               </div>
 
