@@ -23,11 +23,12 @@ import { Colors, Spacing } from '../../src/design/tokens';
 import { ApiError } from '../../src/services/api';
 import { useAuthStore } from '../../src/stores/authStore';
 
+// Stitch: .wobbly-border (ellipszis sarok) — RN-ben sarconkénti, erősen aszimmetrikus ívek
 const CARD_FRAME = {
-  borderTopLeftRadius: 8,
-  borderTopRightRadius: 6,
-  borderBottomRightRadius: 10,
-  borderBottomLeftRadius: 7,
+  borderTopLeftRadius: 30,
+  borderTopRightRadius: 11,
+  borderBottomRightRadius: 34,
+  borderBottomLeftRadius: 13,
 } as const;
 
 function GlassInput({
@@ -183,9 +184,9 @@ export default function LoginScreen() {
                 backgroundColor={Colors.dashboard.card}
                 borderColor={Colors.dashboard.stroke}
                 borderWidth={1.2}
-                padding={16}
+                padding={Spacing['3xl']}
                 customRadius={CARD_FRAME}
-                shadowOffset={5}
+                shadowOffset={6}
                 style={styles.card}
               >
                 {/* Email mező */}
@@ -216,24 +217,27 @@ export default function LoginScreen() {
                 {/* ── Belépés gomb (hard shadow + wobbly) ── */}
                 {/* Outer wrapper reservál helyet a 4px hard shadownak */}
                 <View style={styles.btnWrapper}>
-                  {/* Eltolt fekete árnyék réteg */}
-                  <View style={styles.btnShadow} />
+                  {/* Kemény árnyék — a Pressable háttérje iOS + NativeWind jsx mellett nem mindig rajzolódik; a vizuális felület külön View. */}
+                  <View style={styles.btnShadow} pointerEvents="none" />
                   <Pressable
                     onPress={handleLogin}
                     disabled={loading}
+                    android_ripple={{ color: 'rgba(255,255,255,0.22)' }}
                     style={({ pressed }) => [
-                      styles.loginBtn,
+                      styles.loginBtnHit,
                       pressed && styles.btnPressed,
                     ]}
                   >
-                    {loading ? (
-                      <ActivityIndicator color={Colors.dashboard.onSecondary} />
-                    ) : (
-                      <>
-                        <Text style={styles.loginBtnText}>{t('login')}</Text>
-                        <MaterialIcons name="arrow-forward" size={26} color={Colors.dashboard.onSecondary} />
-                      </>
-                    )}
+                    <View style={styles.loginBtnFace}>
+                      {loading ? (
+                        <ActivityIndicator color={Colors.dashboard.onSecondary} />
+                      ) : (
+                        <View style={styles.loginBtnRow}>
+                          <Text style={styles.loginBtnText}>{t('auth.loginCta')}</Text>
+                          <MaterialIcons name="arrow-forward" size={24} color={Colors.dashboard.onSecondary} />
+                        </View>
+                      )}
+                    </View>
                   </Pressable>
                 </View>
               </GlassCardSimple>
@@ -337,7 +341,7 @@ const styles = StyleSheet.create({
   },
   doodle: {
     marginTop: Spacing.md,
-    marginBottom: -Spacing.xl,
+    marginBottom: 0,
     zIndex: 20,
   },
 
@@ -346,11 +350,12 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 420,
     alignSelf: 'center',
+    marginTop: Spacing['3xl'],
   },
 
-  // gap-md (24px) az email és a jelszó blokk között
+  // gap-md (24px) a minta kártyán az email és jelszó szekció között
   passwordBlock: {
-    marginTop: 12,
+    marginTop: Spacing['2xl'],
   },
 
   // Elfelejtett jelszó: jobb oldali, aláhúzott, 14px bold, primary szín
@@ -368,26 +373,48 @@ const styles = StyleSheet.create({
   // ── Gomb (hard shadow + wobbly) ──
   // mt-4 (16px) az előző mezőtől, paddingRight/Bottom 4px a shadow helynek
   btnWrapper: {
-    marginTop: 18,
-    paddingRight: 5,
-    paddingBottom: 5,
+    marginTop: 16,
+    paddingRight: 4,
+    paddingBottom: 4,
+    position: 'relative',
   },
-  // Eltolt szilárd fekete árnyék: shadow-[4px_4px_0px_0px_rgba(28,27,27,1)]
+  // Eltolt szilárd fekete árnyék: shadow-[4px_4px_0px_0px_rgba(28,27,27,1)] — PrimaryButton hardShadow mintája
   btnShadow: {
     ...StyleSheet.absoluteFillObject,
-    top: 5,
+    top: 4,
     left: 4,
+    right: 0,
+    bottom: 0,
     backgroundColor: Colors.dashboard.shadowHard,
-    borderRadius: 2,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 2,
+    borderBottomRightRadius: 4,
+    borderBottomLeftRadius: 3,
+    zIndex: 0,
   },
-  // bg-secondary (#655d4f) border-[0.8px] py-4 px-8 font-headline-md
-  loginBtn: {
-    backgroundColor: '#635d52',
-    borderWidth: 1.2,
+  // Kattintási felület (NativeWind / iOS: ne ide tegyük a hátteret)
+  loginBtnHit: {
+    position: 'relative',
+    zIndex: 1,
+    alignSelf: 'stretch',
+    elevation: 8,
+  },
+  // bg-secondary (#655d4f) border py-4 px-8 — vizuális „gombtest”
+  loginBtnFace: {
+    width: '100%',
+    backgroundColor: Colors.dashboard.secondary,
+    borderWidth: 1,
     borderColor: Colors.dashboard.stroke,
-    borderRadius: 2,
-    paddingVertical: 14,
-    paddingHorizontal: 22,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 2,
+    borderBottomRightRadius: 4,
+    borderBottomLeftRadius: 3,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loginBtnRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -398,10 +425,10 @@ const styles = StyleSheet.create({
   },
   // font-headline-md: 24px / 700
   loginBtnText: {
-    fontSize: 36,
-    fontWeight: '800',
+    fontSize: 24,
+    lineHeight: 31,
+    fontWeight: '700',
     color: Colors.dashboard.onSecondary,
-    letterSpacing: 0.4,
   },
 
   // ── Elválasztó ──
