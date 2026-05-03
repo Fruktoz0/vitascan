@@ -1,5 +1,5 @@
 import { createReadStream, promises as fs } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, resolve, relative, sep } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import Fastify from 'fastify';
@@ -54,12 +54,24 @@ function assertSecret(req, reply) {
   return true;
 }
 
+/** Csak fájlnév (útvonal-nélkül), pg_dump / kézi mentések neveihez elég laza szabály. */
 function safeBasename(name) {
   if (!name || typeof name !== 'string') return null;
   const base = name.split('/').pop().split('\\').pop();
   if (!base || base === '.' || base === '..') return null;
-  if (!/^[a-zA-Z0-9._-]+$/.test(base)) return null;
+  if (base.includes('\0') || base.length > 240) return null;
+  if (/[/\\]/.test(base)) return null;
   return base;
+}
+
+/** A fájl ténylegesen a megadott gyökérkönyvtár alatt van-e (path traversal ellen). */
+function fileIsInsideDir(dirAbs, fileAbs) {
+  const root = resolve(dirAbs);
+  const candidate = resolve(fileAbs);
+  if (candidate === root) return false;
+  const rel = relative(root, candidate);
+  if (!rel) return false;
+  return !rel.startsWith(`..${sep}`) && rel !== '..' && !rel.startsWith('..');
 }
 
 function isIgnorablePgRestoreTransactionTimeoutError(stderrText) {
@@ -109,11 +121,13 @@ async function resolveBackupFile(name) {
   const dirs = getBackupDirs(config);
   for (const dir of dirs) {
     const abs = resolve(join(dir, safe));
-    if (!abs.startsWith(dir + '/') && abs !== dir) continue;
+    if (!fileIsInsideDir(dir, abs)) continue;
     try {
       await fs.access(abs);
       return abs;
-    } catch { continue; }
+    } catch {
+      continue;
+    }
   }
   return null;
 }
@@ -180,6 +194,66 @@ function applyCronFromDisk() {
 
 const app = Fastify({ logger: true });
 
+/** Könyvtár tallózás: a multipart előtt kell regisztrálni, különben egyes verziókban a GET /dirs 404-et adhat. */
+app.get('/dirs', async (req, reply) => {
+  if (!assertSecret(req, reply)) return;
+  let rawPath = req.query?.path;
+  if (Array.isArray(rawPath)) rawPath = rawPath[0];
+  let dirPath;
+  try {
+    if (rawPath == null || rawPath === '') {
+      dirPath = BACKUP_DIR;
+    } else {
+      let s = String(rawPath);
+      try {
+        s = decodeURIComponent(s);
+      } catch {
+        /* marad s */
+      }
+      dirPath = resolve(s);
+    }
+  } catch {
+    return reply.code(400).send({ error: 'Érvénytelen útvonal.' });
+  }
+
+  async function sendListing(pathAbs, parentAbs) {
+    const entries = await fs.readdir(pathAbs, { withFileTypes: true });
+    const dirs = [];
+    for (const ent of entries) {
+      if (!ent.isDirectory()) continue;
+      if (ent.name.startsWith('.')) continue;
+      dirs.push({ name: ent.name, path: join(pathAbs, ent.name) });
+    }
+    dirs.sort((a, b) => a.name.localeCompare(b.name));
+    reply.send({ current: pathAbs, parent: parentAbs, dirs });
+  }
+
+  try {
+    const parent =
+      dirPath === '/' || dirPath === resolve('/') ? null : resolve(join(dirPath, '..'));
+    await sendListing(dirPath, parent);
+    return;
+  } catch (e) {
+    if (dirPath === '/' || dirPath === resolve('/')) {
+      const fallback = [];
+      for (const name of ['backups', 'mnt', 'var', 'app', 'tmp', 'home']) {
+        const p = join('/', name);
+        try {
+          const st = await fs.stat(p);
+          if (st.isDirectory()) fallback.push({ name, path: p });
+        } catch {
+          /* skip */
+        }
+      }
+      fallback.sort((a, b) => a.name.localeCompare(b.name));
+      if (fallback.length) {
+        return reply.send({ current: '/', parent: null, dirs: fallback });
+      }
+    }
+    reply.code(400).send({ error: `Nem olvasható: ${e?.message ?? dirPath}` });
+  }
+});
+
 await app.register(multipart, {
   limits: { fileSize: 512 * 1024 * 1024 },
 });
@@ -198,30 +272,6 @@ app.addHook('onReady', async () => {
   }
   await applyCronFromDisk();
   await cleanupOldBackups().catch((e) => console.error('[db-tools] startup cleanup hiba:', e));
-});
-
-app.get('/dirs', async (req, reply) => {
-  if (!assertSecret(req, reply)) return;
-  const rawPath = req.query?.path;
-  let dirPath;
-  try {
-    dirPath = rawPath ? resolve(String(rawPath)) : '/';
-  } catch {
-    return reply.code(400).send({ error: 'Érvénytelen útvonal.' });
-  }
-  try {
-    const entries = await fs.readdir(dirPath, { withFileTypes: true });
-    const dirs = [];
-    for (const ent of entries) {
-      if (!ent.isDirectory()) continue;
-      if (ent.name.startsWith('.')) continue;
-      dirs.push({ name: ent.name, path: join(dirPath, ent.name) });
-    }
-    dirs.sort((a, b) => a.name.localeCompare(b.name));
-    reply.send({ current: dirPath, parent: dirPath === '/' ? null : resolve(join(dirPath, '..')), dirs });
-  } catch (e) {
-    reply.code(400).send({ error: `Nem olvasható: ${e?.message ?? dirPath}` });
-  }
 });
 
 app.get('/health', async (req, reply) => {
@@ -277,9 +327,11 @@ app.get('/backups', async (req, reply) => {
   reply.send({ files });
 });
 
-app.get('/file/:name', async (req, reply) => {
+app.get('/file', async (req, reply) => {
   if (!assertSecret(req, reply)) return;
-  const name = safeBasename(req.params.name);
+  let raw = req.query?.name;
+  if (Array.isArray(raw)) raw = raw[0];
+  const name = safeBasename(raw ? String(raw) : '');
   if (!name) return reply.code(400).send({ error: 'Érvénytelen fájlnév.' });
   const abs = await resolveBackupFile(name);
   if (!abs) return reply.code(404).send({ error: 'Fájl nem található.' });
@@ -288,9 +340,11 @@ app.get('/file/:name', async (req, reply) => {
   return reply.send(createReadStream(abs));
 });
 
-app.delete('/file/:name', async (req, reply) => {
+app.delete('/file', async (req, reply) => {
   if (!assertSecret(req, reply)) return;
-  const name = safeBasename(req.params.name);
+  let raw = req.query?.name;
+  if (Array.isArray(raw)) raw = raw[0];
+  const name = safeBasename(raw ? String(raw) : '');
   if (!name) return reply.code(400).send({ error: 'Érvénytelen fájlnév.' });
   const abs = await resolveBackupFile(name);
   if (!abs) return reply.code(404).send({ error: 'Fájl nem található.' });

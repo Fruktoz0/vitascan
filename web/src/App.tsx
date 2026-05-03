@@ -9,6 +9,7 @@ import { DatabaseLayout } from './admin/DatabaseLayout';
 import { DatabaseOverviewPage } from './admin/pages/DatabaseOverviewPage';
 import { DatabaseRestorePage } from './admin/pages/DatabaseRestorePage';
 import { DatabaseDataUpdatePage } from './admin/pages/DatabaseDataUpdatePage';
+import { TokenCleanupPage } from './admin/pages/TokenCleanupPage';
 
 function HomePage() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
           <Route index element={<DashboardPage />} />
           <Route path="foods" element={<FoodsPage />} />
           <Route path="users" element={<UsersPage />} />
+          <Route path="token-cleanup" element={<TokenCleanupPage />} />
           <Route path="database" element={<DatabaseLayout />}>
             <Route index element={<DatabaseOverviewPage />} />
             <Route path="rendszer-visszaallitas" element={<DatabaseRestorePage />} />

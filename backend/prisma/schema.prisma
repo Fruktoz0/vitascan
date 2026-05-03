@@ -121,6 +121,14 @@ model RefreshToken {
   createdAt DateTime @default(now())
 }
 
+/** Kulcs–érték rendszerbeállítások (pl. admin által szerkeszthető job paraméterek). */
+model SystemSetting {
+  key   String @id
+  value String
+
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
 model WaterLog {
   id     String @id @default(uuid())
   userId String

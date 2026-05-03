@@ -17,6 +17,7 @@ import statsRoutes from './modules/stats/stats.routes';
 import onboardingRoutes from './modules/onboarding/onboarding.routes';
 import exportRoutes from './modules/export/export.routes';
 import weightRoutes from './modules/weight/weight.routes';
+import { startRefreshTokenCleanupScheduler } from './jobs/refresh-token-cleanup.scheduler';
 
 const fastify = Fastify({
   logger: {
@@ -104,6 +105,7 @@ async function bootstrap() {
   // ─── Start ───────────────────────────────────────────────────────────────
   try {
     const port = parseInt(process.env.PORT ?? '3005');
+    startRefreshTokenCleanupScheduler(fastify);
     await fastify.listen({ port, host: '0.0.0.0' });
     console.log(`🚀 VitaScan API fut a ${port}-es porton`);
   } catch (err) {

@@ -2,6 +2,11 @@ import { FastifyPluginAsync } from 'fastify';
 import { authenticate, requireAdmin } from '../../middleware/authenticate';
 import { z } from 'zod';
 import { registerAdminDatabaseRoutes } from './admin.database.routes';
+import {
+  getRefreshTokenCleanupConfig,
+  runRefreshTokenCleanupJob,
+  setRefreshTokenCleanupConfig,
+} from '../system/refresh-token-cleanup.service';
 
 const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', authenticate);
@@ -426,6 +431,37 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       select: { id: true, username: true, reputation: true },
     });
     return reply.send({ ...user, delta, reason });
+  });
+
+  // ─── Refresh token DB takarítás (ütemezés + admin beállítások) ────────────
+
+  fastify.get('/system/refresh-token-cleanup', async (_req, reply) => {
+    const config = await getRefreshTokenCleanupConfig(fastify.prisma);
+    const totalRefreshTokens = await fastify.prisma.refreshToken.count();
+    return reply.send({ ...config, totalRefreshTokens });
+  });
+
+  fastify.patch('/system/refresh-token-cleanup', async (request, reply) => {
+    const body = z
+      .object({
+        intervalHours: z.number().int().min(1).max(24 * 30).optional(),
+        revokedRetentionDays: z.number().int().min(0).max(365).optional(),
+      })
+      .parse(request.body);
+    if (body.intervalHours === undefined && body.revokedRetentionDays === undefined) {
+      return reply.status(400).send({ error: 'Legalább egy mező: intervalHours vagy revokedRetentionDays.' });
+    }
+    await setRefreshTokenCleanupConfig(fastify.prisma, body);
+    const config = await getRefreshTokenCleanupConfig(fastify.prisma);
+    const totalRefreshTokens = await fastify.prisma.refreshToken.count();
+    return reply.send({ ...config, totalRefreshTokens });
+  });
+
+  fastify.post('/system/refresh-token-cleanup/run', async (_req, reply) => {
+    const { deleted } = await runRefreshTokenCleanupJob(fastify.prisma);
+    const config = await getRefreshTokenCleanupConfig(fastify.prisma);
+    const totalRefreshTokens = await fastify.prisma.refreshToken.count();
+    return reply.send({ deleted, ...config, totalRefreshTokens });
   });
 
   await registerAdminDatabaseRoutes(fastify);

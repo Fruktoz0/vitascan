@@ -226,6 +226,37 @@ export function adjustReputation(id: string, delta: number, reason?: string) {
   });
 }
 
+// ─── Refresh token DB takarítás ─────────────────────────────────────────────
+
+export type RefreshTokenCleanupState = {
+  intervalHours: number;
+  revokedRetentionDays: number;
+  lastRunAt: string | null;
+  lastDeletedCount: number | null;
+  totalRefreshTokens: number;
+};
+
+export function getRefreshTokenCleanup() {
+  return request<RefreshTokenCleanupState>('/admin/system/refresh-token-cleanup');
+}
+
+export function patchRefreshTokenCleanup(body: {
+  intervalHours?: number;
+  revokedRetentionDays?: number;
+}) {
+  return request<RefreshTokenCleanupState>('/admin/system/refresh-token-cleanup', {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export function runRefreshTokenCleanupNow() {
+  return request<RefreshTokenCleanupState & { deleted: number }>(
+    '/admin/system/refresh-token-cleanup/run',
+    { method: 'POST' },
+  );
+}
+
 // ─── Adatbázis (db-tools proxy az API-n keresztül) ───────────────────────────
 
 export type DatabaseStatusResponse = {
@@ -285,7 +316,8 @@ export function getDatabaseDirs(path?: string) {
 }
 
 export function deleteDatabaseBackup(name: string) {
-  return request<{ message: string }>(`/admin/database/backups/${encodeURIComponent(name)}`, {
+  const qs = `?name=${encodeURIComponent(name)}`;
+  return request<{ message: string }>(`/admin/database/backups${qs}`, {
     method: 'DELETE',
   });
 }

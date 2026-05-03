@@ -24,10 +24,11 @@ async function dbToolsFetch(path: string, init?: RequestInit): Promise<Response>
 }
 
 function safeBackupName(raw: string | undefined): string | null {
-  if (!raw) return null;
+  if (!raw || typeof raw !== 'string') return null;
   const base = raw.split('/').pop()?.split('\\').pop();
   if (!base || base === '.' || base === '..') return null;
-  if (!/^[a-zA-Z0-9._-]+$/.test(base)) return null;
+  if (base.includes('\0') || base.length > 240) return null;
+  if (/[/\\]/.test(base)) return null;
   return base;
 }
 
@@ -45,8 +46,9 @@ export async function registerAdminDatabaseRoutes(fastify: FastifyInstance) {
     if (!isDatabaseToolsConfigured()) {
       return reply.status(503).send({ error: 'Mentő szolgáltatás nincs konfigurálva.' });
     }
-    const q = request.query as { path?: string };
-    const qs = q.path ? `?path=${encodeURIComponent(q.path)}` : '';
+    const q = request.query as { path?: string | string[] };
+    const rawPath = Array.isArray(q.path) ? q.path[0] : q.path;
+    const qs = rawPath != null && rawPath !== '' ? `?path=${encodeURIComponent(rawPath)}` : '';
     try {
       const res = await dbToolsFetch(`/dirs${qs}`, { method: 'GET' });
       const data = await res.json().catch(() => ({}));
@@ -117,20 +119,6 @@ export async function registerAdminDatabaseRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.get('/database/backups', async (_req, reply) => {
-    if (!isDatabaseToolsConfigured()) {
-      return reply.status(503).send({ error: 'Mentő szolgáltatás nincs konfigurálva.' });
-    }
-    try {
-      const res = await dbToolsFetch('/backups', { method: 'GET' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) return reply.status(502).send(data);
-      return reply.send(data);
-    } catch {
-      return reply.status(502).send({ error: 'db-tools nem válaszol.' });
-    }
-  });
-
   fastify.get('/database/backups/download', async (request, reply) => {
     if (!isDatabaseToolsConfigured()) {
       return reply.status(503).send({ error: 'Mentő szolgáltatás nincs konfigurálva.' });
@@ -139,7 +127,7 @@ export async function registerAdminDatabaseRoutes(fastify: FastifyInstance) {
     const name = safeBackupName(q.name);
     if (!name) return reply.status(400).send({ error: 'Érvénytelen fájlnév.' });
     try {
-      const upstream = await dbToolsFetch(`/file/${encodeURIComponent(name)}`, { method: 'GET' });
+      const upstream = await dbToolsFetch(`/file?name=${encodeURIComponent(name)}`, { method: 'GET' });
       if (!upstream.ok) {
         const err = await upstream.json().catch(() => ({}));
         return reply.status(upstream.status).send(err);
@@ -152,6 +140,20 @@ export async function registerAdminDatabaseRoutes(fastify: FastifyInstance) {
       return reply.send(Readable.fromWeb(upstream.body as Parameters<typeof Readable.fromWeb>[0]));
     } catch {
       return reply.status(502).send({ error: 'Letöltés sikertelen.' });
+    }
+  });
+
+  fastify.get('/database/backups', async (_req, reply) => {
+    if (!isDatabaseToolsConfigured()) {
+      return reply.status(503).send({ error: 'Mentő szolgáltatás nincs konfigurálva.' });
+    }
+    try {
+      const res = await dbToolsFetch('/backups', { method: 'GET' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return reply.status(502).send(data);
+      return reply.send(data);
+    } catch {
+      return reply.status(502).send({ error: 'db-tools nem válaszol.' });
     }
   });
 
@@ -188,15 +190,16 @@ export async function registerAdminDatabaseRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.delete('/database/backups/:name', async (request, reply) => {
+  fastify.delete('/database/backups', async (request, reply) => {
     if (!isDatabaseToolsConfigured()) {
       return reply.status(503).send({ error: 'Mentő szolgáltatás nincs konfigurálva.' });
     }
-    const { name } = request.params as { name: string };
-    const safe = safeBackupName(name);
+    const q = request.query as { name?: string | string[] };
+    const raw = Array.isArray(q.name) ? q.name[0] : q.name;
+    const safe = safeBackupName(raw);
     if (!safe) return reply.status(400).send({ error: 'Érvénytelen fájlnév.' });
     try {
-      const res = await dbToolsFetch(`/file/${encodeURIComponent(safe)}`, { method: 'DELETE' });
+      const res = await dbToolsFetch(`/file?name=${encodeURIComponent(safe)}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return reply.status(res.status).send(data);
       return reply.send(data);
