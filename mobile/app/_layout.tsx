@@ -26,6 +26,8 @@ export default function RootLayout() {
     <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="personal-data" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="auth" />
       <Stack.Screen name="onboarding/index" />
       <Stack.Screen name="admin/index" />

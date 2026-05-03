@@ -241,6 +241,10 @@ export default ScannerScreen;
 
 const styles = StyleSheet.create({
   flex1: { flex: 1 },
+  blackBg: {
+    flex: 1,
+    backgroundColor: Colors.dashboard.page,
+  },
   screen: {
     flex: 1,
     backgroundColor: Colors.dashboard.page,

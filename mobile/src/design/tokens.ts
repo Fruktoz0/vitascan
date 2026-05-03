@@ -180,6 +180,14 @@ export const Shadows = {
     shadowRadius: 8,
     elevation: 3,
   },
+  /** Profil és hasonló fehér kártyák: ugyanaz a színrendszer, enyhébb intenzitás */
+  profileCard: {
+    shadowColor: '#1a1a1a',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
   // Brand árnyék (narancssárga gomboknál)
   primary: {
     shadowColor: Colors.primary,

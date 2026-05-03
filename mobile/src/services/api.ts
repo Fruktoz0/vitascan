@@ -2,8 +2,54 @@ import * as SecureStore from 'expo-secure-store';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://newhomeproject.ddns.net:3005';
 
+/** Ha true: részletes napló minden kéréshez (indítás, státusz, nyers válasz). */
+const API_VERBOSE =
+  typeof __DEV__ !== 'undefined' &&
+  __DEV__ &&
+  process.env.EXPO_PUBLIC_API_DEBUG === '1';
+
+function apiDebug(...args: unknown[]) {
+  if (API_VERBOSE) console.log(...args);
+}
+
 let accessToken: string | null = null;
 export function setAccessToken(token: string | null) { accessToken = token; }
+
+/** Egyidejű 401-eknél csak egy refresh fusson (elkerüli a többszörös refresh + ERROR spam-et). */
+let refreshInFlight: Promise<boolean> | null = null;
+
+/** Közös refresh (single-flight): app indulás + 401 utáni újrapróbálkozás ugyanarra a Promise-re vár — elkerüli a token-rotációs versenyhelyzetet. */
+export async function refreshAccessTokenFromStorage(): Promise<boolean> {
+  if (refreshInFlight) return refreshInFlight;
+
+  const run = async (): Promise<boolean> => {
+    try {
+      const stored = await SecureStore.getItemAsync('refreshToken');
+      if (!stored) return false;
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: stored }),
+      });
+      if (!res.ok) {
+        setAccessToken(null);
+        return false;
+      }
+      const { accessToken: newAccess, refreshToken: newRefresh } = await res.json();
+      setAccessToken(newAccess);
+      await SecureStore.setItemAsync('refreshToken', newRefresh);
+      return true;
+    } catch {
+      setAccessToken(null);
+      return false;
+    }
+  };
+
+  refreshInFlight = run().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
 
 async function request<T>(path: string, options: RequestInit = {}, retry = true): Promise<T> {
   const headers: Record<string, string> = {
@@ -13,28 +59,27 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
   if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
 
   const url = `${API_BASE}${path}`;
-  console.log(`[API Debug] Indítás: ${options.method || 'GET'} ${url}`);
+  apiDebug(`[API] ${options.method || 'GET'} ${url}`);
 
   try {
     const response = await fetch(url, { ...options, headers });
-    console.log(`[API Debug] Státusz: ${response.status}`);
+    apiDebug(`[API] status ${response.status}`);
 
     if (response.status === 401 && retry) {
-      console.log('[API Debug] 401 hiba, refresh próbálkozás...');
-      const refreshed = await tryRefreshToken();
+      apiDebug('[API] 401 → refresh');
+      const refreshed = await refreshAccessTokenFromStorage();
       if (refreshed) return request<T>(path, options, false);
       throw new ApiError(401, 'A hitelesítés frissítése sikertelen. Próbáld újra később.');
     }
 
-    // Először szövegként olvassuk be, hátha nem JSON-t küld a szerver (pl. hálózati hibaoldal)
     const responseText = await response.text();
-    console.log(`[API Debug] Nyers válasz:`, responseText);
+    apiDebug('[API] body', responseText);
 
     let data;
     try {
       data = JSON.parse(responseText);
-    } catch (e) {
-      console.error('[API Debug] Nem JSON válasz érkezett!');
+    } catch {
+      apiDebug('[API] Nem JSON válasz');
       throw new ApiError(response.status, 'Szerver hiba (nem érvényes JSON).');
     }
 
@@ -44,26 +89,13 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
     return data as T;
 
   } catch (error) {
-    // Itt kapod el, ha DNS hiba, timeout vagy "Connection Refused" van
-    console.error(`[API Debug] HÁLÓZATI HIBA:`, error);
+    if (error instanceof ApiError) {
+      apiDebug('[API] ApiError', error.status, error.message);
+    } else {
+      apiDebug('[API] kérés hiba:', error);
+    }
     throw error;
   }
-}
-
-async function tryRefreshToken(): Promise<boolean> {
-  try {
-    const stored = await SecureStore.getItemAsync('refreshToken');
-    if (!stored) return false;
-    const res = await fetch(`${API_BASE}/auth/refresh`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken: stored }),
-    });
-    if (!res.ok) { setAccessToken(null); return false; }
-    const { accessToken: newAccess, refreshToken: newRefresh } = await res.json();
-    setAccessToken(newAccess);
-    await SecureStore.setItemAsync('refreshToken', newRefresh);
-    return true;
-  } catch { return false; }
 }
 
 export class ApiError extends Error {

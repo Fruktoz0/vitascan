@@ -3,10 +3,10 @@ import {
   View, Text, StyleSheet, ScrollView,
   Pressable, ActivityIndicator, Image, PanResponder,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import i18n from '../../src/i18n';
 
 import { Food, statsApi } from '../../src/services/api';
@@ -101,7 +101,7 @@ function MealSection({ title, icon, iconBg, kcal, items, onAdd, onEdit }: MealSe
 export default function FoodLibraryScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { selectedDate, changeDateBy, resetDate } = useDateStore();
+  const { selectedDate, changeDateBy } = useDateStore();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [manualVisible, setManualVisible] = useState(false);
@@ -136,11 +136,12 @@ export default function FoodLibraryScreen() {
     }
   }, [selectedDate]);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchData();
-    }, [fetchData])
-  );
+  const isFocused = useIsFocused();
+
+  useEffect(() => {
+    if (!isFocused) return;
+    void fetchData();
+  }, [isFocused, fetchData]);
 
   const panResponder = React.useRef(
     PanResponder.create({
@@ -246,7 +247,11 @@ export default function FoodLibraryScreen() {
           title={t('food.dinner')}
           icon="ramen-dining"
           iconBg={Colors.dashboard.surfaceContainerHigh}
-          kcal={meals.DINNER?.reduce((acc: number, l: any) => acc + l.kcal, 0) || '--'}
+          kcal={
+            (meals.DINNER?.length ?? 0) > 0
+              ? meals.DINNER!.reduce((acc: number, l: any) => acc + l.kcal, 0)
+              : '--'
+          }
           items={meals.DINNER || []}
           onAdd={() => openAddFlow('DINNER')}
           onEdit={() => router.push('/(tabs)/scanner')}

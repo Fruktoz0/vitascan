@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
-import { authApi, onboardingApi, profileApi, setAccessToken } from '../services/api';
+import {
+  authApi,
+  onboardingApi,
+  profileApi,
+  refreshAccessTokenFromStorage,
+  setAccessToken,
+} from '../services/api';
 
 interface User {
   id: string;
@@ -23,7 +29,6 @@ interface AuthState {
   setOnboardingCompleted: (value: boolean) => void;
 }
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://newhomeproject.ddns.net:3005';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 const CACHED_USER_KEY = 'cachedUser';
 const ONBOARDING_COMPLETED_KEY = 'onboardingCompleted';
@@ -40,6 +45,15 @@ async function restoreCachedAuthState() {
     user: JSON.parse(cachedUser) as User,
     onboardingCompleted: cachedOnboarding === 'true',
   };
+}
+
+async function clearStoredAuth() {
+  setAccessToken(null);
+  await Promise.all([
+    SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY).catch(() => {}),
+    SecureStore.deleteItemAsync(CACHED_USER_KEY).catch(() => {}),
+    SecureStore.deleteItemAsync(ONBOARDING_COMPLETED_KEY).catch(() => {}),
+  ]);
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -97,31 +111,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      // Token frissítése
-      const res = await fetch(`${API_BASE}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
-      });
-
-      if (!res.ok) {
-        const cached = await restoreCachedAuthState();
-        if (cached) {
-          set({
-            user: cached.user,
-            isAuthenticated: true,
-            onboardingCompleted: cached.onboardingCompleted,
-            isLoading: false,
-          });
-          return;
-        }
-        set({ isLoading: false });
+      // Ugyanaz a single-flight refresh mint az api.request 401-nél — két párhuzamos refresh ugyanazzal a tokennel a szerveren 401-et okoz (rotáció).
+      const refreshed = await refreshAccessTokenFromStorage();
+      if (!refreshed) {
+        await clearStoredAuth();
+        set({
+          user: null,
+          isAuthenticated: false,
+          onboardingCompleted: false,
+          isLoading: false,
+        });
         return;
       }
-
-      const { accessToken, refreshToken: newRefresh } = await res.json();
-      setAccessToken(accessToken);
-      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, newRefresh);
 
       // /auth/refresh nem ad vissza user objektumot, ezért külön lekérjük
       let user: User | null = null;
@@ -162,17 +163,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({ user, isAuthenticated: true, onboardingCompleted, isLoading: false });
     } catch {
-      const cached = await restoreCachedAuthState();
-      if (cached) {
-        set({
-          user: cached.user,
-          isAuthenticated: true,
-          onboardingCompleted: cached.onboardingCompleted,
-          isLoading: false,
-        });
-        return;
-      }
-      set({ isLoading: false });
+      await clearStoredAuth();
+      set({
+        user: null,
+        isAuthenticated: false,
+        onboardingCompleted: false,
+        isLoading: false,
+      });
     }
   },
 
