@@ -1,0 +1,15 @@
+{
+  "name": "vitascan-db-tools",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node src/server.mjs"
+  },
+  "dependencies": {
+    "@fastify/multipart": "^8.3.0",
+    "fastify": "^4.28.1",
+    "node-cron": "^3.0.3",
+    "zod": "^3.23.8"
+  }
+}

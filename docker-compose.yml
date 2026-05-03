@@ -1,3 +1,6 @@
+# Indítás a repo gyökeréből: docker compose up -d --build
+# Minden ${VAR} a gyökér .env fájlból (és a futtató környezetből) jön – db-admin-stack-nek nincs saját .env-je.
+
 services:
   api:
     image: node:20-slim
@@ -7,17 +10,59 @@ services:
       - 1.1.1.1
     working_dir: /app
     restart: always
-    # Konténer induláskor a DB sémát is szinkronizáljuk (retry-val)
     command: sh -c "apt-get update -y && apt-get install -y openssl && npm install && npx prisma generate && until npx prisma db push; do echo 'Prisma db push failed, retrying in 3s...'; sleep 3; done && npm run dev"
     volumes:
       - ./backend:/app
     environment:
       DATABASE_URL: "postgresql://${DB_USER}:${DB_PASS}@global_postgres:5432/${DB_NAME}?schema=public"
-      PORT: 3005
+      PORT: ${PORT:-3005}
+      NODE_ENV: ${NODE_ENV:-development}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      DB_TOOLS_URL: ${DB_TOOLS_URL:-http://db-tools:3010}
+      DB_TOOLS_SECRET: ${DB_TOOLS_SECRET:-changeme-generate-strong-db-tools-secret}
     ports:
-      - "3005:3005"
+      - "${PORT:-3005}:${PORT:-3005}"
+    networks:
+      - global-net
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        # A böngésző (nem a konténer!) ezt az URL-t hívja. Port egyezzen a fenti api PORT-tal.
+        # Ha ez eltér a compose defaulttól, állíts VITE_API_URL-t a gyökér .env-ben és: docker compose build web --no-cache
+        VITE_API_URL: ${VITE_API_URL:-http://192.168.1.115:3005}
+    container_name: vitascan_web
+    restart: unless-stopped
+    ports:
+      # Alap 9080 – ha foglalt: WEB_PORT a gyökér .env-ben (pl. 8082)
+      - "${WEB_PORT:-9080}:80"
+    depends_on:
+      - api
+    networks:
+      - global-net
+
+  db-tools:
+    build:
+      context: ./web/db-admin-stack/server
+      dockerfile: Dockerfile
+      args:
+        PG_MAJOR: ${PG_MAJOR:-17}
+    container_name: vitascan_db_tools
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgresql://${DB_USER}:${DB_PASS}@global_postgres:5432/${DB_NAME}?schema=public"
+      DB_TOOLS_SECRET: ${DB_TOOLS_SECRET:-changeme-generate-strong-db-tools-secret}
+      BACKUP_DIR: ${DB_TOOLS_BACKUP_DIR:-/backups}
+      SCHEDULE_FILE: ${DB_TOOLS_SCHEDULE_FILE:-/config/schedule.json}
+      PORT: "3010"
+    volumes:
+      - ./web/db-admin-stack/backups:/backups
+      - ./web/db-admin-stack/config:/config
+    ports:
+      - "127.0.0.1:3010:3010"
     networks:
       - global-net
 
@@ -26,14 +71,13 @@ services:
     container_name: vitascan_studio
     working_dir: /app
     restart: always
-    # Studio csak az API indulása után indul, így nem ütközik a sémafrissítéssel
-    command: sh -c "apt-get update -y && apt-get install -y openssl netcat-openbsd && npm install && npx prisma generate && until nc -z api 3005; do echo 'Waiting for API to be ready...'; sleep 2; done && npx prisma studio --browser none --port 5555"
+    command: sh -c "apt-get update -y && apt-get install -y openssl netcat-openbsd && npm install && npx prisma generate && until nc -z api ${PORT:-3005}; do echo 'Waiting for API to be ready...'; sleep 2; done && npx prisma studio --browser none --port 5555"
     volumes:
       - ./backend:/app
     environment:
       DATABASE_URL: "postgresql://${DB_USER}:${DB_PASS}@global_postgres:5432/${DB_NAME}?schema=public"
     ports:
-      - "5555:5555"
+      - "${PRISMA_STUDIO_PORT:-5555}:5555"
     networks:
       - global-net
     depends_on:

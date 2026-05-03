@@ -1,0 +1,8 @@
+{
+  "cron": "0 4 * * *",
+  "enabled": false,
+  "timezone": "Europe/Budapest",
+  "manualBackupDir": "/backups",
+  "scheduledBackupDir": "/backups",
+  "retentionDays": 7
+}

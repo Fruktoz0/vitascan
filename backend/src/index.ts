@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
+import multipart from '@fastify/multipart';
 
 import prismaPlugin from './plugins/prisma';
 import authRoutes from './modules/auth/auth.routes';
@@ -40,6 +41,10 @@ async function bootstrap() {
     errorResponseBuilder: () => ({
       error: 'Túl sok kérés. Kérjük várjon egy percet.',
     }),
+  });
+
+  await fastify.register(multipart, {
+    limits: { fileSize: 512 * 1024 * 1024 },
   });
 
   // ─── DB plugin ───────────────────────────────────────────────────────────
