@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
-  RefreshControl, ActivityIndicator, Image, PanResponder, Platform
+  RefreshControl, ActivityIndicator, PanResponder, Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -17,17 +17,51 @@ import WaterProgressBar from '../../src/components/ui/WaterProgressBar';
 import { ResponsiveLayout, webPointer } from '../../src/components/layout/ResponsiveLayout';
 import { useResponsive } from '../../src/hooks/useResponsive';
 import { Colors, Radius, Spacing, Typography } from '../../src/design/tokens';
-import { statsApi, waterApi, weightApi } from '../../src/services/api';
+import { statsApi, waterApi, weightApi, Food } from '../../src/services/api';
 import { useAuthStore } from '../../src/stores/authStore';
+import { useProfileStore } from '../../src/stores/profileStore';
 import { useDateStore } from '../../src/stores/dateStore';
+import AddFoodManualModal from '../../src/components/food/AddFoodManualModal';
+import FoodDetailModal from '../../src/components/food/FoodDetailModal';
+import { UserAvatar } from '../../src/components/ui/AvatarPicker';
 
-// Kisebb, leegyszerűsített Meal sor, hogy pont olyan legyen, mint a HTML-ben
-function MealRow({ label, kcal, onAdd }: { label: string, kcal: number, onAdd: () => void }) {
+type MealType = 'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK';
+
+function sumMeal(logs: any[] | undefined) {
+  return (logs ?? []).reduce(
+    (acc, l) => ({
+      kcal: acc.kcal + (l.kcal ?? 0),
+      protein: acc.protein + (l.protein ?? 0),
+      carbs: acc.carbs + (l.carbs ?? 0),
+      fat: acc.fat + (l.fat ?? 0),
+    }),
+    { kcal: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+}
+
+function MealRow({
+  label,
+  kcal,
+  protein,
+  carbs,
+  fat,
+  onAdd,
+}: {
+  label: string;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  onAdd: () => void;
+}) {
   return (
     <View style={styles.mealRow}>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      <View style={styles.mealRowLeft}>
         <Text style={styles.mealRowLabel}>{label}:</Text>
-        <Text style={styles.mealRowKcal}>{kcal} kcal</Text>
+        <Text style={styles.mealRowKcal}>{Math.round(kcal)} kcal</Text>
+        <Text style={styles.mealRowMacros}>
+          F {Math.round(protein * 10) / 10}g · Sz {Math.round(carbs * 10) / 10}g · Zs {Math.round(fat * 10) / 10}g
+        </Text>
       </View>
       <Pressable style={[styles.mealRowAddBtn, webPointer]} onPress={onAdd}>
         <MaterialIcons name="add" size={16} color={Colors.dashboard.stroke} />
@@ -41,12 +75,21 @@ export default function HomeScreen() {
   const router = useRouter();
   const { isDesktop } = useResponsive();
   const user = useAuthStore((s) => s.user);
+  const avatarKey = useProfileStore((s) => s.avatarKey);
   const { selectedDate, changeDateBy, resetDate } = useDateStore();
   const [data, setData] = useState<any>(null);
   const [water, setWater] = useState<any>(null);
   const [weight, setWeight] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [selectedFood, setSelectedFood] = useState<Food | null>(null);
+  const [mealForAdd, setMealForAdd] = useState<MealType>('SNACK');
+
+  const openAddFood = (meal: MealType) => {
+    setMealForAdd(meal);
+    setManualOpen(true);
+  };
 
   const getHeaderDateText = () => {
     const today = new Date();
@@ -89,11 +132,11 @@ export default function HomeScreen() {
     setRefreshing(false);
   }, [fetchData]);
 
-  const handleAddWater = async (ml: number) => {
+  const handleAdjustWater = async (ml: number) => {
     try {
-      await waterApi.add(ml);
+      const dateStr = selectedDate.toISOString().split('T')[0];
+      setWater(await waterApi.adjust(ml, dateStr));
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setWater(await waterApi.getByDate(selectedDate.toISOString().split('T')[0]));
     } catch {}
   };
 
@@ -136,9 +179,11 @@ export default function HomeScreen() {
   const goals = data?.goals ?? { dailyKcalGoal: 2200 };
   
   // HTML mockup adatai ha nincsenek igaziak
-  const breakfastKcal = data?.byMealType?.BREAKFAST?.reduce((acc: number, l: any) => acc + l.kcal, 0) ?? 420;
-  const lunchKcal = data?.byMealType?.LUNCH?.reduce((acc: number, l: any) => acc + l.kcal, 0) ?? 650;
-  const dinnerKcal = data?.byMealType?.DINNER?.reduce((acc: number, l: any) => acc + l.kcal, 0) ?? 380;
+  const breakfast = sumMeal(data?.byMealType?.BREAKFAST);
+  const tizorai = sumMeal(data?.byMealType?.TIZORAI);
+  const lunch = sumMeal(data?.byMealType?.LUNCH);
+  const uzsonna = sumMeal(data?.byMealType?.UZSONNA);
+  const dinner = sumMeal(data?.byMealType?.DINNER);
   const weightValue = typeof weight?.weightKg === 'number' ? weight.weightKg.toFixed(1) : '--';
   const lastMeasuredText = weight?.lastMeasuredAt
     ? t('homeScreen.weightLastMeasuredToday', 'Utolsó mérés: ma')
@@ -156,13 +201,14 @@ export default function HomeScreen() {
       <View style={[styles.blob, styles.blobLavender]} pointerEvents="none" />
 
       {/* TopAppBar */}
-      <SafeAreaView style={{ backgroundColor: 'rgba(252, 249, 248, 0.9)' }}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: 'rgba(252, 249, 248, 0.9)' }}>
         <View style={styles.topAppBar}>
           <View style={styles.appBarSide}>
             <View style={styles.avatarWrapper}>
-               <Image 
-                  source={{ uri: 'https://i.pravatar.cc/150?img=32' }} 
-                  style={styles.avatarImg} 
+               <UserAvatar
+                  avatarKey={avatarKey ?? user?.username}
+                  size={40}
+                  style={styles.avatarImg}
                />
             </View>
           </View>
@@ -256,7 +302,7 @@ export default function HomeScreen() {
             <WaterProgressBar 
               totalMl={water?.totalMl ?? 1200} 
               goalMl={water?.goalMl ?? 2500} 
-              onAdd={handleAddWater} 
+              onAdjust={handleAdjustWater} 
             />
           </View>
 
@@ -278,17 +324,20 @@ export default function HomeScreen() {
               </View>
               
               <View style={styles.mealList}>
-                <MealRow label={t('food.breakfast')} kcal={breakfastKcal} onAdd={() => router.push('/(tabs)/scanner')} />
+                <MealRow label={t('food.breakfast')} {...breakfast} onAdd={() => openAddFood('BREAKFAST')} />
                 <View style={styles.mealDivider} />
-                <MealRow label={t('food.lunch')} kcal={lunchKcal} onAdd={() => router.push('/(tabs)/scanner')} />
+                <MealRow label={t('food.tizorai')} {...tizorai} onAdd={() => openAddFood('TIZORAI')} />
                 <View style={styles.mealDivider} />
-                <MealRow label={t('food.dinner')} kcal={dinnerKcal} onAdd={() => router.push('/(tabs)/scanner')} />
+                <MealRow label={t('food.lunch')} {...lunch} onAdd={() => openAddFood('LUNCH')} />
+                <View style={styles.mealDivider} />
+                <MealRow label={t('food.uzsonna')} {...uzsonna} onAdd={() => openAddFood('UZSONNA')} />
+                <View style={styles.mealDivider} />
+                <MealRow label={t('food.dinner')} {...dinner} onAdd={() => openAddFood('DINNER')} />
               </View>
             </GlassCardSimple>
 
-            {/* Add Food Button (stitch HTML minta szerint) */}
             <Pressable
-              onPress={() => router.push('/(tabs)/scanner')}
+              onPress={() => openAddFood('SNACK')}
               style={({ pressed }) => [styles.addFoodWrapper, webPointer, pressed && styles.addFoodPressed]}
             >
               <View style={styles.addFoodShadow} />
@@ -302,6 +351,23 @@ export default function HomeScreen() {
 
         <View style={{ height: Platform.OS === 'web' ? 72 : 140 }} />
       </ScrollView>
+
+      <AddFoodManualModal
+        visible={manualOpen}
+        onClose={() => setManualOpen(false)}
+        onCreated={(food) => {
+          setSelectedFood(food);
+          setManualOpen(false);
+        }}
+      />
+      <FoodDetailModal
+        food={selectedFood}
+        visible={!!selectedFood}
+        onClose={() => setSelectedFood(null)}
+        onLogAdded={fetchData}
+        logSource="SEARCH"
+        initialMealType={mealForAdd}
+      />
     </View>
     </ResponsiveLayout>
   );
@@ -491,6 +557,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  mealRowLeft: {
+    flex: 1,
+    paddingRight: 8,
+    gap: 2,
+  },
   mealRowLabel: {
     fontSize: 14,
     fontWeight: '700',
@@ -499,7 +570,12 @@ const styles = StyleSheet.create({
   mealRowKcal: {
     fontSize: 14,
     color: Colors.dashboard.tabInactive,
-    marginLeft: 6,
+  },
+  mealRowMacros: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.dashboard.tabInactive,
+    opacity: 0.9,
   },
   mealRowAddBtn: {
     width: 24,

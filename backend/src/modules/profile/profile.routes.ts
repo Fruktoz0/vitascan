@@ -12,6 +12,7 @@ const UpsertProfileSchema = z.object({
   goal: z.enum(['LOSE', 'MAINTAIN', 'GAIN']).optional(),
   dailyKcalGoal: z.number().min(500).max(10000).optional(), // manual override
   dailyWaterGoalMl: z.number().min(500).max(5000).optional(),
+  avatarKey: z.string().min(1).max(64).optional(),
   tier: z.enum(['FREE', 'PREMIUM']).optional(),
 });
 

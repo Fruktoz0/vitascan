@@ -20,7 +20,7 @@ const exportRoutes: FastifyPluginAsync = async (fastify) => {
         where: { userId, createdAt: { gte: fromDate, lte: toDate } },
       }),
       fastify.prisma.waterLog.count({
-        where: { userId, createdAt: { gte: fromDate, lte: toDate } },
+        where: { userId, loggedDate: { gte: fromDate, lte: toDate } },
       }),
     ]);
 
@@ -53,8 +53,8 @@ const exportRoutes: FastifyPluginAsync = async (fastify) => {
         orderBy: { createdAt: 'asc' },
       }),
       fastify.prisma.waterLog.findMany({
-        where: { userId, createdAt: { gte: fromDate, lte: toDate } },
-        orderBy: { createdAt: 'asc' },
+        where: { userId, loggedDate: { gte: fromDate, lte: toDate } },
+        orderBy: { loggedDate: 'asc' },
       }),
       fastify.prisma.user.findUnique({
         where: { id: userId },

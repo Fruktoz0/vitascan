@@ -35,7 +35,9 @@ const HU_SOURCE: Record<string, string> = {
 };
 const HU_MEAL: Record<string, string> = {
   BREAKFAST: 'Reggeli',
+  TIZORAI: 'Tízórai',
   LUNCH: 'Ebéd',
+  UZSONNA: 'Uzsonna',
   DINNER: 'Vacsora',
   SNACK: 'Nassolnivaló',
   OTHER: 'Egyéb',

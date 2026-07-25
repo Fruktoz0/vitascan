@@ -1,0 +1,24 @@
+.container {
+  position: relative;
+  margin-bottom: 16px;
+  padding-right: 4px;
+  padding-bottom: 4px;
+}
+
+.shadow {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  right: 0;
+  bottom: 0;
+  background: var(--shadow-hard);
+  border-radius: 32px;
+}
+
+.inner {
+  position: relative;
+  z-index: 1;
+  border-radius: 32px;
+  border: 0.8px solid var(--stroke);
+  overflow: hidden;
+}

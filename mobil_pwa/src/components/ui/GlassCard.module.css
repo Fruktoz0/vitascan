@@ -1,0 +1,19 @@
+.wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.shadow {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  background: var(--shadow-hard);
+  z-index: 0;
+}
+
+.inner {
+  position: relative;
+  z-index: 1;
+  border-style: solid;
+  overflow: hidden;
+}

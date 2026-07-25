@@ -166,9 +166,13 @@ export const foodApi = {
   create: (data: any) => request<Food>('/foods', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: Partial<Food>) => request<Food>(`/foods/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   vote: (foodId: string, value: 1 | -1) =>
-    request<{ action: 'added' | 'removed' | 'changed'; score: number; earnedExpertBadge?: boolean }>(
-      `/foods/${foodId}/vote`, { method: 'POST', body: JSON.stringify({ value }) }
-    ),
+    request<{
+      action: 'added' | 'removed' | 'changed';
+      score: number;
+      status?: FoodStatus;
+      myVote?: 1 | -1 | null;
+      earnedExpertBadge?: boolean;
+    }>(`/foods/${foodId}/vote`, { method: 'POST', body: JSON.stringify({ value }) }),
 };
 
 // ─── Logs ─────────────────────────────────────────────────────────────────────
@@ -182,9 +186,22 @@ export const logApi = {
 
 // ─── Water ────────────────────────────────────────────────────────────────────
 export const waterApi = {
-  getToday: () => request<{ logs: any[]; totalMl: number; goalMl: number }>('/water/today'),
-  getByDate: (date: string) => request<{ logs: any[]; totalMl: number; goalMl: number }>(`/water?date=${date}`),
-  add: (amountMl: number) => request('/water', { method: 'POST', body: JSON.stringify({ amountMl }) }),
+  getToday: () =>
+    request<{ logs: any[]; log: any | null; totalMl: number; goalMl: number }>('/water/today'),
+  getByDate: (date: string) =>
+    request<{ logs: any[]; log: any | null; totalMl: number; goalMl: number }>(`/water?date=${date}`),
+  /** Napi total módosítása (pozitív = hozzáadás, negatív = levonás). */
+  adjust: (deltaMl: number, date?: string) =>
+    request<{ logs: any[]; log: any | null; totalMl: number; goalMl: number }>('/water', {
+      method: 'POST',
+      body: JSON.stringify({ deltaMl, ...(date ? { date } : {}) }),
+    }),
+  /** Legacy: pozitív hozzáadás. */
+  add: (amountMl: number, date?: string) =>
+    request<{ logs: any[]; log: any | null; totalMl: number; goalMl: number }>('/water', {
+      method: 'POST',
+      body: JSON.stringify({ amountMl, ...(date ? { date } : {}) }),
+    }),
   delete: (id: string) => request(`/water/${id}`, { method: 'DELETE' }),
 };
 

@@ -1,0 +1,82 @@
+.root {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  height: var(--tab-bar-h);
+  padding: 4px 8px;
+  background: var(--tab-bg);
+  border-top: 1.5px solid var(--stroke);
+  border-left: 1.5px solid var(--stroke);
+  border-right: 1.5px solid var(--stroke);
+}
+
+.safeFiller {
+  height: var(--safe-bottom);
+  background: var(--tab-bg);
+  border-left: 1.5px solid var(--stroke);
+  border-right: 1.5px solid var(--stroke);
+}
+
+.tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  color: var(--tab-inactive);
+  height: 100%;
+}
+
+.tab.active {
+  color: var(--stroke);
+}
+
+.visual {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+}
+
+.activeShadow {
+  position: absolute;
+  inset: 0;
+  top: 2px;
+  left: 2px;
+  background: var(--shadow-hard);
+  border-radius: 16px;
+}
+
+.inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 10px;
+  border-radius: 16px;
+  min-width: 0;
+}
+
+.activeInner {
+  background: var(--tab-active);
+  border: 1.2px solid var(--stroke);
+}
+
+.label {
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 72px;
+}

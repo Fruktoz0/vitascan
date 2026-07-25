@@ -17,8 +17,10 @@ export interface ExportDailyLog {
 }
 
 export interface ExportWaterLog {
-  createdAt: Date;
-  amountMl: number;
+  loggedDate: Date;
+  totalMl: number;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface ExportUserProfile {
@@ -45,7 +47,9 @@ export interface ExportOptions {
 
 const MEAL_LABELS: Record<string, string> = {
   BREAKFAST: 'Reggeli',
+  TIZORAI: 'Tízórai',
   LUNCH: 'Ebéd',
+  UZSONNA: 'Uzsonna',
   DINNER: 'Vacsora',
   SNACK: 'Snack',
   OTHER: 'Egyéb',
@@ -358,21 +362,14 @@ function buildWaterSheet(wb: ExcelJS.Workbook, waterLogs: ExportWaterLog[], goal
   });
   ws.getRow(2).height = 26;
 
-  // Napok összesítése
-  const byDate = new Map<string, number>();
-  for (const w of waterLogs) {
-    const key = formatDate(w.createdAt);
-    byDate.set(key, (byDate.get(key) ?? 0) + w.amountMl);
-  }
-
   let row = 3;
   for (const w of waterLogs) {
-    const dateKey = formatDate(w.createdAt);
-    const dayTotal = byDate.get(dateKey) ?? 0;
+    const dayTotal = w.totalMl;
     const done = dayTotal >= goalMl;
     const shade = row % 2 === 0;
+    const when = w.updatedAt ?? w.createdAt ?? w.loggedDate;
 
-    const vals = [formatDateTime(w.createdAt), w.amountMl, dayTotal, done ? '✅ Igen' : '❌ Nem'];
+    const vals = [formatDateTime(when), dayTotal, dayTotal, done ? '✅ Igen' : '❌ Nem'];
     vals.forEach((v, i) => {
       const cell = ws.getCell(row, i + 1);
       cell.value = v;

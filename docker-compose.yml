@@ -10,7 +10,7 @@ services:
       - 1.1.1.1
     working_dir: /app
     restart: always
-    command: sh -c "apt-get update -y && apt-get install -y openssl && npm install && npx prisma generate && until npx prisma db push; do echo 'Prisma db push failed, retrying in 3s...'; sleep 3; done && npm run dev"
+    command: sh -c "apt-get update -y && apt-get install -y openssl && npm install && npx prisma generate && (npx prisma db execute --file prisma/sql/migrate_water_to_daily.sql --schema prisma/schema.prisma || true) && until npx prisma db push; do echo 'Prisma db push failed, retrying in 3s...'; sleep 3; done && npm run dev"
     volumes:
       - ./backend:/app
     environment:

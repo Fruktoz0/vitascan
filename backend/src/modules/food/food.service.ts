@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { CreateFoodInput, FoodQueryInput } from './food.schema';
 import { assertNoProfanity } from '../../utils/profanity';
 
-const VERIFY_THRESHOLD = 5;   // +5 score → VERIFIED
+const VERIFY_THRESHOLD = 2;   // +2 score → VERIFIED
 const BAN_THRESHOLD = -3;     // -3 score → BANNED
 
 export async function searchFoods(

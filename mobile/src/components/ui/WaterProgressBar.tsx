@@ -3,25 +3,23 @@ import { View, Text, StyleSheet, Pressable, Animated } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Radius, Typography } from '../../design/tokens';
+import { Colors, Radius } from '../../design/tokens';
 import { GlassCardSimple } from './GlassCard';
 
 interface WaterProgressBarProps {
   totalMl: number;
   goalMl: number;
-  onAdd: (ml: number) => void;
+  onAdjust: (ml: number) => void;
 }
 
-const QUICK_ADD = [250, 500];
-
-export default function WaterProgressBar({ totalMl, goalMl, onAdd }: WaterProgressBarProps) {
+export default function WaterProgressBar({ totalMl, goalMl, onAdjust }: WaterProgressBarProps) {
   const { t } = useTranslation();
   const pct = Math.min(totalMl / goalMl, 1);
   const widthAnim = useRef(new Animated.Value(0)).current;
   const stripeAnim = useRef(new Animated.Value(0)).current;
+  const canSubtract = totalMl > 0;
 
   useEffect(() => {
-    // Fill animáció
     Animated.spring(widthAnim, {
       toValue: pct,
       friction: 8,
@@ -45,7 +43,7 @@ export default function WaterProgressBar({ totalMl, goalMl, onAdd }: WaterProgre
 
   const translateX = stripeAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, -50], // a csíkok mozgása
+    outputRange: [0, -50],
   });
 
   return (
@@ -60,10 +58,13 @@ export default function WaterProgressBar({ totalMl, goalMl, onAdd }: WaterProgre
     >
       <View style={styles.header}>
         <View style={styles.titleRow}>
-          {/* Drop Ikon egy külön kis körben a HTML alapján */}
           <View style={styles.iconCircle}>
-            {/* Hard shadow a kör mögött */}
-            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: Colors.dashboard.shadowHard, borderRadius: 20, top: 2, left: 2 }]} />
+            <View
+              style={[
+                StyleSheet.absoluteFillObject,
+                { backgroundColor: Colors.dashboard.shadowHard, borderRadius: 20, top: 2, left: 2 },
+              ]}
+            />
             <View style={styles.iconCircleInner}>
               <MaterialIcons name="water-drop" size={24} color={Colors.dashboard.waterIcon} />
             </View>
@@ -77,7 +78,6 @@ export default function WaterProgressBar({ totalMl, goalMl, onAdd }: WaterProgre
         <Text style={styles.current}>{(totalMl / 1000).toFixed(1)}L</Text>
       </View>
 
-      {/* Progress sáv */}
       <View style={styles.track}>
         <Animated.View style={[styles.fillWrapper, { width: animWidth }]}>
           <LinearGradient
@@ -92,25 +92,34 @@ export default function WaterProgressBar({ totalMl, goalMl, onAdd }: WaterProgre
         </Animated.View>
       </View>
 
-      {/* Gyors hozzáadás gombok */}
       <View style={styles.btnRow}>
-        {QUICK_ADD.map((ml) => (
-          <Pressable
-            key={ml}
-            style={({ pressed }) => [
-              styles.addBtnWrapper,
-              pressed && styles.addBtnPressed,
-            ]}
-            onPress={() => onAdd(ml)}
-            hitSlop={8}
-          >
-            <View style={styles.addBtnShadow} />
-            <View style={styles.addBtn}>
-              <Text style={styles.addBtnPlus}>+</Text>
-              <Text style={styles.addBtnText}>{` ${ml} ml`}</Text>
-            </View>
-          </Pressable>
-        ))}
+        <Pressable
+          style={({ pressed }) => [
+            styles.addBtnWrapper,
+            !canSubtract && styles.addBtnDisabled,
+            pressed && canSubtract && styles.addBtnPressed,
+          ]}
+          onPress={() => canSubtract && onAdjust(-250)}
+          disabled={!canSubtract}
+          hitSlop={8}
+        >
+          <View style={styles.addBtnShadow} />
+          <View style={styles.addBtn}>
+            <Text style={styles.addBtnPlus}>−</Text>
+            <Text style={styles.addBtnText}>{` 250 ml`}</Text>
+          </View>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [styles.addBtnWrapper, pressed && styles.addBtnPressed]}
+          onPress={() => onAdjust(250)}
+          hitSlop={8}
+        >
+          <View style={styles.addBtnShadow} />
+          <View style={styles.addBtn}>
+            <Text style={styles.addBtnPlus}>+</Text>
+            <Text style={styles.addBtnText}>{` 250 ml`}</Text>
+          </View>
+        </Pressable>
       </View>
     </GlassCardSimple>
   );
@@ -149,7 +158,6 @@ const styles = StyleSheet.create({
     borderColor: Colors.dashboard.stroke,
     overflow: 'hidden',
     marginBottom: 20,
-    // Belső shadow szimulálása
   },
   fillWrapper: {
     height: '100%',
@@ -181,6 +189,7 @@ const styles = StyleSheet.create({
   addBtnWrapper: {
     flex: 1,
   },
+  addBtnDisabled: { opacity: 0.4 },
   addBtnShadow: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: Colors.dashboard.shadowHard,

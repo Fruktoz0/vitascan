@@ -12,7 +12,9 @@ if (Platform.OS === 'android') {
 
 const MEAL_META_BASE: Record<string, { emoji: string; bgColor: string }> = {
   BREAKFAST: { emoji: '🌅', bgColor: Colors.dashboard.softOrange },
+  TIZORAI: { emoji: '🥐', bgColor: Colors.dashboard.primaryFixed },
   LUNCH: { emoji: '☀️', bgColor: Colors.dashboard.softGreen },
+  UZSONNA: { emoji: '🍪', bgColor: Colors.dashboard.secondaryContainer },
   DINNER: { emoji: '🌙', bgColor: Colors.dashboard.softBlue },
   SNACK: { emoji: '🍎', bgColor: Colors.dashboard.blobPeach },
   OTHER: { emoji: '🍽️', bgColor: Colors.dashboard.blobLavender },
@@ -39,7 +41,9 @@ export default function MealCard({ mealType, logs, onDeleteLog }: MealCardProps)
   const [expanded, setExpanded] = useState(true);
   const labels: Record<string, string> = {
     BREAKFAST: t('food.breakfast'),
+    TIZORAI: t('food.tizorai'),
     LUNCH: t('food.lunch'),
+    UZSONNA: t('food.uzsonna'),
     DINNER: t('food.dinner'),
     SNACK: t('food.snack'),
     OTHER: t('food.other'),

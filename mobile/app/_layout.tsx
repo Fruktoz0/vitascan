@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuthStore } from '../src/stores/authStore';
+import { useProfileStore } from '../src/stores/profileStore';
 import '../src/i18n';
 import { initializeLanguage } from '../src/i18n';
 
@@ -11,7 +12,8 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 });
 
 export default function RootLayout() {
-  const { restoreSession, isLoading } = useAuthStore();
+  const { restoreSession, isLoading, isAuthenticated } = useAuthStore();
+  const loadProfile = useProfileStore((s) => s.load);
 
   useEffect(() => {
     Promise.all([restoreSession(), initializeLanguage()]).finally(() => {
@@ -20,6 +22,10 @@ export default function RootLayout() {
       });
     });
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) loadProfile();
+  }, [isAuthenticated, loadProfile]);
 
   // PWA Service Worker — csak weben; régi cache törlése, hogy a tab-bar fix érvényesüljön
   useEffect(() => {

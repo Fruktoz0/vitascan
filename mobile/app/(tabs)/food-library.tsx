@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  Pressable, ActivityIndicator, Image, PanResponder, Platform,
+  Pressable, ActivityIndicator, PanResponder, Platform,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -18,6 +18,9 @@ import { useDateStore } from '../../src/stores/dateStore';
 import { ResponsiveLayout, webPointer } from '../../src/components/layout/ResponsiveLayout';
 import { useResponsive } from '../../src/hooks/useResponsive';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useProfileStore } from '../../src/stores/profileStore';
+import { useAuthStore } from '../../src/stores/authStore';
+import { UserAvatar } from '../../src/components/ui/AvatarPicker';
 
 // ─── MealItem ────────────────────────────────────────────────────────────────
 function MealItem({ name, meta, kcal, isLast }: { name: string; meta: string; kcal: number; isLast?: boolean }) {
@@ -110,12 +113,14 @@ export default function FoodLibraryScreen() {
   const { isDesktop, columns } = useResponsive();
   const insets = useSafeAreaInsets();
   const { selectedDate, changeDateBy } = useDateStore();
+  const avatarKey = useProfileStore((s) => s.avatarKey);
+  const user = useAuthStore((s) => s.user);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [manualVisible, setManualVisible] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
-  const [selectedMealType, setSelectedMealType] = useState<'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK'>('SNACK');
+  const [selectedMealType, setSelectedMealType] = useState<'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK'>('SNACK');
 
   const getHeaderDateText = () => {
     const today = new Date();
@@ -178,7 +183,7 @@ export default function FoodLibraryScreen() {
   const goals = data?.goals ?? { dailyKcalGoal: 2200 };
   const meals = data?.byMealType ?? {};
 
-  const openAddFlow = (mealType: 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK') => {
+  const openAddFlow = (mealType: 'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK') => {
     setSelectedMealType(mealType);
     setManualVisible(true);
   };
@@ -191,8 +196,9 @@ export default function FoodLibraryScreen() {
       {/* TopAppBar */}
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) + 8 }]}>
         <View style={styles.headerSide}>
-          <Image 
-            source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA-RQSQZ_v_tjuVpZrkLGpd0X7YTVa0peodbsQ-eYoFYSx152sgWxKtbgECEVbVug7pm-wQbjw08JnGq7fjD6Y_goSotSkftF-NdlBRCoUxs4O9F_jADgDiqSf8zEtGwImak_n9wzfHUlDsbZzEEtNRraM9fBzv9EvUc8vz2VbJEUvRChQdF97LtrVcOlG81dgRYhP_zpGZtt5e71L_bR4KiPXGyFBRPCzZHJLJSqRPkGHe9IraxiARfQNfyf8nPZFA7_bKex1rt9Y' }} 
+          <UserAvatar
+            avatarKey={avatarKey ?? user?.username}
+            size={40}
             style={styles.avatar}
           />
         </View>
@@ -242,6 +248,17 @@ export default function FoodLibraryScreen() {
         />
 
         <MealSection 
+          type="TIZORAI"
+          title={t('food.tizorai')}
+          icon="egg-alt"
+          iconBg={Colors.dashboard.primaryFixed}
+          kcal={meals.TIZORAI?.reduce((acc: number, l: any) => acc + l.kcal, 0) || 0}
+          items={meals.TIZORAI || []}
+          onAdd={() => openAddFlow('TIZORAI')}
+          onEdit={() => router.push('/(tabs)/scanner')}
+        />
+
+        <MealSection 
           type="LUNCH"
           title={t('food.lunch')}
           icon="lunch-dining"
@@ -249,6 +266,17 @@ export default function FoodLibraryScreen() {
           kcal={meals.LUNCH?.reduce((acc: number, l: any) => acc + l.kcal, 0) || 0}
           items={meals.LUNCH || []}
           onAdd={() => openAddFlow('LUNCH')}
+          onEdit={() => router.push('/(tabs)/scanner')}
+        />
+
+        <MealSection 
+          type="UZSONNA"
+          title={t('food.uzsonna')}
+          icon="icecream"
+          iconBg={Colors.dashboard.secondaryContainer}
+          kcal={meals.UZSONNA?.reduce((acc: number, l: any) => acc + l.kcal, 0) || 0}
+          items={meals.UZSONNA || []}
+          onAdd={() => openAddFlow('UZSONNA')}
           onEdit={() => router.push('/(tabs)/scanner')}
         />
 
@@ -271,7 +299,7 @@ export default function FoodLibraryScreen() {
           type="SNACK"
           title={t('food.snack')}
           icon="icecream"
-          iconBg={Colors.dashboard.secondaryContainer}
+          iconBg={Colors.dashboard.blobPeach}
           kcal={meals.SNACK?.reduce((acc: number, l: any) => acc + l.kcal, 0) || 0}
           items={meals.SNACK || []}
           onAdd={() => openAddFlow('SNACK')}

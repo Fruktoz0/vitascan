@@ -1,0 +1,135 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --page: #fcf9f8;
+  --card: #ffffff;
+  --stroke: #1c1b1b;
+  --shadow-hard: #1c1b1b;
+  --tab-inactive: #434844;
+  --tab-bg: #fcf9f8;
+  --tab-active: #eadecc;
+  --blob-mint: #e8f5e9;
+  --blob-peach: #ffdad6;
+  --blob-lavender: #eadecc;
+  --kcal-fill: #ffb77d;
+  --kcal-track: #f1edec;
+  --protein-fill: #d0c5b3;
+  --carbs-fill: #b6cad2;
+  --fat-fill: #fcd34d;
+  --track: #f0eded;
+  --water-bg: #e1f5fe;
+  --water-icon: #b6cad2;
+  --nutrition-icon: #556158;
+  --primary-fixed: #d9e6da;
+  --secondary: #655d4f;
+  --on-secondary: #ffffff;
+  --on-surface-variant: #434844;
+  --surface-low: #f6f3f2;
+  --surface-high: #eae7e7;
+  --outline-variant: #c3c8c2;
+  --tertiary-fixed: #d2e6ef;
+  --error-container: #ffdad6;
+  --secondary-container: #eadecc;
+  --soft-blue: #e1f5fe;
+  --soft-green: #e8f5e9;
+  --soft-orange: #eadecc;
+  --tab-bar-h: 56px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+  font-family: 'Nunito', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: var(--stroke);
+  background: var(--page);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--page);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: var(--page);
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--outline-variant);
+  border-top-color: var(--stroke);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(8px);
+  }
+  40% {
+    transform: translateX(-8px);
+  }
+  60% {
+    transform: translateX(6px);
+  }
+  80% {
+    transform: translateX(-6px);
+  }
+}
+
+.shake {
+  animation: shake 0.3s ease;
+}
+
+.page-scroll {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(var(--tab-bar-h) + var(--safe-bottom) + 16px);
+}
+
+.page-scroll.no-tab {
+  padding-bottom: calc(var(--safe-bottom) + 24px);
+}

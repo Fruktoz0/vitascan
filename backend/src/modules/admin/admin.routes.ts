@@ -95,11 +95,11 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         GROUP BY 1 ORDER BY 1
       `,
       fastify.prisma.$queryRaw<Array<{ d: Date; c: bigint; ml: bigint }>>`
-        SELECT date_trunc('day', "createdAt")::date AS d,
+        SELECT "loggedDate"::date AS d,
                COUNT(*)::bigint AS c,
-               COALESCE(SUM("amountMl"), 0)::bigint AS ml
+               COALESCE(SUM("totalMl"), 0)::bigint AS ml
         FROM "WaterLog"
-        WHERE "createdAt" >= ${since}
+        WHERE "loggedDate" >= ${since}
         GROUP BY 1 ORDER BY 1
       `,
       fastify.prisma.food.groupBy({ by: ['status'], _count: { _all: true } }),
@@ -124,7 +124,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       fastify.prisma.food.count(),
       fastify.prisma.vote.count(),
       fastify.prisma.waterLog.count(),
-      fastify.prisma.waterLog.aggregate({ _sum: { amountMl: true } }),
+      fastify.prisma.waterLog.aggregate({ _sum: { totalMl: true } }),
       fastify.prisma.weightLog.count(),
       fastify.prisma.user.count({ where: { deletedAt: { not: null } } }),
       fastify.prisma.refreshToken.count({
@@ -166,7 +166,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         foodsVerified: verifiedFoods,
         votes: totalVotes,
         waterLogs: totalWaterLogs,
-        waterMlTotal: totalWaterMlAgg._sum.amountMl ?? 0,
+        waterMlTotal: totalWaterMlAgg._sum.totalMl ?? 0,
         weightLogs: totalWeightLogs,
         softDeletedUsers,
         activeRefreshTokens,
@@ -253,6 +253,8 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     const food = await fastify.prisma.food.create({
       data: {
         ...body,
+        servingSize: body.servingSize ?? 100,
+        servingUnit: body.servingUnit ?? 'g',
         creatorId: request.user.userId,
       },
       include: { creator: { select: { id: true, username: true, reputation: true } } },

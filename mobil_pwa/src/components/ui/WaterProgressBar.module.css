@@ -1,0 +1,165 @@
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.iconCircle {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.iconShadow {
+  position: absolute;
+  inset: 0;
+  top: 2px;
+  left: 2px;
+  background: var(--shadow-hard);
+  border-radius: 20px;
+}
+
+.iconInner {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1.5px solid var(--stroke);
+  border-radius: 20px;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #5e7178;
+}
+
+.goal {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(94, 113, 120, 0.8);
+}
+
+.current {
+  font-size: 24px;
+  font-weight: 900;
+  color: #0b1e24;
+}
+
+.track {
+  height: 16px;
+  background: #fff;
+  border-radius: 999px;
+  border: 1.5px solid var(--stroke);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.fillWrapper {
+  height: 100%;
+  min-width: 0;
+  background: linear-gradient(90deg, #b6cad2, #d2e6ef);
+  border-right: 1.5px solid var(--stroke);
+  border-top-right-radius: 999px;
+  border-bottom-right-radius: 999px;
+  overflow: hidden;
+  position: relative;
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.stripes {
+  position: absolute;
+  top: -4px;
+  left: -40px;
+  font-size: 26px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 3px;
+  opacity: 0.3;
+  white-space: nowrap;
+  width: 1000px;
+  animation: slide 20s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes slide {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50px);
+  }
+}
+
+.btnRow {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+
+.btnWrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding-bottom: 2px;
+  padding-right: 2px;
+}
+
+.btnWrapper:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.btnShadow {
+  position: absolute;
+  width: 150px;
+  height: 40px;
+  top: 3px;
+  left: 50%;
+  margin-left: -73px;
+  background: var(--shadow-hard);
+  border-radius: 20px;
+}
+
+.btnFace {
+  position: relative;
+  z-index: 1;
+  width: 150px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1.5px solid var(--stroke);
+  border-radius: 20px;
+  transition: transform 0.1s;
+}
+
+.btnWrapper:active:not(:disabled) .btnFace {
+  transform: translate(2px, 2px);
+}
+
+.btnSign {
+  font-size: 15px;
+  color: #407a9b;
+  font-weight: 800;
+}
+
+.btnText {
+  font-size: 13px;
+  color: var(--stroke);
+  font-weight: 800;
+}

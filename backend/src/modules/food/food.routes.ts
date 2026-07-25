@@ -109,7 +109,19 @@ export default async function foodRoutes(fastify: FastifyInstance) {
     });
 
     if (dbFood && dbFood.status !== 'BANNED') {
-      return reply.send({ ...dbFood, source: 'DB' });
+      const score = await getScore(prisma, dbFood.id);
+      const user = (req as any).user;
+      const userId = user.userId ?? user.id;
+      const myVoteRow = await prisma.vote.findUnique({
+        where: { userId_foodId: { userId, foodId: dbFood.id } },
+        select: { value: true },
+      });
+      return reply.send({
+        ...dbFood,
+        score,
+        myVote: myVoteRow?.value ?? null,
+        source: 'DB',
+      });
     }
 
     // 2. OFF API fallback
@@ -119,9 +131,10 @@ export default async function foodRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Étel nem található az adatbázisban vagy az Open Food Facts-ban.' });
     }
 
-    // 3. Automatikus mentés a saját DB-be (UNVERIFIED)
+    // 3. Automatikus mentés a saját DB-be (UNVERIFIED) + létrehozó +1 szavazat
     try {
       const user = (req as any).user;
+      const creatorId = user.userId ?? user.id;
       const saved = await prisma.food.create({
         data: {
           name: offFood.name,
@@ -135,22 +148,32 @@ export default async function foodRoutes(fastify: FastifyInstance) {
           fat: offFood.fat,
           fiber: offFood.fiber,
           sugar: offFood.sugar,
-          servingSize: offFood.servingSize,
-          servingUnit: offFood.servingUnit,
+          servingSize: offFood.servingSize ?? 100,
+          servingUnit: offFood.servingUnit ?? 'g',
           status: 'UNVERIFIED',
           tier: 'FREE',
           source: 'EXTERNAL_API',
-          creatorId: user.id,
+          creatorId,
         },
         include: {
           creator: { select: { username: true, reputation: true } },
           _count: { select: { votes: true } },
         },
       });
-      return reply.send({ ...saved, source: 'EXTERNAL_API' });
+      await seedCreatorUpvote(prisma, saved.id, creatorId);
+      const score = await getScore(prisma, saved.id);
+      return reply.send({ ...saved, score, myVote: 1 as const, source: 'EXTERNAL_API' });
     } catch {
       // Ha barcode unique conflict → visszaadjuk az OFF adatot mentés nélkül
-      return reply.send({ ...offFood, id: `off_${barcode}`, source: 'EXTERNAL_API', status: 'UNVERIFIED', tier: 'FREE' });
+      return reply.send({
+        ...offFood,
+        id: `off_${barcode}`,
+        servingSize: offFood.servingSize ?? 100,
+        servingUnit: offFood.servingUnit ?? 'g',
+        source: 'EXTERNAL_API',
+        status: 'UNVERIFIED',
+        tier: 'FREE',
+      });
     }
   });
 
@@ -167,20 +190,26 @@ export default async function foodRoutes(fastify: FastifyInstance) {
     }
 
     const prisma = (fastify as any).prisma;
+    const creatorId = user.userId ?? user.id;
 
     const food = await prisma.food.create({
       data: {
         ...body,
         nameHu: body.nameHu ?? body.name,
         nameEn: body.nameEn ?? body.name,
+        servingSize: body.servingSize ?? 100,
+        servingUnit: body.servingUnit ?? 'g',
         status: 'UNVERIFIED',
         tier: 'FREE',
         source: body.source ?? 'USER_SCAN',
-        creatorId: user.id,
+        creatorId,
       },
     });
 
-    return reply.status(201).send(food);
+    await seedCreatorUpvote(prisma, food.id, creatorId);
+    const score = await getScore(prisma, food.id);
+
+    return reply.status(201).send({ ...food, score, myVote: 1 });
   });
 
   // PATCH /foods/:id — saját étel szerkesztése
@@ -194,7 +223,8 @@ export default async function foodRoutes(fastify: FastifyInstance) {
 
     const food = await prisma.food.findUnique({ where: { id } });
     if (!food) return reply.status(404).send({ error: 'Nem található.' });
-    if (food.creatorId !== user.id && user.role !== 'ADMIN') {
+    const editorId = user.userId ?? user.id;
+    if (food.creatorId !== editorId && user.role !== 'ADMIN') {
       return reply.status(403).send({ error: 'Nincs jogosultságod.' });
     }
 
@@ -215,28 +245,30 @@ export default async function foodRoutes(fastify: FastifyInstance) {
     if (!food) return reply.status(404).send({ error: 'Étel nem található.' });
     if (food.status === 'BANNED') return reply.status(400).send({ error: 'Tiltott ételen nem szavazhatsz.' });
 
+    const userId = user.userId ?? user.id;
+
     // Már szavazott-e erre?
     const existing = await prisma.vote.findUnique({
-      where: { userId_foodId: { userId: user.id, foodId: id } },
+      where: { userId_foodId: { userId, foodId: id } },
     });
 
     if (existing) {
       if (existing.value === value) {
         // Visszavonja a szavazatát
         await prisma.vote.delete({ where: { id: existing.id } });
-        const score = await recalcScore(prisma, id);
-        return reply.send({ action: 'removed', score });
+        const { score, status } = await recalcScore(prisma, id);
+        return reply.send({ action: 'removed', score, status, myVote: null });
       } else {
         // Szavazatot vált
         await prisma.vote.update({ where: { id: existing.id }, data: { value } });
-        const score = await recalcScore(prisma, id);
-        return reply.send({ action: 'changed', score });
+        const { score, status } = await recalcScore(prisma, id);
+        return reply.send({ action: 'changed', score, status, myVote: value });
       }
     }
 
     // Új szavazat
-    await prisma.vote.create({ data: { userId: user.id, foodId: id, value } });
-    const score = await recalcScore(prisma, id);
+    await prisma.vote.create({ data: { userId, foodId: id, value } });
+    const { score, status } = await recalcScore(prisma, id);
 
     // Reputation frissítés az étel létrehozójának
     const reputationDelta = value === 1 ? 1 : -1;
@@ -249,7 +281,7 @@ export default async function foodRoutes(fastify: FastifyInstance) {
     const creator = await prisma.user.findUnique({ where: { id: food.creatorId } });
     const earnedExpertBadge = (creator?.reputation ?? 0) >= 10;
 
-    return reply.send({ action: 'added', score, earnedExpertBadge });
+    return reply.send({ action: 'added', score, status, myVote: value, earnedExpertBadge });
   });
 
   // GET /:id — részletek + szavazatok
@@ -260,12 +292,13 @@ export default async function foodRoutes(fastify: FastifyInstance) {
     const { id } = req.params as { id: string };
     const prisma = (fastify as any).prisma;
 
+    const userId = user.userId ?? user.id;
     const food = await prisma.food.findUnique({
       where: { id },
       include: {
         creator: { select: { username: true, reputation: true } },
         _count: { select: { votes: true } },
-        votes: { where: { userId: user.id }, select: { value: true } },
+        votes: { where: { userId }, select: { value: true } },
       },
     });
 
@@ -280,6 +313,18 @@ export default async function foodRoutes(fastify: FastifyInstance) {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+const VERIFY_THRESHOLD = 2;
+const BAN_THRESHOLD = -3;
+
+async function seedCreatorUpvote(prisma: any, foodId: string, creatorId: string) {
+  const existing = await prisma.vote.findUnique({
+    where: { userId_foodId: { userId: creatorId, foodId } },
+  });
+  if (existing) return;
+  await prisma.vote.create({ data: { userId: creatorId, foodId, value: 1 } });
+  await recalcScore(prisma, foodId);
+}
+
 async function getScore(prisma: any, foodId: string): Promise<number> {
   const agg = await prisma.vote.aggregate({
     where: { foodId },
@@ -288,19 +333,20 @@ async function getScore(prisma: any, foodId: string): Promise<number> {
   return agg._sum.value ?? 0;
 }
 
-async function recalcScore(prisma: any, foodId: string): Promise<number> {
+async function recalcScore(
+  prisma: any,
+  foodId: string,
+): Promise<{ score: number; status: string }> {
   const score = await getScore(prisma, foodId);
 
-  // Státusz automatikus frissítés
-  let newStatus: string | null = null;
-  if (score >= 5) newStatus = 'VERIFIED';
-  else if (score <= -3) newStatus = 'BANNED';
-  else newStatus = 'UNVERIFIED';
+  let newStatus = 'UNVERIFIED';
+  if (score >= VERIFY_THRESHOLD) newStatus = 'VERIFIED';
+  else if (score <= BAN_THRESHOLD) newStatus = 'BANNED';
 
   await prisma.food.update({
     where: { id: foodId },
     data: { status: newStatus },
   });
 
-  return score;
+  return { score, status: newStatus };
 }

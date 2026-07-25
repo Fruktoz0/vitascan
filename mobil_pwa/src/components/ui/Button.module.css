@@ -1,0 +1,81 @@
+.wrapper {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding-right: 4px;
+  padding-bottom: 4px;
+}
+
+.hardShadow {
+  position: absolute;
+  inset: 0;
+  top: 4px;
+  left: 4px;
+  background: var(--shadow-hard);
+  border-radius: 32px 16px 32px 16px;
+}
+
+.btnFace {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  background: var(--blob-mint);
+  border: 1.5px solid var(--stroke);
+  border-radius: 32px 16px 32px 16px;
+  font-weight: 700;
+  color: var(--stroke);
+  transition: transform 0.1s;
+}
+
+.wrapper:active:not(:disabled) .btnFace {
+  transform: translate(4px, 4px);
+}
+
+.wrapper:disabled {
+  opacity: 0.5;
+}
+
+.content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.sm .btnFace,
+.sm.ghost,
+.sm.glass {
+  padding: 12px 24px;
+  font-size: 16px;
+}
+
+.md .btnFace,
+.md.ghost,
+.md.glass {
+  padding: 14px 24px;
+  font-size: 18px;
+}
+
+.lg .btnFace,
+.lg.ghost,
+.lg.glass {
+  padding: 16px 24px;
+  font-size: 20px;
+}
+
+.ghost {
+  background: transparent;
+  border: 1.5px solid var(--stroke);
+  border-radius: 32px;
+  font-weight: 700;
+}
+
+.glass {
+  background: #fff;
+  border: 1.5px solid var(--stroke);
+  border-radius: 32px;
+  font-weight: 700;
+}

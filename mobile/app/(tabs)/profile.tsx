@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  Alert, ActivityIndicator, RefreshControl, Image, Platform,
+  Alert, ActivityIndicator, RefreshControl, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -11,8 +11,10 @@ import { MaterialCommunityIcons, Ionicons, MaterialIcons } from '@expo/vector-ic
 
 import i18n, { setAppLanguage } from '../../src/i18n';
 import { useAuthStore } from '../../src/stores/authStore';
+import { useProfileStore } from '../../src/stores/profileStore';
 import { profileApi, premiumApi, statsApi } from '../../src/services/api';
 import { PremiumUpsellModal } from '../../src/components/premium/PremiumGate';
+import AvatarPicker, { UserAvatar } from '../../src/components/ui/AvatarPicker';
 import { Colors, Spacing } from '../../src/design/tokens';
 import { ResponsiveLayout, webPointer } from '../../src/components/layout/ResponsiveLayout';
 import { useResponsive } from '../../src/hooks/useResponsive';
@@ -84,12 +86,15 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { isDesktop: _isDesktop } = useResponsive();
   const { user, logout } = useAuthStore();
+  const avatarKey = useProfileStore((s) => s.avatarKey);
+  const setAvatarKey = useProfileStore((s) => s.setAvatarKey);
   const [profile, setProfile] = useState<any>(null);
   const [premium, setPremium] = useState<any>(null);
   const [streak, setStreak] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [upsellVisible, setUpsellVisible] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -192,12 +197,16 @@ export default function ProfileScreen() {
                 <Text style={styles.premiumPillText}>{t('profile.premiumBadge')}</Text>
               </View>
             )}
-            <View style={styles.avatarLargeInner}>
-              <Image
-                source={{ uri: 'https://i.pravatar.cc/150?img=32' }}
+            <Pressable style={styles.avatarLargeInner} onPress={() => setPickerOpen(true)}>
+              <UserAvatar
+                avatarKey={avatarKey ?? profile?.profile?.avatarKey ?? user?.username}
+                size={72}
                 style={styles.avatarLargeImg}
               />
-            </View>
+              <View style={styles.avatarEditHint}>
+                <Text style={styles.avatarEditHintText}>Csere</Text>
+              </View>
+            </Pressable>
             <Text style={styles.heroName} numberOfLines={1}>
               {user?.username ?? t('profile.title')}
             </Text>
@@ -333,6 +342,13 @@ export default function ProfileScreen() {
         visible={upsellVisible}
         feature="export"
         onClose={() => setUpsellVisible(false)}
+      />
+
+      <AvatarPicker
+        visible={pickerOpen}
+        value={avatarKey ?? profile?.profile?.avatarKey ?? user?.username}
+        onSelect={setAvatarKey}
+        onClose={() => setPickerOpen(false)}
       />
     </View>
     </ResponsiveLayout>
@@ -477,8 +493,24 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#FFFFFF',
     marginBottom: 4,
+    position: 'relative',
   },
   avatarLargeImg: { width: '100%', height: '100%' },
+  avatarEditHint: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(28,27,27,0.55)',
+    paddingVertical: 3,
+    alignItems: 'center',
+  },
+  avatarEditHintText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
   heroName: {
     fontSize: 19,
     fontWeight: '900',

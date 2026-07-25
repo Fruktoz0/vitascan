@@ -46,6 +46,7 @@ model UserProfile {
   goal             Goal          @default(MAINTAIN)
   dailyKcalGoal    Float? // Kiszámított TDEE, felülírható
   dailyWaterGoalMl Int? // ml/nap, default: testsúly * 30
+  avatarKey        String? // DiceBear seed, pl. Felix — ingyenes választható avatar
 
   tier Tier @default(FREE) // Freemium
 }
@@ -129,13 +130,19 @@ model SystemSetting {
   updatedAt DateTime @default(now()) @updatedAt
 }
 
+/** Napi vízfogyasztás – egy sor / user / nap (WeightLog mintára). */
 model WaterLog {
   id     String @id @default(uuid())
   userId String
   user   User   @relation(fields: [userId], references: [id])
 
-  amountMl  Int // ivott víz ml-ben
-  createdAt DateTime @default(now())
+  totalMl    Int      @default(0) // napi összeg ml-ben
+  loggedDate DateTime @db.Date
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, loggedDate])
+  @@index([userId, loggedDate])
 }
 
 model WeightLog {
@@ -179,7 +186,9 @@ enum Goal {
 
 enum MealType {
   BREAKFAST
+  TIZORAI
   LUNCH
+  UZSONNA
   DINNER
   SNACK
   OTHER

@@ -1,0 +1,123 @@
+.screen {
+  min-height: 100%;
+  background: var(--page);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(var(--safe-top) + 12px) 16px 12px;
+}
+
+.header h1 {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.back {
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  border: 1.5px solid var(--stroke);
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 2px 2px 0 var(--shadow-hard);
+}
+
+.stats {
+  display: flex;
+  gap: 12px;
+  padding: 0 20px 16px;
+}
+
+.statBox {
+  flex: 1;
+  background: #fff;
+  border: 1.5px solid var(--stroke);
+  border-radius: 20px;
+  padding: 14px;
+  text-align: center;
+  box-shadow: 3px 3px 0 var(--shadow-hard);
+}
+
+.statValue {
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.statLabel {
+  font-size: 12px;
+  color: var(--tab-inactive);
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+.calendar {
+  margin: 0 20px;
+  background: #fff;
+  border: 1.5px solid var(--stroke);
+  border-radius: 24px;
+  padding: 16px;
+  box-shadow: 4px 4px 0 var(--shadow-hard);
+}
+
+.monthRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.monthRow h2 {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.monthRow button {
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  border: 1px solid var(--stroke);
+  background: var(--surface-low);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.weekHead,
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+
+.weekHead {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--tab-inactive);
+}
+
+.dayEmpty {
+  height: 40px;
+}
+
+.day {
+  height: 40px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+.today {
+  border: 1.5px solid var(--stroke);
+}
+
+.selected {
+  background: var(--blob-mint);
+  border: 1.5px solid var(--stroke);
+  box-shadow: 2px 2px 0 var(--shadow-hard);
+}
