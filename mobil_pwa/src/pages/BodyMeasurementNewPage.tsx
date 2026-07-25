@@ -65,6 +65,9 @@ export default function BodyMeasurementNewPage() {
 
   return (
     <div className={`${styles.screen} page-scroll no-tab`}>
+      <div className={`${styles.blob} ${styles.blobMint}`} />
+      <div className={`${styles.blob} ${styles.blobLavender}`} />
+
       <header className={styles.header}>
         <button type="button" className={styles.back} onClick={() => navigate(-1)}>
           <IconArrowBack size={22} color={Colors.dashboard.stroke} />
@@ -74,55 +77,61 @@ export default function BodyMeasurementNewPage() {
       </header>
 
       <div className={`${styles.content} ${styles.contentStack}`}>
-        <div className={styles.fieldLabel}>{t('bodyData.selectPart')}</div>
-        <div className={styles.partGrid}>
-          {BODY_PARTS.map((p) => {
-            const meta = BODY_PART_META[p];
-            const PartIcon = meta.Icon;
-            const active = bodyPart === p;
-            return (
-              <button
-                key={p}
-                type="button"
-                className={`${styles.partChip} ${active ? styles.partChipActive : ''}`}
-                onClick={() => setBodyPart(p)}
-              >
-                <PartIcon size={22} color={Colors.dashboard.stroke} />
-                {t(meta.labelKey)}
-              </button>
-            );
-          })}
+        <div className={styles.fieldCard}>
+          <div className={styles.fieldLabel}>{t('bodyData.selectPart')}</div>
+          <div className={styles.partGrid}>
+            {BODY_PARTS.map((p) => {
+              const meta = BODY_PART_META[p];
+              const PartIcon = meta.Icon;
+              const active = bodyPart === p;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  className={`${styles.partChip} ${active ? styles.partChipActive : ''}`}
+                  onClick={() => setBodyPart(p)}
+                >
+                  <PartIcon size={22} color={Colors.dashboard.stroke} />
+                  {t(meta.labelKey)}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <div className={styles.fieldLabel}>{t('bodyData.valueCm')}</div>
-        <div className={styles.valueRow}>
+        <div className={styles.fieldCard}>
+          <div className={styles.fieldLabel}>{t('bodyData.valueCm')}</div>
+          <div className={styles.valueRow}>
+            <input
+              className={styles.valueInput}
+              inputMode="decimal"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={t('bodyData.valuePlaceholder')}
+            />
+            <span className={styles.valueUnit}>cm</span>
+          </div>
+        </div>
+
+        <div className={styles.fieldCard}>
+          <div className={styles.fieldLabel}>{t('bodyData.date')}</div>
+          <button
+            type="button"
+            className={styles.dateBtn}
+            onClick={() => dateInputRef.current?.showPicker?.() ?? dateInputRef.current?.click()}
+          >
+            <span>{dateLabel}</span>
+            <IconCalendarToday size={18} color={Colors.dashboard.stroke} />
+          </button>
           <input
-            className={styles.valueInput}
-            inputMode="decimal"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder={t('bodyData.valuePlaceholder')}
+            ref={dateInputRef}
+            type="date"
+            className={styles.hiddenDate}
+            value={date}
+            max={todayStr()}
+            onChange={(e) => setDate(e.target.value || todayStr())}
           />
-          <span className={styles.valueUnit}>cm</span>
         </div>
-
-        <div className={styles.fieldLabel}>{t('bodyData.date')}</div>
-        <button
-          type="button"
-          className={styles.dateBtn}
-          onClick={() => dateInputRef.current?.showPicker?.() ?? dateInputRef.current?.click()}
-        >
-          <span>{dateLabel}</span>
-          <IconCalendarToday size={18} color={Colors.dashboard.stroke} />
-        </button>
-        <input
-          ref={dateInputRef}
-          type="date"
-          className={styles.hiddenDate}
-          value={date}
-          max={todayStr()}
-          onChange={(e) => setDate(e.target.value || todayStr())}
-        />
 
         <div className={styles.infoBox}>
           <span aria-hidden>ℹ</span>
@@ -134,7 +143,7 @@ export default function BodyMeasurementNewPage() {
             <span className="spinner" style={{ width: 22, height: 22 }} />
           ) : (
             <>
-              <IconCheck size={20} color={Colors.dashboard.stroke} />
+              <IconCheck size={20} color="#fff" />
               {t('bodyData.save')}
             </>
           )}

@@ -260,7 +260,11 @@
     "saved": "A mérést sikeresen rögzítettük.",
     "saveFailed": "A mentés nem sikerült.",
     "loadFailed": "Nem sikerült betölteni a naplót.",
-    "invalidValue": "Adj meg érvényes értéket (10–300 cm)."
+    "invalidValue": "Adj meg érvényes értéket (10–300 cm).",
+    "editMeasurementTitle": "Mérés szerkesztése",
+    "editMeasurementMessage": "Módosítsd az értéket vagy a dátumot, vagy töröld a bejegyzést.",
+    "confirmDeleteMeasurement": "Biztosan törölöd ezt a mérést?",
+    "dateConflict": "Erre a napra már van mérés ennél a testrésznél."
   },
   "aiRecognize": {
     "screenTitle": "AI felismerés",

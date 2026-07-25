@@ -568,12 +568,16 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [base, setBase] = useState<DailyLogItem | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [dialog, setDialog] = useState<{ title: string; message: string } | null>(null);
 
   useEffect(() => {
     if (visible && log) {
       setBase(log);
       setAmount(String(Math.round(log.amount || 100)));
       setMealType((log.mealType as MealType) || 'SNACK');
+      setConfirmDelete(false);
+      setDialog(null);
     }
   }, [visible, log]);
 
@@ -621,7 +625,7 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
 
   const handleSave = async () => {
     if (!g || g <= 0) {
-      window.alert(t('food.enterAmount'));
+      setDialog({ title: t('food.errorTitle'), message: t('food.enterAmount') });
       return;
     }
     setSaving(true);
@@ -630,21 +634,21 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
       onSaved?.();
       onClose();
     } catch (e: any) {
-      window.alert(e?.message || t('food.errorTitle'));
+      setDialog({ title: t('food.errorTitle'), message: e?.message || t('food.errorTitle') });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm(t('food.confirmDeleteLog', 'Biztosan törölöd ezt a bejegyzést?'))) return;
+  const handleDeleteConfirm = async () => {
+    setConfirmDelete(false);
     setDeleting(true);
     try {
       await logApi.delete(base.id);
       onSaved?.();
       onClose();
     } catch (e: any) {
-      window.alert(e?.message || t('food.errorTitle'));
+      setDialog({ title: t('food.errorTitle'), message: e?.message || t('food.errorTitle') });
     } finally {
       setDeleting(false);
     }
@@ -792,7 +796,7 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
           <button
             type="button"
             className={styles.deleteBtnWrap}
-            onClick={handleDelete}
+            onClick={() => setConfirmDelete(true)}
             disabled={busy}
           >
             <span className={styles.deleteBtnShadow} />
@@ -815,6 +819,25 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
           </button>
         </div>
       </footer>
+
+      <ConfirmDialog
+        visible={confirmDelete}
+        title={t('common.delete', 'Törlés')}
+        message={t('food.confirmDeleteLog', 'Biztosan törölöd ezt a bejegyzést?')}
+        confirmLabel={t('common.delete', 'Törlés')}
+        cancelLabel={t('common.cancel', 'Mégse')}
+        destructive
+        onConfirm={handleDeleteConfirm}
+        onClose={() => setConfirmDelete(false)}
+      />
+
+      <ConfirmDialog
+        visible={!!dialog}
+        title={dialog?.title ?? ''}
+        message={dialog?.message ?? ''}
+        confirmLabel={t('common.ok', 'OK')}
+        onClose={() => setDialog(null)}
+      />
     </div>,
     document.body,
   );

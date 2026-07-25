@@ -7,6 +7,7 @@ import {
   IconArrowForward,
   IconBrain,
   IconBolt,
+  IconMoreHoriz,
 } from '../components/ui/Icons';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import {
@@ -98,20 +99,23 @@ export default function BodyMeasurementsPage() {
 
   return (
     <div className={`${styles.screen} page-scroll`}>
-      <div className={`${styles.blob} ${styles.blobBlue}`} />
-      <header className={styles.header}>
-        <span className={styles.headerSpacer} />
-        <h1>{t('bodyData.screenTitle')}</h1>
-        <span className={styles.headerSpacer} />
-      </header>
+      <div className={`${styles.blob} ${styles.blobMint}`} />
+      <div className={`${styles.blob} ${styles.blobPeach}`} />
+      <div className={`${styles.blob} ${styles.blobLavender}`} />
 
       <div className={styles.content}>
-        <button type="button" className={styles.ctaBtn} onClick={() => navigate('/body/new')}>
-          <span className={styles.ctaIcon}>
-            <IconAdd size={16} color={Colors.dashboard.stroke} />
-          </span>
-          {t('bodyData.addMeasurement')}
-        </button>
+        <div className={styles.ctaWrap}>
+          <span className={styles.ctaShadow} />
+          <button type="button" className={styles.ctaBtn} onClick={() => navigate('/body/new')}>
+            <span className={styles.ctaIcon}>
+              <IconAdd size={18} color={Colors.dashboard.stroke} />
+            </span>
+            <span className={styles.ctaLabel}>{t('bodyData.addMeasurement')}</span>
+            <span className={styles.ctaMore} aria-hidden>
+              <IconMoreHoriz size={22} color={Colors.dashboard.stroke} />
+            </span>
+          </button>
+        </div>
 
         {BODY_PARTS.map((part) => {
           const meta = BODY_PART_META[part];
@@ -122,97 +126,106 @@ export default function BodyMeasurementsPage() {
               ? t('bodyData.lastValue', { value: row.valueCm.toFixed(1) })
               : t('bodyData.lastEmpty');
           return (
-            <button
-              key={part}
-              type="button"
-              className={styles.partCard}
-              onClick={() => navigate(`/body/${part}`)}
-            >
-              <span className={styles.partIcon} style={{ background: meta.bg }}>
-                <PartIcon size={22} color={Colors.dashboard.stroke} />
-              </span>
-              <span className={styles.partText}>
-                <span className={styles.partName}>{t(meta.labelKey)}</span>
-                <span className={styles.partLast}>{val}</span>
-              </span>
-              <IconArrowForward size={16} color={Colors.dashboard.tabInactive} />
-            </button>
+            <div key={part} className={styles.partCardWrap}>
+              <span className={styles.partCardShadow} />
+              <button
+                type="button"
+                className={styles.partCard}
+                onClick={() => navigate(`/body/${part}`)}
+              >
+                <span className={styles.partIcon} style={{ background: meta.bg }}>
+                  <PartIcon size={22} color={Colors.dashboard.stroke} />
+                </span>
+                <span className={styles.partText}>
+                  <span className={styles.partName}>{t(meta.labelKey)}</span>
+                  <span className={styles.partLast}>{val}</span>
+                </span>
+                <IconArrowForward
+                  size={18}
+                  color={Colors.dashboard.stroke}
+                  className={styles.partChevron}
+                />
+              </button>
+            </div>
           );
         })}
 
-        <div className={styles.aiCard}>
-          <div className={styles.aiHead}>
-            <span className={styles.aiIcon}>
-              <IconBrain size={22} color={Colors.dashboard.stroke} />
-            </span>
-            <div>
-              <div className={styles.aiTitle}>{t('bodyData.aiTitle')}</div>
-              <div className={styles.aiSub}>
-                {t('bodyData.aiRemaining', { count: remaining })}
+        <div className={styles.cardWrap}>
+          <span className={styles.cardShadow} />
+          <div className={styles.aiCard}>
+            <div className={styles.aiHead}>
+              <span className={styles.aiIcon}>
+                <IconBrain size={22} color={Colors.dashboard.stroke} />
+              </span>
+              <div>
+                <div className={styles.aiTitle}>{t('bodyData.aiTitle')}</div>
+                <div className={styles.aiSub}>
+                  {t('bodyData.aiRemaining', { count: remaining })}
+                </div>
               </div>
             </div>
-          </div>
 
-          {analysis ? (
-            <>
-              <h3 className={styles.aiHeadline}>{analysis.headline}</h3>
-              <p className={styles.aiSummary}>{analysis.summary}</p>
-              {analysis.positives.length > 0 && (
-                <div className={styles.aiBlock}>
-                  <div className={`${styles.aiBlockLabel} ${styles.aiPositive}`}>
-                    {t('bodyData.aiPositives')}
-                  </div>
-                  <ul className={styles.aiList}>
-                    {analysis.positives.map((x, i) => (
-                      <li key={`p-${i}`}>{x}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {analysis.concerns.length > 0 && (
-                <div className={styles.aiBlock}>
-                  <div className={`${styles.aiBlockLabel} ${styles.aiConcern}`}>
-                    {t('bodyData.aiConcerns')}
-                  </div>
-                  <ul className={styles.aiList}>
-                    {analysis.concerns.map((x, i) => (
-                      <li key={`c-${i}`}>{x}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {analysis.suggestions.length > 0 && (
-                <div className={styles.aiBlock}>
-                  <div className={`${styles.aiBlockLabel} ${styles.aiSuggest}`}>
-                    {t('bodyData.aiSuggestions')}
-                  </div>
-                  <ul className={styles.aiList}>
-                    {analysis.suggestions.map((x, i) => (
-                      <li key={`s-${i}`}>{x}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </>
-          ) : (
-            <p className={styles.aiEmpty}>{t('bodyData.aiEmpty')}</p>
-          )}
-
-          <button
-            type="button"
-            className={styles.aiBtn}
-            disabled={aiBusy || remaining <= 0}
-            onClick={runAnalysis}
-          >
-            {aiBusy ? (
-              <span className="spinner" style={{ width: 20, height: 20 }} />
-            ) : (
+            {analysis ? (
               <>
-                <IconBolt size={18} color="#fff" />
-                {analysis ? t('bodyData.aiRerun') : t('bodyData.aiRun')}
+                <h3 className={styles.aiHeadline}>{analysis.headline}</h3>
+                <p className={styles.aiSummary}>{analysis.summary}</p>
+                {analysis.positives.length > 0 && (
+                  <div className={styles.aiBlock}>
+                    <div className={`${styles.aiBlockLabel} ${styles.aiPositive}`}>
+                      {t('bodyData.aiPositives')}
+                    </div>
+                    <ul className={styles.aiList}>
+                      {analysis.positives.map((x, i) => (
+                        <li key={`p-${i}`}>{x}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {analysis.concerns.length > 0 && (
+                  <div className={styles.aiBlock}>
+                    <div className={`${styles.aiBlockLabel} ${styles.aiConcern}`}>
+                      {t('bodyData.aiConcerns')}
+                    </div>
+                    <ul className={styles.aiList}>
+                      {analysis.concerns.map((x, i) => (
+                        <li key={`c-${i}`}>{x}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {analysis.suggestions.length > 0 && (
+                  <div className={styles.aiBlock}>
+                    <div className={`${styles.aiBlockLabel} ${styles.aiSuggest}`}>
+                      {t('bodyData.aiSuggestions')}
+                    </div>
+                    <ul className={styles.aiList}>
+                      {analysis.suggestions.map((x, i) => (
+                        <li key={`s-${i}`}>{x}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </>
+            ) : (
+              <p className={styles.aiEmpty}>{t('bodyData.aiEmpty')}</p>
             )}
-          </button>
+
+            <button
+              type="button"
+              className={styles.aiBtn}
+              disabled={aiBusy || remaining <= 0}
+              onClick={runAnalysis}
+            >
+              {aiBusy ? (
+                <span className="spinner" style={{ width: 20, height: 20 }} />
+              ) : (
+                <>
+                  <IconBolt size={18} color="#fff" />
+                  {analysis ? t('bodyData.aiRerun') : t('bodyData.aiRun')}
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         <p className={styles.quote}>{t('bodyData.motivation')}</p>

@@ -5,6 +5,7 @@ import {
   GenerateBodyAnalysisSchema,
   HistoryQuerySchema,
   MAX_BODY_ANALYSES_PER_DAY,
+  UpdateMeasurementSchema,
   UpsertGoalsSchema,
   UpsertMeasurementSchema,
 } from './body.schema';
@@ -75,6 +76,71 @@ const bodyRoutes: FastifyPluginAsync = async (fastify) => {
       loggedDate: toDateStr(log.loggedDate),
       updatedAt: log.updatedAt,
     });
+  });
+
+  // PATCH /body/:id — update value and/or date
+  fastify.patch('/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = UpdateMeasurementSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.errors[0].message });
+    }
+    const userId = request.user.userId;
+    const existing = await fastify.prisma.bodyMeasurementLog.findFirst({
+      where: { id, userId },
+    });
+    if (!existing) {
+      return reply.status(404).send({ error: 'A mérés nem található.' });
+    }
+
+    const nextDate = parsed.data.date ? parseDay(parsed.data.date) : existing.loggedDate;
+    const nextValue = parsed.data.valueCm ?? existing.valueCm;
+
+    if (toDateStr(nextDate) !== toDateStr(existing.loggedDate)) {
+      const clash = await fastify.prisma.bodyMeasurementLog.findFirst({
+        where: {
+          userId,
+          bodyPart: existing.bodyPart,
+          loggedDate: nextDate,
+          NOT: { id },
+        },
+      });
+      if (clash) {
+        return reply.status(409).send({
+          error: 'Erre a napra már van mérés ennél a testrésznél.',
+        });
+      }
+    }
+
+    const log = await fastify.prisma.bodyMeasurementLog.update({
+      where: { id },
+      data: {
+        valueCm: nextValue,
+        loggedDate: nextDate,
+      },
+    });
+
+    return reply.send({
+      id: log.id,
+      bodyPart: log.bodyPart,
+      valueCm: log.valueCm,
+      loggedDate: toDateStr(log.loggedDate),
+      updatedAt: log.updatedAt,
+    });
+  });
+
+  // DELETE /body/:id
+  fastify.delete('/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const userId = request.user.userId;
+    const existing = await fastify.prisma.bodyMeasurementLog.findFirst({
+      where: { id, userId },
+    });
+    if (!existing) {
+      return reply.status(404).send({ error: 'A mérés nem található.' });
+    }
+    await fastify.prisma.bodyMeasurementLog.delete({ where: { id } });
+    return reply.send({ ok: true });
   });
 
   // GET /body/history?bodyPart=

@@ -13,6 +13,13 @@ export const UpsertMeasurementSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
+export const UpdateMeasurementSchema = z.object({
+  valueCm: z.number().min(10).max(300).optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+}).refine((d) => d.valueCm != null || d.date != null, {
+  message: 'Legalább valueCm vagy date megadása kötelező.',
+});
+
 export const HistoryQuerySchema = z.object({
   bodyPart: BodyPartSchema,
 });

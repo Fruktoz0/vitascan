@@ -364,6 +364,9 @@ export const bodyApi = {
     }>('/body/summary'),
   create: (data: { bodyPart: BodyPart; valueCm: number; date: string }) =>
     request('/body', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: { valueCm?: number; date?: string }) =>
+    request(`/body/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: string) => request(`/body/${id}`, { method: 'DELETE' }),
   history: (bodyPart: BodyPart) =>
     request<{
       bodyPart: BodyPart;

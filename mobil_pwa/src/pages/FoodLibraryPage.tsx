@@ -6,8 +6,8 @@ import { BentoCard } from '../components/ui/BentoCard';
 import { AddFoodManualModal, FoodDetailModal, EditLogModal, distinctBrand, type DailyLogItem } from '../components/food/FoodModals';
 import {
   IconAdd,
+  IconBrain,
   IconCalendarToday,
-  IconEdit,
   IconLocalFire,
   IconPieChartOutline,
 } from '../components/ui/Icons';
@@ -241,10 +241,16 @@ export default function FoodLibraryPage() {
                       <IconAdd size={18} color={Colors.dashboard.stroke} /> {t('common.add')}
                     </span>
                   </button>
-                  <button type="button" className={styles.editBtn} onClick={() => navigate('/scanner')}>
+                  <button
+                    type="button"
+                    className={styles.aiAddBtn}
+                    aria-label={t('aiRecognize.entryTitle')}
+                    onClick={() => navigate(`/ai-recognize?mealType=${meal}`)}
+                  >
                     <span className={styles.btnShadow} />
-                    <span className={styles.editFace}>
-                      <IconEdit size={18} color={Colors.dashboard.stroke} />
+                    <span className={styles.aiAddFace}>
+                      <IconBrain size={18} color={Colors.dashboard.stroke} />
+                      <IconAdd size={12} color={Colors.dashboard.stroke} />
                     </span>
                   </button>
                 </div>

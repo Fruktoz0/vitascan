@@ -252,7 +252,11 @@
     "saved": "Measurement saved successfully.",
     "saveFailed": "Could not save.",
     "loadFailed": "Could not load the log.",
-    "invalidValue": "Enter a valid value (10–300 cm)."
+    "invalidValue": "Enter a valid value (10–300 cm).",
+    "editMeasurementTitle": "Edit measurement",
+    "editMeasurementMessage": "Change the value or date, or delete the entry.",
+    "confirmDeleteMeasurement": "Delete this measurement?",
+    "dateConflict": "A measurement already exists for this body part on that day."
   },
   "aiRecognize": {
     "screenTitle": "AI recognition",

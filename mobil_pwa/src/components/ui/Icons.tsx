@@ -32,6 +32,7 @@ import {
   MdLogout,
   MdLunchDining,
   MdMonitorWeight,
+  MdMoreHoriz,
   MdOpacity,
   MdOutlineEmail,
   MdOutlineKeyboard,
@@ -165,6 +166,7 @@ export const IconWater = wrap(IoWater);
 export const IconWaterOutline = wrap(IoWaterOutline);
 export const IconPeople = wrap(IoPeople);
 export const IconScaleOutline = wrap(IoScaleOutline);
+export const IconMoreHoriz = wrap(MdMoreHoriz);
 export const IconBicycleOutline = wrap(IoBicycleOutline);
 export const IconMaleFemaleOutline = wrap(IoMaleFemaleOutline);
 

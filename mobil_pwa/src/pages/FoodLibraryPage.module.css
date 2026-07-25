@@ -257,7 +257,7 @@
   padding-bottom: 2px;
 }
 
-.editBtn {
+.aiAddBtn {
   position: relative;
   flex: 1;
   height: 52px;
@@ -266,19 +266,19 @@
 }
 
 .addBtn .btnShadow,
-.editBtn .btnShadow {
+.aiAddBtn .btnShadow {
   border-radius: 999px;
 }
 
 .addFace,
-.editFace {
+.aiAddFace {
   position: absolute;
   inset: 0;
   z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   border: 1.5px solid var(--stroke);
   border-radius: 999px;
   font-weight: 700;
@@ -288,8 +288,9 @@
   background: var(--surface-low);
 }
 
-.editFace {
-  background: #fff;
+.aiAddFace {
+  background: #efe8ff;
+  gap: 2px;
 }
 
 .analysisBox {
