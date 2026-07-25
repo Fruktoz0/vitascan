@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../../design/tokens';
+import { webPointer } from '../layout/ResponsiveLayout';
 
 interface ButtonProps {
   label: string;
@@ -46,6 +47,7 @@ export function PrimaryButton({
           styles.btn,
           radii,
           { paddingVertical },
+          webPointer,
           pressed && styles.pressed,
         ]}
       >
@@ -78,6 +80,7 @@ export function GhostButton({
         style={({ pressed }) => [
           styles.ghostBtn,
           { paddingVertical, borderRadius: 32 },
+          webPointer,
           pressed && styles.pressed,
         ]}
       >
@@ -105,6 +108,7 @@ export function GlassButton({
         style={({ pressed }) => [
           styles.glassBtn,
           { paddingVertical, borderRadius: 32 },
+          webPointer,
           pressed && styles.pressed,
         ]}
       >

@@ -43,6 +43,17 @@
       "expo-web-browser"
     ],
     "scheme": "vitascan",
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png",
+      "name": "VitaScan",
+      "shortName": "VitaScan",
+      "themeColor": "#FF9A6C",
+      "backgroundColor": "#fcf8f8",
+      "display": "standalone",
+      "lang": "hu"
+    },
     "extra": {
       "eas": {
         "projectId": "your-eas-project-id"

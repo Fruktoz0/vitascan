@@ -1,8 +1,7 @@
 // Step 6 - Kamera engedély
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Camera } from 'expo-camera';
 import { useTranslation } from 'react-i18next';
 import { useOnboardingStore } from '../../stores/onboardingStore';
 import OnboardingProgressBar from '../../components/onboarding/OnboardingProgressBar';
@@ -13,15 +12,29 @@ export function OnboardingStep6Permission() {
   const [granted, setGranted] = useState(false);
 
   const requestPermission = async () => {
-    const { status } = await Camera.requestCameraPermissionsAsync();
-    if (status === 'granted') {
-      setGranted(true);
-    } else {
-      Alert.alert(
-        t('onboarding.cameraPermissionTitle'),
-        t('onboarding.cameraPermissionDesc'),
-        [{ text: t('onboarding.gotIt'), onPress: store.nextStep }]
-      );
+    try {
+      const { Camera } = await import('expo-camera');
+      const { status } = await Camera.requestCameraPermissionsAsync();
+      if (status === 'granted') {
+        setGranted(true);
+      } else {
+        Alert.alert(
+          t('onboarding.cameraPermissionTitle'),
+          t('onboarding.cameraPermissionDesc'),
+          [{ text: t('onboarding.gotIt'), onPress: store.nextStep }]
+        );
+      }
+    } catch {
+      // Web / unsupported: allow continue with manual entry later
+      if (Platform.OS === 'web') {
+        setGranted(true);
+      } else {
+        Alert.alert(
+          t('onboarding.cameraPermissionTitle'),
+          t('onboarding.cameraPermissionDesc'),
+          [{ text: t('onboarding.gotIt'), onPress: store.nextStep }]
+        );
+      }
     }
   };
 

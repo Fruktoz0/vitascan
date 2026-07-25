@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, Pressable, ActivityIndicator, Alert
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../services/haptics';
 import { useOnboardingStore } from '../../stores/onboardingStore';
 import { useAuthStore } from '../../stores/authStore';
 import { onboardingApi } from '../../services/api';

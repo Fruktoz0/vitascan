@@ -7,7 +7,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../services/haptics';
 import { useTranslation } from 'react-i18next';
 
 import { GlassCardSimple } from '../ui/GlassCard';
@@ -225,26 +225,45 @@ export default function ExportEngine({ visible, onClose }: Props) {
     }, 300);
 
     try {
-      // Fájl letöltése
       const url = `${API_BASE}/export?from=${from}&to=${to}`;
       const filename = `vitascan_export_${from}_${to}.xlsx`;
-      const fileUri = (FileSystem as any).documentDirectory + filename;
 
-      const result = await FileSystem.downloadAsync(url, fileUri, {
-        headers: { Authorization: `Bearer ${_token}` },
-      });
+      if (Platform.OS === 'web') {
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${_token}` },
+        });
+        clearInterval(ticker);
+        setDownloadProgress(100);
+        if (!res.ok) throw new Error(t('export.serverFileError'));
+        const blob = await res.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(objectUrl);
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setLastFilePath(objectUrl);
+        setDone(true);
+      } else {
+        const fileUri = (FileSystem as any).documentDirectory + filename;
+        const result = await FileSystem.downloadAsync(url, fileUri, {
+          headers: { Authorization: `Bearer ${_token}` },
+        });
 
-      clearInterval(ticker);
-      setDownloadProgress(100);
+        clearInterval(ticker);
+        setDownloadProgress(100);
 
-      if (result.status !== 200) {
-        throw new Error(t('export.serverFileError'));
+        if (result.status !== 200) {
+          throw new Error(t('export.serverFileError'));
+        }
+
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setLastFilePath(result.uri);
+        setDone(true);
       }
-
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setLastFilePath(result.uri);
-      setDone(true);
-
     } catch (e: any) {
       clearInterval(ticker);
       setDownloadProgress(0);
@@ -257,6 +276,16 @@ export default function ExportEngine({ visible, onClose }: Props) {
   const handleShare = async () => {
     if (!lastFilePath) return;
     try {
+      if (Platform.OS === 'web') {
+        // Weben a letöltés már megtörtént; Web Share API ha van fájl-szerű blob
+        if (typeof navigator !== 'undefined' && navigator.share) {
+          await navigator.share({
+            title: t('export.shareDialogTitle'),
+            url: lastFilePath,
+          });
+        }
+        return;
+      }
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(lastFilePath, {

@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  Alert, ActivityIndicator, RefreshControl, Image,
+  Alert, ActivityIndicator, RefreshControl, Image, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../src/services/haptics';
 import { useTranslation } from 'react-i18next';
 import { MaterialCommunityIcons, Ionicons, MaterialIcons } from '@expo/vector-icons';
 
@@ -14,6 +14,8 @@ import { useAuthStore } from '../../src/stores/authStore';
 import { profileApi, premiumApi, statsApi } from '../../src/services/api';
 import { PremiumUpsellModal } from '../../src/components/premium/PremiumGate';
 import { Colors, Spacing } from '../../src/design/tokens';
+import { ResponsiveLayout, webPointer } from '../../src/components/layout/ResponsiveLayout';
+import { useResponsive } from '../../src/hooks/useResponsive';
 
 type StatItemProps = {
   icon: React.ReactNode;
@@ -55,6 +57,7 @@ function SettingsRow({ iconBg, icon, label, value, onPress, isLast }: SettingsRo
           justifyContent: 'space-between',
           paddingVertical: 14,
           opacity: pressed ? 0.72 : 1,
+          ...(webPointer ?? {}),
         })}
       >
         <View style={styles.settingsRowMain}>
@@ -79,6 +82,7 @@ function SettingsRow({ iconBg, icon, label, value, onPress, isLast }: SettingsRo
 export default function ProfileScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { isDesktop: _isDesktop } = useResponsive();
   const { user, logout } = useAuthStore();
   const [profile, setProfile] = useState<any>(null);
   const [premium, setPremium] = useState<any>(null);
@@ -159,6 +163,7 @@ export default function ProfileScreen() {
   const languageLabel = i18n.language === 'hu' ? t('profile.languageHu') : t('profile.languageEn');
 
   return (
+    <ResponsiveLayout>
     <View style={styles.screen}>
       {/* Pastel blobs */}
       <View style={[styles.blob, styles.blobMint]} pointerEvents="none" />
@@ -308,7 +313,7 @@ export default function ProfileScreen() {
         {user?.role === 'ADMIN' && (
           <View style={styles.cardStack}>
             <View style={styles.cardShadow9} />
-            <Pressable style={styles.adminBtn} onPress={() => router.push('/admin/index')}>
+            <Pressable style={[styles.adminBtn, webPointer]} onPress={() => router.push('/admin/index')}>
               <MaterialIcons name="shield" size={18} color={Colors.dashboard.stroke} />
               <Text style={styles.adminBtnText}>{t('profile.openAdmin')}</Text>
             </Pressable>
@@ -316,12 +321,12 @@ export default function ProfileScreen() {
         )}
 
         {/* ── Logout ───────────────────────────────────────── */}
-        <Pressable style={styles.logoutBtn} onPress={handleLogout}>
+        <Pressable style={[styles.logoutBtn, webPointer]} onPress={handleLogout}>
           <MaterialIcons name="logout" size={18} color="#B83B3B" />
           <Text style={styles.logoutText}>{t('profile.logout')}</Text>
         </Pressable>
 
-        <View style={{ height: 110 }} />
+        <View style={{ height: Platform.OS === 'web' ? 72 : 110 }} />
       </ScrollView>
 
       <PremiumUpsellModal
@@ -330,6 +335,7 @@ export default function ProfileScreen() {
         onClose={() => setUpsellVisible(false)}
       />
     </View>
+    </ResponsiveLayout>
   );
 }
 

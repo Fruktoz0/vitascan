@@ -19,6 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import DoodleCharacter from '../../src/components/ui/DoodleCharacter';
 import { GlassCardSimple } from '../../src/components/ui/GlassCard';
+import { ResponsiveLayout, webPointer } from '../../src/components/layout/ResponsiveLayout';
 import { Colors, Spacing } from '../../src/design/tokens';
 import { ApiError } from '../../src/services/api';
 import { useAuthStore } from '../../src/stores/authStore';
@@ -144,6 +145,7 @@ export default function LoginScreen() {
   };
 
   return (
+    <ResponsiveLayout>
     <View style={styles.container}>
       {/* Háttér dekoratív blob-ok */}
       <View style={[styles.blob, styles.blob1]} />
@@ -227,6 +229,7 @@ export default function LoginScreen() {
                     android_ripple={{ color: 'rgba(255,255,255,0.22)' }}
                     style={({ pressed }) => [
                       styles.loginBtnHit,
+                      webPointer,
                       pressed && styles.btnPressed,
                     ]}
                   >
@@ -267,6 +270,7 @@ export default function LoginScreen() {
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
+    </ResponsiveLayout>
   );
 }
 

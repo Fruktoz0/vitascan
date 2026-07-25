@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuthStore } from '../src/stores/authStore';
 import '../src/i18n';
@@ -18,6 +19,18 @@ export default function RootLayout() {
         // Ignoráljuk a hibát, ha a SplashScreen nem létezik (pl. web, vagy fast refresh)
       });
     });
+  }, []);
+
+  // PWA Service Worker — csak weben; régi cache törlése, hogy a tab-bar fix érvényesüljön
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .getRegistrations()
+        .then((regs) => Promise.all(regs.map((r) => r.update())))
+        .then(() => navigator.serviceWorker.register('/sw.js'))
+        .then((registration) => registration.update())
+        .catch(() => {});
+    }
   }, []);
 
   if (isLoading) return null;

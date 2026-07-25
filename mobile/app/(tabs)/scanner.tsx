@@ -5,7 +5,6 @@ import {
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -19,6 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { foodApi, Food, ApiError } from '../../src/services/api';
+import * as Haptics from '../../src/services/haptics';
 import FoodDetailModal from '../../src/components/food/FoodDetailModal';
 import AddFoodManualModal from '../../src/components/food/AddFoodManualModal';
 import { Colors, Radius, Spacing, Typography } from '../../src/design/tokens';
@@ -26,10 +26,10 @@ import { Colors, Radius, Spacing, Typography } from '../../src/design/tokens';
 type ScanState = 'idle' | 'scanning' | 'found' | 'not_found' | 'error';
 
 /**
- * VitaScan Magic Scanner
+ * VitaScan Magic Scanner (native)
  * Ultra-optimalizált verzió: a kamera leáll, ha modális ablak van nyitva vagy elnavigálunk.
  */
-function ScannerScreen() {
+export default function ScannerScreen() {
   const { t } = useTranslation();
   const isFocused = useIsFocused();
   const [permission, requestPermission] = useCameraPermissions();
@@ -43,10 +43,8 @@ function ScannerScreen() {
   const [lastBarcode, setLastBarcode] = useState('');
   const [torch, setTorch] = useState(false);
 
-  // A kamera csak akkor aktív, ha fókuszban vagyunk ÉS nincs nyitva semmilyen modális ablak
   const isCameraActive = isFocused && !detailVisible && !manualVisible;
 
-  // ─── Animációk ─────────────────────────────────────────────────────────────
   const scanY = useSharedValue(0);
 
   useEffect(() => {
@@ -67,7 +65,6 @@ function ScannerScreen() {
     transform: [{ translateY: scanY.value * 180 }],
   }));
 
-  // ─── Vonalkód logika ──────────────────────────────────────────────────────
   const handleBarcode = async ({ data: barcode }: BarcodeScanningResult) => {
     if (scanState !== 'idle' || barcode === lastBarcode) return;
 
@@ -123,13 +120,11 @@ function ScannerScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.doodleBg} pointerEvents="none" />
-      
-      {/* Blobs & Doodles */}
+
       <View style={[styles.blob, styles.blobMint]} pointerEvents="none" />
       <View style={[styles.blob, styles.blobBlue]} pointerEvents="none" />
       <MaterialCommunityIcons name="food-apple-outline" size={70} color={Colors.dashboard.stroke} style={styles.appleDoodle} pointerEvents="none" />
 
-      {/* Header */}
       <SafeAreaView edges={['top']} style={styles.headerSafeArea}>
         <View style={styles.header}>
           <Pressable style={styles.backBtn} onPress={() => router.back()}>
@@ -145,7 +140,6 @@ function ScannerScreen() {
       </SafeAreaView>
 
       <View style={styles.content}>
-        {/* Scanner Card */}
         <View style={styles.scannerCardWrapper}>
           <View style={styles.scannerCardShadow} />
           <View style={styles.scannerCardInner}>
@@ -153,14 +147,25 @@ function ScannerScreen() {
               <CameraView
                 style={StyleSheet.absoluteFillObject}
                 facing="back"
-                enableTorch={torch}
+                enableTorch={Platform.OS !== 'web' ? torch : false}
+                barcodeScannerSettings={{
+                  barcodeTypes: [
+                    'ean13',
+                    'ean8',
+                    'upc_a',
+                    'upc_e',
+                    'code128',
+                    'code39',
+                    'code93',
+                    'qr',
+                  ],
+                }}
                 onBarcodeScanned={scanState === 'idle' ? handleBarcode : undefined}
               />
             ) : (
               <View style={styles.cameraPlaceholder} />
             )}
 
-            {/* Overlays inside the card */}
             <View style={styles.scannerOverlay} pointerEvents="none">
               {[
                 { top: 40, left: 30, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 40 },
@@ -198,7 +203,6 @@ function ScannerScreen() {
         </Text>
       </View>
 
-      {/* Bottom Actions */}
       <SafeAreaView edges={['bottom']} style={styles.bottomArea}>
         <View style={styles.actionRow}>
           <Pressable style={styles.manualBtn} onPress={() => setManualVisible(true)}>
@@ -208,11 +212,13 @@ function ScannerScreen() {
             </View>
           </Pressable>
 
-          <Pressable style={styles.torchBtn} onPress={() => setTorch(!torch)}>
-            <View style={styles.torchBtnInner}>
-              <MaterialCommunityIcons name={torch ? "flashlight-off" : "flashlight"} size={22} color={Colors.dashboard.stroke} />
-            </View>
-          </Pressable>
+          {Platform.OS !== 'web' && (
+            <Pressable style={styles.torchBtn} onPress={() => setTorch(!torch)}>
+              <View style={styles.torchBtnInner}>
+                <MaterialCommunityIcons name={torch ? "flashlight-off" : "flashlight"} size={22} color={Colors.dashboard.stroke} />
+              </View>
+            </Pressable>
+          )}
         </View>
       </SafeAreaView>
 
@@ -236,8 +242,6 @@ function ScannerScreen() {
     </View>
   );
 }
-
-export default ScannerScreen;
 
 const styles = StyleSheet.create({
   flex1: { flex: 1 },
@@ -342,7 +346,7 @@ const styles = StyleSheet.create({
   },
   scannerCardWrapper: {
     width: '85%',
-    aspectRatio: 1, // Square
+    aspectRatio: 1,
     maxWidth: 340,
     position: 'relative',
     marginBottom: Spacing.xl,
@@ -368,12 +372,6 @@ const styles = StyleSheet.create({
   },
   scannerOverlay: {
     ...StyleSheet.absoluteFillObject,
-  },
-  cameraCutout: {
-    flex: 1,
-    margin: 20,
-    borderRadius: 24,
-    position: 'relative',
   },
   corner: {
     position: 'absolute',
@@ -425,18 +423,9 @@ const styles = StyleSheet.create({
     height: 60,
     position: 'relative',
   },
-  manualBtnShadow: {
-    position: 'absolute',
-    top: 4,
-    left: 4,
-    right: -4,
-    bottom: -4,
-    backgroundColor: Colors.dashboard.shadowHard,
-    borderRadius: 30,
-  },
   manualBtnInner: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: Colors.dashboard.softOrange, // eadecc
+    backgroundColor: Colors.dashboard.softOrange,
     borderRadius: 30,
     borderWidth: 1.5,
     borderColor: Colors.dashboard.stroke,
@@ -461,15 +450,6 @@ const styles = StyleSheet.create({
     height: 60,
     position: 'relative',
   },
-  torchBtnShadow: {
-    position: 'absolute',
-    top: 4,
-    left: 4,
-    right: -4,
-    bottom: -4,
-    backgroundColor: Colors.dashboard.shadowHard,
-    borderRadius: 30,
-  },
   torchBtnInner: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#fff',
@@ -479,7 +459,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Keep perm styles for permission screen
   permInner: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
   permCard: {
     backgroundColor: 'rgba(255,255,255,0.1)',

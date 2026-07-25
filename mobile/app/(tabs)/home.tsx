@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
-  RefreshControl, ActivityIndicator, Image, PanResponder
+  RefreshControl, ActivityIndicator, Image, PanResponder, Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../src/services/haptics';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 
 import i18n from '../../src/i18n';
@@ -14,6 +14,8 @@ import { GlassCardSimple } from '../../src/components/ui/GlassCard';
 import KcalRing from '../../src/components/ui/KcalRing';
 import { MacroChip } from '../../src/components/ui/MacroBar';
 import WaterProgressBar from '../../src/components/ui/WaterProgressBar';
+import { ResponsiveLayout, webPointer } from '../../src/components/layout/ResponsiveLayout';
+import { useResponsive } from '../../src/hooks/useResponsive';
 import { Colors, Radius, Spacing, Typography } from '../../src/design/tokens';
 import { statsApi, waterApi, weightApi } from '../../src/services/api';
 import { useAuthStore } from '../../src/stores/authStore';
@@ -27,7 +29,7 @@ function MealRow({ label, kcal, onAdd }: { label: string, kcal: number, onAdd: (
         <Text style={styles.mealRowLabel}>{label}:</Text>
         <Text style={styles.mealRowKcal}>{kcal} kcal</Text>
       </View>
-      <Pressable style={styles.mealRowAddBtn} onPress={onAdd}>
+      <Pressable style={[styles.mealRowAddBtn, webPointer]} onPress={onAdd}>
         <MaterialIcons name="add" size={16} color={Colors.dashboard.stroke} />
       </Pressable>
     </View>
@@ -37,6 +39,7 @@ function MealRow({ label, kcal, onAdd }: { label: string, kcal: number, onAdd: (
 export default function HomeScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { isDesktop } = useResponsive();
   const user = useAuthStore((s) => s.user);
   const { selectedDate, changeDateBy, resetDate } = useDateStore();
   const [data, setData] = useState<any>(null);
@@ -142,6 +145,7 @@ export default function HomeScreen() {
     : t('homeScreen.weightNoMeasurement', 'Nincs mérés');
 
   return (
+    <ResponsiveLayout>
     <View style={styles.screen} {...panResponder.panHandlers}>
       {/* Background Grid Pattern (egyszerű fallback kód) */}
       <View style={styles.gridOverlay} pointerEvents="none" />
@@ -168,7 +172,7 @@ export default function HomeScreen() {
           </View>
           
           <View style={[styles.appBarSide, { alignItems: 'flex-end' }]}>
-            <Pressable style={styles.calendarBtn} onPress={() => router.push('/(tabs)/date-picker')}>
+            <Pressable style={[styles.calendarBtn, webPointer]} onPress={() => router.push('/(tabs)/date-picker')}>
                <View style={styles.calendarBtnShadow} />
                <View style={styles.calendarBtnInner}>
                  <MaterialIcons name="calendar-today" size={20} color={Colors.dashboard.stroke} />
@@ -183,116 +187,123 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.dashboard.stroke} />}
       >
-        {/* Card 1: Daily Calorie Progress */}
-        <GlassCardSimple
-          backgroundColor={Colors.dashboard.card}
-          customRadius={{
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 16,
-            borderBottomRightRadius: 32,
-            borderBottomLeftRadius: 16,
-          }}
-          padding={24}
-        >
-          <View style={styles.kcalRow}>
-            <View style={styles.kcalInfo}>
-              <Text style={styles.kcalLabel}>CALORIES</Text>
-              <View>
-                <Text style={styles.kcalValue}>{Math.round(totals.kcal).toLocaleString('en-US')}</Text>
-                <Text style={styles.kcalSub}>/ {Math.round(goals.dailyKcalGoal).toLocaleString('en-US')} kcal</Text>
-              </View>
-            </View>
-            <View style={styles.kcalRingWrapper}>
-              <KcalRing consumed={totals.kcal} goal={goals.dailyKcalGoal} size={100} strokeWidth={8} />
-            </View>
-          </View>
-        </GlassCardSimple>
-
-        {/* Macro Cards Row */}
-        <View style={styles.macroRow}>
-          <MacroChip type="protein" value={totals.protein} goal={140} />
-          <MacroChip type="carbs" value={totals.carbs} goal={250} />
-          <MacroChip type="fat" value={totals.fat} goal={65} />
-        </View>
-
-        {/* Nutrition Card */}
-        <GlassCardSimple
-          backgroundColor={Colors.dashboard.card}
-          customRadius={{
-            borderTopLeftRadius: 32,
-            borderTopRightRadius: 16,
-            borderBottomRightRadius: 24,
-            borderBottomLeftRadius: 32,
-          }}
-          padding={20}
-        >
-          <View style={styles.nutritionHeader}>
-            <MaterialIcons name="restaurant" size={20} color={Colors.dashboard.nutritionIcon} />
-            <Text style={styles.nutritionTitle}>{t('homeScreen.todayMeals')}</Text>
-          </View>
-          
-          <View style={styles.mealList}>
-            <MealRow label={t('food.breakfast')} kcal={breakfastKcal} onAdd={() => router.push('/(tabs)/scanner')} />
-            <View style={styles.mealDivider} />
-            <MealRow label={t('food.lunch')} kcal={lunchKcal} onAdd={() => router.push('/(tabs)/scanner')} />
-            <View style={styles.mealDivider} />
-            <MealRow label={t('food.dinner')} kcal={dinnerKcal} onAdd={() => router.push('/(tabs)/scanner')} />
-          </View>
-        </GlassCardSimple>
-
-        {/* Add Food Button (stitch HTML minta szerint) */}
-        <Pressable
-          onPress={() => router.push('/(tabs)/scanner')}
-          style={({ pressed }) => [styles.addFoodWrapper, pressed && styles.addFoodPressed]}
-        >
-          <View style={styles.addFoodShadow} />
-          <View style={styles.addFoodButton}>
-            <MaterialIcons name="add-circle" size={24} color={Colors.dashboard.stroke} />
-            <Text style={styles.addFoodLabel}>{t('homeScreen.addFoodCta')}</Text>
-          </View>
-        </Pressable>
-
-        {/* Weight Tracking Card */}
-        <View style={styles.weightCardWrapper}>
-          <View style={styles.weightCardShadow} />
-          <View style={styles.weightCard}>
-            <View style={styles.weightTopRow}>
-              <View style={styles.weightTitleRow}>
-                <View style={styles.weightIconWrap}>
-                  <MaterialCommunityIcons name="weight" size={16} color={Colors.dashboard.stroke} />
+        <View style={isDesktop ? styles.desktopGrid : undefined}>
+          <View style={isDesktop ? styles.desktopCol : undefined}>
+            {/* Card 1: Daily Calorie Progress */}
+            <GlassCardSimple
+              backgroundColor={Colors.dashboard.card}
+              customRadius={{
+                borderTopLeftRadius: 24,
+                borderTopRightRadius: 16,
+                borderBottomRightRadius: 32,
+                borderBottomLeftRadius: 16,
+              }}
+              padding={24}
+            >
+              <View style={styles.kcalRow}>
+                <View style={styles.kcalInfo}>
+                  <Text style={styles.kcalLabel}>CALORIES</Text>
+                  <View>
+                    <Text style={styles.kcalValue}>{Math.round(totals.kcal).toLocaleString('en-US')}</Text>
+                    <Text style={styles.kcalSub}>/ {Math.round(goals.dailyKcalGoal).toLocaleString('en-US')} kcal</Text>
+                  </View>
                 </View>
-                <View>
-                  <Text style={styles.weightTitle}>Súly</Text>
-                  <Text style={styles.weightSub}>{lastMeasuredText}</Text>
+                <View style={styles.kcalRingWrapper}>
+                  <KcalRing consumed={totals.kcal} goal={goals.dailyKcalGoal} size={100} strokeWidth={8} />
                 </View>
               </View>
-              <Text>
-                <Text style={styles.weightValueNum}>{weightValue}</Text>
-                <Text style={styles.weightValueUnit}> kg</Text>
-              </Text>
+            </GlassCardSimple>
+
+            {/* Macro Cards Row */}
+            <View style={styles.macroRow}>
+              <MacroChip type="protein" value={totals.protein} goal={140} />
+              <MacroChip type="carbs" value={totals.carbs} goal={250} />
+              <MacroChip type="fat" value={totals.fat} goal={65} />
             </View>
 
-            <View style={styles.weightActions}>
-              <Pressable style={styles.weightAdjustBtn} onPress={() => handleAdjustWeight(-0.1)}>
-                <Text style={styles.weightAdjustText}>−</Text>
-              </Pressable>
-              <Pressable style={styles.weightAdjustBtn} onPress={() => handleAdjustWeight(0.1)}>
-                <Text style={styles.weightAdjustText}>+</Text>
-              </Pressable>
+            {/* Weight Tracking Card */}
+            <View style={styles.weightCardWrapper}>
+              <View style={styles.weightCardShadow} />
+              <View style={styles.weightCard}>
+                <View style={styles.weightTopRow}>
+                  <View style={styles.weightTitleRow}>
+                    <View style={styles.weightIconWrap}>
+                      <MaterialCommunityIcons name="weight" size={16} color={Colors.dashboard.stroke} />
+                    </View>
+                    <View>
+                      <Text style={styles.weightTitle}>Súly</Text>
+                      <Text style={styles.weightSub}>{lastMeasuredText}</Text>
+                    </View>
+                  </View>
+                  <Text>
+                    <Text style={styles.weightValueNum}>{weightValue}</Text>
+                    <Text style={styles.weightValueUnit}> kg</Text>
+                  </Text>
+                </View>
+
+                <View style={styles.weightActions}>
+                  <Pressable style={[styles.weightAdjustBtn, webPointer]} onPress={() => handleAdjustWeight(-0.1)}>
+                    <Text style={styles.weightAdjustText}>−</Text>
+                  </Pressable>
+                  <Pressable style={[styles.weightAdjustBtn, webPointer]} onPress={() => handleAdjustWeight(0.1)}>
+                    <Text style={styles.weightAdjustText}>+</Text>
+                  </Pressable>
+                </View>
+              </View>
             </View>
+
+            {/* Water Tracking Card */}
+            <WaterProgressBar 
+              totalMl={water?.totalMl ?? 1200} 
+              goalMl={water?.goalMl ?? 2500} 
+              onAdd={handleAddWater} 
+            />
+          </View>
+
+          <View style={isDesktop ? styles.desktopCol : undefined}>
+            {/* Nutrition Card */}
+            <GlassCardSimple
+              backgroundColor={Colors.dashboard.card}
+              customRadius={{
+                borderTopLeftRadius: 32,
+                borderTopRightRadius: 16,
+                borderBottomRightRadius: 24,
+                borderBottomLeftRadius: 32,
+              }}
+              padding={20}
+            >
+              <View style={styles.nutritionHeader}>
+                <MaterialIcons name="restaurant" size={20} color={Colors.dashboard.nutritionIcon} />
+                <Text style={styles.nutritionTitle}>{t('homeScreen.todayMeals')}</Text>
+              </View>
+              
+              <View style={styles.mealList}>
+                <MealRow label={t('food.breakfast')} kcal={breakfastKcal} onAdd={() => router.push('/(tabs)/scanner')} />
+                <View style={styles.mealDivider} />
+                <MealRow label={t('food.lunch')} kcal={lunchKcal} onAdd={() => router.push('/(tabs)/scanner')} />
+                <View style={styles.mealDivider} />
+                <MealRow label={t('food.dinner')} kcal={dinnerKcal} onAdd={() => router.push('/(tabs)/scanner')} />
+              </View>
+            </GlassCardSimple>
+
+            {/* Add Food Button (stitch HTML minta szerint) */}
+            <Pressable
+              onPress={() => router.push('/(tabs)/scanner')}
+              style={({ pressed }) => [styles.addFoodWrapper, webPointer, pressed && styles.addFoodPressed]}
+            >
+              <View style={styles.addFoodShadow} />
+              <View style={styles.addFoodButton}>
+                <MaterialIcons name="add-circle" size={24} color={Colors.dashboard.stroke} />
+                <Text style={styles.addFoodLabel}>{t('homeScreen.addFoodCta')}</Text>
+              </View>
+            </Pressable>
           </View>
         </View>
 
-        {/* Water Tracking Card */}
-        <WaterProgressBar 
-          totalMl={water?.totalMl ?? 1200} 
-          goalMl={water?.goalMl ?? 2500} 
-          onAdd={handleAddWater} 
-        />
-
-        <View style={{ height: 140 }} />
+        <View style={{ height: Platform.OS === 'web' ? 72 : 140 }} />
       </ScrollView>
     </View>
+    </ResponsiveLayout>
   );
 }
 
@@ -300,6 +311,17 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: Colors.dashboard.page,
+  },
+  desktopGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    alignItems: 'flex-start',
+  },
+  desktopCol: {
+    flex: 1,
+    minWidth: 320,
+    gap: 16,
   },
   gridOverlay: {
     ...StyleSheet.absoluteFillObject,

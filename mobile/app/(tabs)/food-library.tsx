@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  Pressable, ActivityIndicator, Image, PanResponder,
+  Pressable, ActivityIndicator, Image, PanResponder, Platform,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -15,6 +15,9 @@ import AddFoodManualModal from '../../src/components/food/AddFoodManualModal';
 import FoodDetailModal from '../../src/components/food/FoodDetailModal';
 import { Colors, Spacing } from '../../src/design/tokens';
 import { useDateStore } from '../../src/stores/dateStore';
+import { ResponsiveLayout, webPointer } from '../../src/components/layout/ResponsiveLayout';
+import { useResponsive } from '../../src/hooks/useResponsive';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ─── MealItem ────────────────────────────────────────────────────────────────
 function MealItem({ name, meta, kcal, isLast }: { name: string; meta: string; kcal: number; isLast?: boolean }) {
@@ -43,8 +46,10 @@ interface MealSectionProps {
 
 function MealSection({ title, icon, iconBg, kcal, items, onAdd, onEdit }: MealSectionProps) {
   const { t } = useTranslation();
+  const { isDesktop } = useResponsive();
   
   return (
+    <View style={[styles.mealSectionWrap, isDesktop && styles.mealSectionDesktop]}>
     <BentoCard>
       <View style={styles.mealHeader}>
         <View style={styles.mealTitleRow}>
@@ -79,14 +84,14 @@ function MealSection({ title, icon, iconBg, kcal, items, onAdd, onEdit }: MealSe
       )}
 
       <View style={styles.actionRow}>
-        <Pressable style={styles.addBtn} onPress={onAdd}>
+        <Pressable style={[styles.addBtn, webPointer]} onPress={onAdd}>
           <View style={styles.btnShadow} />
           <View style={styles.addBtnInner}>
             <MaterialIcons name="add" size={18} color={Colors.dashboard.stroke} />
             <Text style={styles.btnLabel}>{t('homeScreen.addFoodCta').replace(/^\+\s*/, '')}</Text>
           </View>
         </Pressable>
-        <Pressable style={styles.editBtn} onPress={onEdit}>
+        <Pressable style={[styles.editBtn, webPointer]} onPress={onEdit}>
           <View style={styles.btnShadow} />
           <View style={styles.editBtnInner}>
             <MaterialIcons name="edit" size={18} color={Colors.dashboard.stroke} />
@@ -94,6 +99,7 @@ function MealSection({ title, icon, iconBg, kcal, items, onAdd, onEdit }: MealSe
         </Pressable>
       </View>
     </BentoCard>
+    </View>
   );
 }
 
@@ -101,6 +107,8 @@ function MealSection({ title, icon, iconBg, kcal, items, onAdd, onEdit }: MealSe
 export default function FoodLibraryScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { isDesktop, columns } = useResponsive();
+  const insets = useSafeAreaInsets();
   const { selectedDate, changeDateBy } = useDateStore();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -176,11 +184,12 @@ export default function FoodLibraryScreen() {
   };
 
   return (
+    <ResponsiveLayout>
     <View style={styles.screen} {...panResponder.panHandlers}>
       <View style={styles.doodleBg} pointerEvents="none" />
       
       {/* TopAppBar */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) + 8 }]}>
         <View style={styles.headerSide}>
           <Image 
             source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA-RQSQZ_v_tjuVpZrkLGpd0X7YTVa0peodbsQ-eYoFYSx152sgWxKtbgECEVbVug7pm-wQbjw08JnGq7fjD6Y_goSotSkftF-NdlBRCoUxs4O9F_jADgDiqSf8zEtGwImak_n9wzfHUlDsbZzEEtNRraM9fBzv9EvUc8vz2VbJEUvRChQdF97LtrVcOlG81dgRYhP_zpGZtt5e71L_bR4KiPXGyFBRPCzZHJLJSqRPkGHe9IraxiARfQNfyf8nPZFA7_bKex1rt9Y' }} 
@@ -193,7 +202,7 @@ export default function FoodLibraryScreen() {
         </View>
 
         <View style={[styles.headerSide, { alignItems: 'flex-end' }]}>
-          <Pressable style={styles.calendarBtn} onPress={() => router.push('/(tabs)/date-picker')}>
+          <Pressable style={[styles.calendarBtn, webPointer]} onPress={() => router.push('/(tabs)/date-picker')}>
             <View style={styles.calendarBtnShadow} />
             <View style={styles.calendarBtnInner}>
               <MaterialIcons name="calendar-today" size={20} color={Colors.dashboard.stroke} />
@@ -220,6 +229,7 @@ export default function FoodLibraryScreen() {
         </View>
 
         {/* Meal Sections */}
+        <View style={isDesktop ? [styles.mealsGrid, columns >= 3 && styles.mealsGrid3] : undefined}>
         <MealSection 
           type="BREAKFAST"
           title={t('food.breakfast')}
@@ -267,8 +277,9 @@ export default function FoodLibraryScreen() {
           onAdd={() => openAddFlow('SNACK')}
           onEdit={() => router.push('/(tabs)/scanner')}
         />
+        </View>
 
-        <View style={{ height: 120 }} />
+        <View style={{ height: Platform.OS === 'web' ? 72 : 120 }} />
       </ScrollView>
 
       <AddFoodManualModal
@@ -293,11 +304,27 @@ export default function FoodLibraryScreen() {
         logSource="MANUAL"
       />
     </View>
+    </ResponsiveLayout>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.dashboard.page },
+  mealsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  mealsGrid3: {},
+  mealSectionWrap: {
+    width: '100%',
+  },
+  mealSectionDesktop: {
+    flexGrow: 1,
+    flexBasis: '48%',
+    minWidth: 280,
+    maxWidth: '100%',
+  },
   loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   doodleBg: { ...StyleSheet.absoluteFillObject, opacity: 0.05 },
   header: {
@@ -305,7 +332,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: 60,
     paddingBottom: 16,
     backgroundColor: Colors.dashboard.page,
   },

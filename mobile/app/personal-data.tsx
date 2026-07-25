@@ -7,11 +7,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { MaterialIcons, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../src/services/haptics';
 
 import { Colors, Spacing } from '../src/design/tokens';
 import { profileApi } from '../src/services/api';
 import { useAuthStore } from '../src/stores/authStore';
+import { ResponsiveLayout, webPointer } from '../src/components/layout/ResponsiveLayout';
+import { useResponsive } from '../src/hooks/useResponsive';
 
 type Gender = 'MALE' | 'FEMALE';
 type ActivityKey = 'SEDENTARY' | 'ACTIVE' | 'VERY_ACTIVE';
@@ -41,6 +43,7 @@ function FieldCard({ icon, label, highlighted, children }: FieldCardProps) {
 export default function PersonalDataScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { isDesktop } = useResponsive();
   const user = useAuthStore((s) => s.user);
 
   const [loading, setLoading] = useState(true);
@@ -112,13 +115,14 @@ export default function PersonalDataScreen() {
   }
 
   return (
+    <ResponsiveLayout>
     <View style={styles.screen}>
       <View style={[styles.blob, styles.blobMint]} pointerEvents="none" />
       <View style={[styles.blob, styles.blobPeach]} pointerEvents="none" />
 
       <SafeAreaView edges={['top']} style={{ backgroundColor: 'transparent' }}>
         <View style={styles.header}>
-          <Pressable style={styles.backBtn} onPress={() => router.back()} hitSlop={8}>
+          <Pressable style={[styles.backBtn, webPointer]} onPress={() => router.back()} hitSlop={8}>
             <MaterialIcons name="arrow-back" size={22} color={Colors.dashboard.stroke} />
           </Pressable>
           <View style={styles.headerCenter}>
@@ -134,6 +138,8 @@ export default function PersonalDataScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
       >
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <View style={isDesktop ? styles.formGrid : undefined}>
+          <View style={isDesktop ? styles.formCol : undefined}>
           <FieldCard
             icon={<Ionicons name="person-outline" size={16} color={Colors.dashboard.stroke} />}
             label={t('personalData.name')}
@@ -184,7 +190,9 @@ export default function PersonalDataScreen() {
               <Text style={styles.heightUnit}>{t('personalData.heightUnit')}</Text>
             </View>
           </FieldCard>
+          </View>
 
+          <View style={isDesktop ? styles.formCol : undefined}>
           <FieldCard
             icon={<Ionicons name="male-female-outline" size={16} color={Colors.dashboard.stroke} />}
             label={t('personalData.gender')}
@@ -192,7 +200,7 @@ export default function PersonalDataScreen() {
             <View style={styles.chipRow}>
               <Pressable
                 onPress={() => setGender('MALE')}
-                style={[styles.chip, gender === 'MALE' && styles.chipActive]}
+                style={[styles.chip, gender === 'MALE' && styles.chipActive, webPointer]}
               >
                 <Text style={[styles.chipText, gender === 'MALE' && styles.chipTextActive]}>
                   {t('personalData.genderMale')}
@@ -200,7 +208,7 @@ export default function PersonalDataScreen() {
               </Pressable>
               <Pressable
                 onPress={() => setGender('FEMALE')}
-                style={[styles.chip, gender === 'FEMALE' && styles.chipActive]}
+                style={[styles.chip, gender === 'FEMALE' && styles.chipActive, webPointer]}
               >
                 <Text style={[styles.chipText, gender === 'FEMALE' && styles.chipTextActive]}>
                   {t('personalData.genderFemale')}
@@ -220,7 +228,7 @@ export default function PersonalDataScreen() {
                   <Pressable
                     key={opt.key}
                     onPress={() => setActivity(opt.key)}
-                    style={[styles.radioRow, active && styles.radioRowActive]}
+                    style={[styles.radioRow, active && styles.radioRowActive, webPointer]}
                   >
                     <View style={[styles.radioOuter, active && styles.radioOuterActive]}>
                       {active && <View style={styles.radioDot} />}
@@ -233,6 +241,8 @@ export default function PersonalDataScreen() {
               })}
             </View>
           </FieldCard>
+          </View>
+          </View>
 
           <View style={{ height: 80 }} />
         </ScrollView>
@@ -241,7 +251,7 @@ export default function PersonalDataScreen() {
           <Pressable
             disabled={saving}
             onPress={handleSave}
-            style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.85 }]}
+            style={({ pressed }) => [styles.saveBtn, webPointer, pressed && { opacity: 0.85 }]}
           >
             {saving ? (
               <ActivityIndicator color="#FFFFFF" />
@@ -252,6 +262,7 @@ export default function PersonalDataScreen() {
         </SafeAreaView>
       </KeyboardAvoidingView>
     </View>
+    </ResponsiveLayout>
   );
 }
 
@@ -259,6 +270,17 @@ const STROKE = Colors.dashboard.stroke;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.dashboard.page },
+  formGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    alignItems: 'flex-start',
+  },
+  formCol: {
+    flex: 1,
+    minWidth: 280,
+    gap: 12,
+  },
   loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   blob: {

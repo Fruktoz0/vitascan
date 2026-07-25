@@ -1,6 +1,6 @@
-import * as SecureStore from 'expo-secure-store';
+import * as Storage from './storage';
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://newhomeproject.ddns.net:3005';
+const API_BASE = process.env.EXPO_PUBLIC_API_URL;
 
 /** Ha true: részletes napló minden kéréshez (indítás, státusz, nyers válasz). */
 const API_VERBOSE =
@@ -24,7 +24,7 @@ export async function refreshAccessTokenFromStorage(): Promise<boolean> {
 
   const run = async (): Promise<boolean> => {
     try {
-      const stored = await SecureStore.getItemAsync('refreshToken');
+      const stored = await Storage.getItem('refreshToken');
       if (!stored) return false;
       const res = await fetch(`${API_BASE}/auth/refresh`, {
         method: 'POST',
@@ -37,7 +37,7 @@ export async function refreshAccessTokenFromStorage(): Promise<boolean> {
       }
       const { accessToken: newAccess, refreshToken: newRefresh } = await res.json();
       setAccessToken(newAccess);
-      await SecureStore.setItemAsync('refreshToken', newRefresh);
+      await Storage.setItem('refreshToken', newRefresh);
       return true;
     } catch {
       setAccessToken(null);

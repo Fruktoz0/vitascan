@@ -81,6 +81,8 @@ export default function AddFoodManualModal({ visible, prefillBarcode, prefillNam
                 placeholder={t('food.searchPlaceholder')}
                 placeholderTextColor={Colors.dashboard.tabInactive}
                 style={styles.searchInput}
+                underlineColorAndroid="transparent"
+                selectionColor={Colors.dashboard.stroke}
               />
             </View>
           </View>
@@ -209,7 +211,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', borderWidth: 1.5, borderColor: Colors.dashboard.stroke,
     borderRadius: 26, paddingHorizontal: 14, ...StyleSheet.absoluteFillObject,
   },
-  searchInput: { flex: 1, paddingVertical: 12, color: Colors.dashboard.stroke, fontSize: 14 },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 12,
+    color: Colors.dashboard.stroke,
+    fontSize: 16,
+    outlineStyle: 'none' as any,
+    outlineWidth: 0,
+  },
   tabRow: { marginTop: 10 },
   tabRowContent: { flexDirection: 'row', gap: 8, paddingRight: 8 },
   tabChipWrap: { height: 32 },

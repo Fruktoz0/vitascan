@@ -2,7 +2,7 @@ import 'intl-pluralrules';
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import * as Localization from 'expo-localization';
-import * as SecureStore from 'expo-secure-store';
+import * as Storage from '../services/storage';
 
 import huCommon from './locales/hu/common.json';
 import enCommon from './locales/en/common.json';
@@ -24,7 +24,7 @@ i18n.use(initReactI18next).init({
 });
 
 export async function initializeLanguage() {
-  const saved = await SecureStore.getItemAsync(LANGUAGE_KEY);
+  const saved = await Storage.getItem(LANGUAGE_KEY);
   if (saved && supportedLng.includes(saved) && saved !== i18n.language) {
     await i18n.changeLanguage(saved);
   }
@@ -32,7 +32,7 @@ export async function initializeLanguage() {
 
 export async function setAppLanguage(language: 'hu' | 'en') {
   await i18n.changeLanguage(language);
-  await SecureStore.setItemAsync(LANGUAGE_KEY, language);
+  await Storage.setItem(LANGUAGE_KEY, language);
 }
 
 export default i18n;

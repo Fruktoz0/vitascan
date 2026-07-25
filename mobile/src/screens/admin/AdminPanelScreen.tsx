@@ -6,13 +6,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../services/haptics';
 
 import { adminApi } from '../../services/api';
 import { GlassCardSimple } from '../../components/ui/GlassCard';
 import { PrimaryButton, GhostButton } from '../../components/ui/Button';
 import { ExpertBadge, getReputationLevel } from '../../components/badge/ExpertBadge';
 import { Colors, Gradients, Radius, Spacing, Typography } from '../../design/tokens';
+import { ResponsiveLayout, webPointer } from '../../components/layout/ResponsiveLayout';
+import { useResponsive } from '../../hooks/useResponsive';
 
 // ─── Típusok ──────────────────────────────────────────────────────────────────
 
@@ -527,8 +529,10 @@ function UsersTab() {
 
 export default function AdminPanelScreen() {
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
+  const { isDesktop } = useResponsive();
 
   return (
+    <ResponsiveLayout>
     <View style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
       <SafeAreaView style={{ flex: 1 }}>
         <LinearGradient
@@ -543,11 +547,11 @@ export default function AdminPanelScreen() {
             </View>
           </View>
 
-          <View style={styles.tabBar}>
+          <View style={[styles.tabBar, isDesktop && styles.tabBarDesktop]}>
             {TABS.map((tab) => (
               <Pressable
                 key={tab.id}
-                style={[styles.tabBtn, activeTab === tab.id && styles.tabBtnActive]}
+                style={[styles.tabBtn, activeTab === tab.id && styles.tabBtnActive, webPointer]}
                 onPress={() => setActiveTab(tab.id)}
               >
                 <Text style={styles.tabEmoji}>{tab.emoji}</Text>
@@ -566,6 +570,7 @@ export default function AdminPanelScreen() {
         </View>
       </SafeAreaView>
     </View>
+    </ResponsiveLayout>
   );
 }
 
@@ -578,6 +583,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 22, fontWeight: '900', color: '#fff' },
   headerSub: { ...Typography.caption, color: 'rgba(255,255,255,0.6)' },
   tabBar: { flexDirection: 'row', paddingHorizontal: Spacing.lg },
+  tabBarDesktop: { maxWidth: 640, alignSelf: 'center', width: '100%' },
   tabBtn: { flex: 1, alignItems: 'center', paddingVertical: Spacing.md, gap: 2, opacity: 0.6 },
   tabBtnActive: { opacity: 1, borderBottomWidth: 2, borderBottomColor: Colors.primary },
   tabEmoji: { fontSize: 18 },
@@ -604,7 +610,7 @@ const styles = StyleSheet.create({
   searchRow: {},
   searchInput: {
     backgroundColor: '#F5F5F5', borderRadius: Radius.lg,
-    padding: Spacing.md, fontSize: 14, color: Colors.text.primary,
+    padding: Spacing.md, fontSize: 16, color: Colors.text.primary,
     borderWidth: 1, borderColor: '#E8E8E8', marginBottom: Spacing.sm,
   },
   chipRow: { flexDirection: 'row', gap: Spacing.xs },

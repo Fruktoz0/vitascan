@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   overrideRow: { flexDirection: 'row', gap: 8 },
   overrideInput: {
     flex: 1, backgroundColor: '#F5F5F5', borderRadius: 12, padding: 12,
-    fontSize: 15, borderWidth: 1.5, borderColor: '#E8E8E8',
+    fontSize: 16, borderWidth: 1.5, borderColor: '#E8E8E8',
   },
   applyBtn: {
     backgroundColor: '#FF6B35', borderRadius: 12, paddingHorizontal: 16,

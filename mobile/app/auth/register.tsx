@@ -9,6 +9,7 @@ import { Link, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { GlassCardSimple } from '../../src/components/ui/GlassCard';
+import { ResponsiveLayout, webPointer } from '../../src/components/layout/ResponsiveLayout';
 import { Colors, Spacing } from '../../src/design/tokens';
 import { useAuthStore } from '../../src/stores/authStore';
 import { ApiError } from '../../src/services/api';
@@ -158,6 +159,7 @@ export default function RegisterScreen() {
   };
 
   return (
+    <ResponsiveLayout>
     <View style={styles.container}>
       {/* Decorative Floating Doodles */}
       <View style={[styles.bubble, styles.bubble1]} />
@@ -260,6 +262,7 @@ export default function RegisterScreen() {
                     android_ripple={{ color: 'rgba(26,26,26,0.08)' }}
                     style={({ pressed }) => [
                       styles.submitBtnHit,
+                      webPointer,
                       pressed && accepted && !loading && styles.submitBtnPressed,
                     ]}
                   >
@@ -304,6 +307,7 @@ export default function RegisterScreen() {
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
+    </ResponsiveLayout>
   );
 }
 
