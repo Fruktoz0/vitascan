@@ -28,6 +28,7 @@ model User {
   refreshTokens RefreshToken[]
   waterLogs     WaterLog[]
   weightLogs    WeightLog[]
+  dailyAnalyses DailyAnalysis[]
 
   deletedAt DateTime? // Soft delete (GDPR - 30 napos türelmi idő)
   createdAt DateTime  @default(now())
@@ -154,6 +155,21 @@ model WeightLog {
   loggedDate DateTime @db.Date
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([userId, loggedDate])
+  @@index([userId, loggedDate])
+}
+
+/** Napi AI táplálkozási elemzés — max 2 generálás / nap, új felülírja a régit. */
+model DailyAnalysis {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  loggedDate      DateTime @db.Date
+  content         String
+  generationCount Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@unique([userId, loggedDate])
   @@index([userId, loggedDate])

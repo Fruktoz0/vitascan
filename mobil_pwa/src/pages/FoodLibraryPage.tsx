@@ -16,7 +16,7 @@ import {
   IconPieChartOutline,
   IconRamenDining,
 } from '../components/ui/Icons';
-import { statsApi, type Food } from '../services/api';
+import { analysisApi, statsApi, ApiError, type DailyAnalysisResult, type Food } from '../services/api';
 import { useDateStore } from '../stores/dateStore';
 import { useProfileStore } from '../stores/profileStore';
 import { UserAvatar } from '../components/ui/AvatarPicker';
@@ -45,15 +45,23 @@ export default function FoodLibraryPage() {
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [selectedLog, setSelectedLog] = useState<DailyLogItem | null>(null);
   const [mealForAdd, setMealForAdd] = useState<MealType>('SNACK');
+  const [analysis, setAnalysis] = useState<DailyAnalysisResult | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+
+  const dateStr = selectedDate.toISOString().split('T')[0];
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const dateStr = selectedDate.toISOString().split('T')[0];
-      setData(await statsApi.day(dateStr));
+      const [summary, analysisRes] = await Promise.all([
+        statsApi.day(dateStr),
+        analysisApi.get(dateStr).catch(() => null),
+      ]);
+      setData(summary);
+      setAnalysis(analysisRes);
     } catch {}
     setLoading(false);
-  }, [selectedDate]);
+  }, [dateStr]);
 
   useEffect(() => {
     fetchData();
@@ -64,8 +72,7 @@ export default function FoodLibraryPage() {
     month: 'long',
     day: 'numeric',
   });
-  const totals = data?.totals ?? { kcal: 0, protein: 0, carbs: 0, fat: 0 };
-  const goals = data?.goals ?? { dailyKcalGoal: 2000 };
+  const totals = data?.totals ?? { kcal: 0 };
   const meals: MealType[] = ['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK'];
   const labels: Record<MealType, string> = {
     BREAKFAST: t('food.breakfast'),
@@ -75,20 +82,34 @@ export default function FoodLibraryPage() {
     DINNER: t('food.dinner'),
     SNACK: t('food.snack'),
   };
-
   const fmt = (n: number) => Math.round(n * 10) / 10;
-  const kcalGoal = goals.dailyKcalGoal || 2000;
-  const kcalPct = Math.min(100, Math.round(((totals.kcal ?? 0) / kcalGoal) * 100));
-  const macroSum = Math.max(0.1, (totals.protein ?? 0) + (totals.carbs ?? 0) + (totals.fat ?? 0));
-  const proteinPct = Math.round(((totals.protein ?? 0) / macroSum) * 100);
-  const carbsPct = Math.round(((totals.carbs ?? 0) / macroSum) * 100);
-  const fatPct = Math.round(((totals.fat ?? 0) / macroSum) * 100);
-  const analysisHint =
-    kcalPct >= 100
-      ? t('foodLibraryScreen.analysisOver', 'Elérted vagy meghaladtad a napi kalóriacélt.')
-      : kcalPct >= 70
-        ? t('foodLibraryScreen.analysisOnTrack', 'Jó úton vagy a napi cél felé.')
-        : t('foodLibraryScreen.analysisLow', 'Még van tér a napi célhoz képest.');
+  const hasLogs = (data?.logs?.length ?? 0) > 0 || meals.some((m) => (data?.byMealType?.[m]?.length ?? 0) > 0);
+  const remaining = analysis?.remaining ?? 2;
+  const canGenerate = hasLogs && remaining > 0 && !analysisLoading;
+
+  const handleGenerate = async () => {
+    if (!hasLogs) {
+      window.alert(t('foodLibraryScreen.noFoodForAnalysis', 'Nincs rögzített étel erre a napra.'));
+      return;
+    }
+    if (remaining <= 0) {
+      window.alert(t('foodLibraryScreen.analysisLimit', 'Ma már 2 elemzést kértél.'));
+      return;
+    }
+    setAnalysisLoading(true);
+    try {
+      const locale = i18n.language?.startsWith('en') ? 'en' : 'hu';
+      setAnalysis(await analysisApi.generate(dateStr, locale));
+    } catch (e: any) {
+      const msg =
+        e instanceof ApiError
+          ? e.message
+          : e?.message || t('foodLibraryScreen.analysisError', 'Az elemzés sikertelen.');
+      window.alert(msg);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
 
   return (
     <div className={`${styles.screen} page-scroll`}>
@@ -208,40 +229,41 @@ export default function FoodLibraryPage() {
                 <span className={styles.iconCircle} style={{ background: Colors.dashboard.softBlue }}>
                   <IconPieChartOutline size={24} color={Colors.dashboard.stroke} />
                 </span>
-                <h2 className={styles.mealTitle}>{t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés')}</h2>
+                <div className={styles.mealTitleBlock}>
+                  <h2 className={styles.mealTitle}>{t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés')}</h2>
+                  <div className={styles.mealSummaryMacros}>
+                    {t('foodLibraryScreen.analysisRemaining', '{{count}} / 2 generálás maradt', {
+                      count: remaining,
+                    })}
+                  </div>
+                </div>
               </div>
-              <span className={styles.kcalBadge}>{kcalPct}%</span>
             </div>
 
-            <div className={styles.analysisKcalRow}>
-              <span className={styles.analysisKcalLabel}>{t('food.energy')}</span>
-              <span className={styles.analysisKcalValue}>
-                {Math.round(totals.kcal ?? 0)} / {Math.round(kcalGoal)} kcal
+            {analysis?.content ? (
+              <p className={styles.analysisContent}>{analysis.content}</p>
+            ) : (
+              <p className={styles.analysisEmpty}>
+                {t(
+                  'foodLibraryScreen.analysisEmpty',
+                  'Indíts elemzést, hogy az AI értékelje az aznapi étkezésedet.',
+                )}
+              </p>
+            )}
+
+            <button
+              type="button"
+              className={styles.analysisBtn}
+              onClick={handleGenerate}
+              disabled={!canGenerate}
+            >
+              <span className={styles.btnShadow} />
+              <span className={styles.analysisBtnFace}>
+                {analysisLoading
+                  ? t('foodLibraryScreen.analyzing', 'Elemzés folyamatban...')
+                  : t('foodLibraryScreen.startAnalysis', 'Elemzés indítása')}
               </span>
-            </div>
-            <div className={styles.analysisTrack}>
-              <div className={styles.analysisFill} style={{ width: `${kcalPct}%` }} />
-            </div>
-
-            <div className={styles.analysisMacros}>
-              <div className={styles.analysisMacroRow}>
-                <span className={styles.analysisMacroDot} style={{ background: Colors.dashboard.proteinFill }} />
-                <span className={styles.analysisMacroLabel}>{t('food.protein')}</span>
-                <span className={styles.analysisMacroValue}>{fmt(totals.protein ?? 0)}g · {proteinPct}%</span>
-              </div>
-              <div className={styles.analysisMacroRow}>
-                <span className={styles.analysisMacroDot} style={{ background: Colors.dashboard.carbsFill }} />
-                <span className={styles.analysisMacroLabel}>{t('food.carbs')}</span>
-                <span className={styles.analysisMacroValue}>{fmt(totals.carbs ?? 0)}g · {carbsPct}%</span>
-              </div>
-              <div className={styles.analysisMacroRow}>
-                <span className={styles.analysisMacroDot} style={{ background: Colors.dashboard.fatFill }} />
-                <span className={styles.analysisMacroLabel}>{t('food.fat')}</span>
-                <span className={styles.analysisMacroValue}>{fmt(totals.fat ?? 0)}g · {fatPct}%</span>
-              </div>
-            </div>
-
-            <p className={styles.analysisHint}>{analysisHint}</p>
+            </button>
           </BentoCard>
           </>
         )}

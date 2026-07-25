@@ -283,85 +283,56 @@
   background: #fff;
 }
 
-.analysisKcalRow {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-top: 4px;
-  margin-bottom: 8px;
-}
-
-.analysisKcalLabel {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--tab-inactive);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-
-.analysisKcalValue {
-  font-size: 15px;
-  font-weight: 800;
-  color: var(--stroke);
-}
-
-.analysisTrack {
-  height: 12px;
-  border-radius: 999px;
-  border: 1.5px solid var(--stroke);
-  background: var(--surface-low);
-  overflow: hidden;
-  margin-bottom: 16px;
-}
-
-.analysisFill {
-  height: 100%;
-  background: var(--nutrition-icon);
-  border-radius: 999px;
-  min-width: 4px;
-}
-
-.analysisMacros {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.analysisMacroRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.analysisMacroDot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  border: 1px solid var(--stroke);
-  flex-shrink: 0;
-}
-
-.analysisMacroLabel {
-  flex: 1;
+.analysisContent {
+  margin: 4px 0 14px;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 500;
+  line-height: 1.45;
   color: var(--stroke);
+  white-space: pre-wrap;
 }
 
-.analysisMacroValue {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--tab-inactive);
-}
-
-.analysisHint {
-  margin: 16px 0 0;
-  padding: 12px 14px;
-  border-radius: 16px;
-  border: 1.5px solid var(--stroke);
-  background: var(--soft-green, #e8f5e9);
+.analysisEmpty {
+  margin: 4px 0 14px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--stroke);
+  color: var(--tab-inactive);
   line-height: 1.4;
+}
+
+.analysisBtn {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 52px;
+  padding-right: 2px;
+  padding-bottom: 2px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.analysisBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.analysisBtnFace {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1.5px solid var(--stroke);
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 15px;
+  background: var(--soft-green, #e8f5e9);
+  color: var(--stroke);
+}
+
+.analysisBtn .btnShadow {
+  border-radius: 999px;
 }

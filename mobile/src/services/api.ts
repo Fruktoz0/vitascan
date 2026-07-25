@@ -185,6 +185,23 @@ export const logApi = {
   delete: (id: string) => request(`/logs/${id}`, { method: 'DELETE' }),
 };
 
+export type DailyAnalysisResult = {
+  date: string;
+  content: string | null;
+  generationCount: number;
+  remaining: number;
+  updatedAt: string | null;
+};
+
+export const analysisApi = {
+  get: (date: string) => request<DailyAnalysisResult>(`/analysis?date=${date}`),
+  generate: (date: string, locale?: 'hu' | 'en') =>
+    request<DailyAnalysisResult>('/analysis', {
+      method: 'POST',
+      body: JSON.stringify({ date, ...(locale ? { locale } : {}) }),
+    }),
+};
+
 // ─── Water ────────────────────────────────────────────────────────────────────
 export const waterApi = {
   getToday: () =>

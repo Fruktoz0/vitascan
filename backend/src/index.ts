@@ -17,6 +17,7 @@ import statsRoutes from './modules/stats/stats.routes';
 import onboardingRoutes from './modules/onboarding/onboarding.routes';
 import exportRoutes from './modules/export/export.routes';
 import weightRoutes from './modules/weight/weight.routes';
+import analysisRoutes from './modules/analysis/analysis.routes';
 import { startRefreshTokenCleanupScheduler } from './jobs/refresh-token-cleanup.scheduler';
 
 const fastify = Fastify({
@@ -68,6 +69,7 @@ async function bootstrap() {
   await fastify.register(logRoutes, { prefix: '/logs' });
   await fastify.register(waterRoutes, { prefix: '/water' });
   await fastify.register(weightRoutes, { prefix: '/weight' });
+  await fastify.register(analysisRoutes, { prefix: '/analysis' });
   await fastify.register(profileRoutes, { prefix: '/profile' });
   await fastify.register(statsRoutes, { prefix: '/stats' });
   await fastify.register(onboardingRoutes, { prefix: '/onboarding' });

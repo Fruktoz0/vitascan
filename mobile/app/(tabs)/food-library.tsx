@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  Pressable, ActivityIndicator, PanResponder, Platform,
+  Pressable, ActivityIndicator, PanResponder, Platform, Alert,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import i18n from '../../src/i18n';
 
-import { Food, statsApi } from '../../src/services/api';
+import { Food, statsApi, analysisApi, ApiError, type DailyAnalysisResult } from '../../src/services/api';
 import { BentoCard } from '../../src/components/ui/BentoCard';
 import AddFoodManualModal from '../../src/components/food/AddFoodManualModal';
 import FoodDetailModal from '../../src/components/food/FoodDetailModal';
@@ -172,6 +172,8 @@ export default function FoodLibraryScreen() {
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [selectedLog, setSelectedLog] = useState<DailyLogItem | null>(null);
   const [selectedMealType, setSelectedMealType] = useState<'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK'>('SNACK');
+  const [analysis, setAnalysis] = useState<DailyAnalysisResult | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
 
   const getHeaderDateText = () => {
     const today = new Date();
@@ -191,8 +193,12 @@ export default function FoodLibraryScreen() {
   const fetchData = useCallback(async () => {
     try {
       const dateStr = selectedDate.toISOString().split('T')[0];
-      const summary = await statsApi.day(dateStr);
+      const [summary, analysisRes] = await Promise.all([
+        statsApi.day(dateStr),
+        analysisApi.get(dateStr).catch(() => null),
+      ]);
       setData(summary);
+      setAnalysis(analysisRes);
     } catch (e) {
       console.error(e);
     } finally {
@@ -233,22 +239,41 @@ export default function FoodLibraryScreen() {
   const totals = data?.totals ?? { kcal: 0, protein: 0, carbs: 0, fat: 0 };
   const goals = data?.goals ?? { dailyKcalGoal: 2200 };
   const meals = data?.byMealType ?? {};
-  const kcalGoal = goals.dailyKcalGoal || 2000;
-  const kcalPct = Math.min(100, Math.round(((totals.kcal ?? 0) / kcalGoal) * 100));
-  const macroSum = Math.max(0.1, (totals.protein ?? 0) + (totals.carbs ?? 0) + (totals.fat ?? 0));
-  const proteinPct = Math.round(((totals.protein ?? 0) / macroSum) * 100);
-  const carbsPct = Math.round(((totals.carbs ?? 0) / macroSum) * 100);
-  const fatPct = Math.round(((totals.fat ?? 0) / macroSum) * 100);
-  const analysisHint =
-    kcalPct >= 100
-      ? t('foodLibraryScreen.analysisOver', 'Elérted vagy meghaladtad a napi kalóriacélt.')
-      : kcalPct >= 70
-        ? t('foodLibraryScreen.analysisOnTrack', 'Jó úton vagy a napi cél felé.')
-        : t('foodLibraryScreen.analysisLow', 'Még van tér a napi célhoz képest.');
+  const dateStr = selectedDate.toISOString().split('T')[0];
+  const hasLogs =
+    (data?.logs?.length ?? 0) > 0 ||
+    Object.values(meals).some((arr: any) => Array.isArray(arr) && arr.length > 0);
+  const remaining = analysis?.remaining ?? 2;
+  const canGenerate = hasLogs && remaining > 0 && !analysisLoading;
 
   const openAddFlow = (mealType: 'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK') => {
     setSelectedMealType(mealType);
     setManualVisible(true);
+  };
+
+  const handleGenerate = async () => {
+    if (!hasLogs) {
+      Alert.alert(t('foodLibraryScreen.noFoodForAnalysis', 'Nincs rögzített étel erre a napra.'));
+      return;
+    }
+    if (remaining <= 0) {
+      Alert.alert(t('foodLibraryScreen.analysisLimit', 'Ma már 2 elemzést kértél.'));
+      return;
+    }
+    setAnalysisLoading(true);
+    try {
+      const locale = i18n.language?.startsWith('en') ? 'en' : 'hu';
+      setAnalysis(await analysisApi.generate(dateStr, locale));
+    } catch (e: any) {
+      Alert.alert(
+        t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés'),
+        e instanceof ApiError
+          ? e.message
+          : e?.message || t('foodLibraryScreen.analysisError', 'Az elemzés sikertelen.'),
+      );
+    } finally {
+      setAnalysisLoading(false);
+    }
   };
 
   return (
@@ -372,45 +397,44 @@ export default function FoodLibraryScreen() {
               <View style={[styles.iconCircle, { backgroundColor: Colors.dashboard.softBlue }]}>
                 <MaterialIcons name="pie-chart" size={24} color={Colors.dashboard.stroke} />
               </View>
-              <Text style={styles.mealTitle}>{t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés')}</Text>
-            </View>
-            <View style={styles.kcalBadge}>
-              <Text style={styles.kcalBadgeValue}>{kcalPct}</Text>
-              <Text style={styles.kcalBadgeUnit}>%</Text>
+              <View style={styles.mealTitleBlock}>
+                <Text style={styles.mealTitle}>{t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés')}</Text>
+                <Text style={styles.mealSummaryMacros}>
+                  {t('foodLibraryScreen.analysisRemaining', '{{count}} / 2 generálás maradt', {
+                    count: remaining,
+                  })}
+                </Text>
+              </View>
             </View>
           </View>
 
-          <View style={styles.analysisKcalRow}>
-            <Text style={styles.analysisKcalLabel}>{t('food.energy', 'Energia')}</Text>
-            <Text style={styles.analysisKcalValue}>
-              {Math.round(totals.kcal ?? 0)} / {Math.round(kcalGoal)} kcal
+          {analysis?.content ? (
+            <Text style={styles.analysisContent}>{analysis.content}</Text>
+          ) : (
+            <Text style={styles.analysisEmpty}>
+              {t(
+                'foodLibraryScreen.analysisEmpty',
+                'Indíts elemzést, hogy az AI értékelje az aznapi étkezésedet.',
+              )}
             </Text>
-          </View>
-          <View style={styles.analysisTrack}>
-            <View style={[styles.analysisFill, { width: `${kcalPct}%` as any }]} />
-          </View>
+          )}
 
-          <View style={styles.analysisMacros}>
-            <View style={styles.analysisMacroRow}>
-              <View style={[styles.analysisMacroDot, { backgroundColor: Colors.dashboard.proteinFill }]} />
-              <Text style={styles.analysisMacroLabel}>{t('food.protein')}</Text>
-              <Text style={styles.analysisMacroValue}>{fmtMacro(totals.protein ?? 0)}g · {proteinPct}%</Text>
+          <Pressable
+            style={[styles.analysisBtn, webPointer, !canGenerate && styles.analysisBtnDisabled]}
+            onPress={handleGenerate}
+            disabled={!canGenerate}
+          >
+            <View style={styles.btnShadow} />
+            <View style={styles.analysisBtnInner}>
+              {analysisLoading ? (
+                <ActivityIndicator color={Colors.dashboard.stroke} />
+              ) : (
+                <Text style={styles.analysisBtnLabel}>
+                  {t('foodLibraryScreen.startAnalysis', 'Elemzés indítása')}
+                </Text>
+              )}
             </View>
-            <View style={styles.analysisMacroRow}>
-              <View style={[styles.analysisMacroDot, { backgroundColor: Colors.dashboard.carbsFill }]} />
-              <Text style={styles.analysisMacroLabel}>{t('food.carbs')}</Text>
-              <Text style={styles.analysisMacroValue}>{fmtMacro(totals.carbs ?? 0)}g · {carbsPct}%</Text>
-            </View>
-            <View style={styles.analysisMacroRow}>
-              <View style={[styles.analysisMacroDot, { backgroundColor: Colors.dashboard.fatFill }]} />
-              <Text style={styles.analysisMacroLabel}>{t('food.fat')}</Text>
-              <Text style={styles.analysisMacroValue}>{fmtMacro(totals.fat ?? 0)}g · {fatPct}%</Text>
-            </View>
-          </View>
-
-          <View style={styles.analysisHint}>
-            <Text style={styles.analysisHintText}>{analysisHint}</Text>
-          </View>
+          </Pressable>
         </BentoCard>
 
         <View style={{ height: Platform.OS === 'web' ? 72 : 120 }} />
@@ -550,64 +574,35 @@ const styles = StyleSheet.create({
   emptyState: { paddingVertical: 24, alignItems: 'center', opacity: 0.7 },
   emptyText: { fontSize: 16, color: Colors.dashboard.tabInactive },
   actionRow: { flexDirection: 'row', gap: 12 },
-  analysisKcalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: 8,
+  analysisContent: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.dashboard.stroke,
+    lineHeight: 20,
+    marginBottom: 14,
   },
-  analysisKcalLabel: {
+  analysisEmpty: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: Colors.dashboard.tabInactive,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    lineHeight: 18,
+    marginBottom: 14,
   },
-  analysisKcalValue: {
+  analysisBtn: { height: 52, width: '100%' },
+  analysisBtnDisabled: { opacity: 0.55 },
+  analysisBtnInner: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Colors.dashboard.softGreen,
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  analysisBtnLabel: {
     fontSize: 15,
     fontWeight: '800',
     color: Colors.dashboard.stroke,
-  },
-  analysisTrack: {
-    height: 12,
-    borderRadius: 999,
-    borderWidth: 1.5,
-    borderColor: Colors.dashboard.stroke,
-    backgroundColor: Colors.dashboard.surfaceContainerLow,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  analysisFill: {
-    height: '100%',
-    backgroundColor: Colors.dashboard.nutritionIcon,
-    borderRadius: 999,
-    minWidth: 4,
-  },
-  analysisMacros: { gap: 10 },
-  analysisMacroRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  analysisMacroDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: Colors.dashboard.stroke,
-  },
-  analysisMacroLabel: { flex: 1, fontSize: 14, fontWeight: '700', color: Colors.dashboard.stroke },
-  analysisMacroValue: { fontSize: 13, fontWeight: '700', color: Colors.dashboard.tabInactive },
-  analysisHint: {
-    marginTop: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: Colors.dashboard.stroke,
-    backgroundColor: Colors.dashboard.softGreen,
-  },
-  analysisHintText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.dashboard.stroke,
-    lineHeight: 18,
   },
   addBtn: { flex: 3, height: 52 },
   editBtn: { flex: 1, height: 52 },

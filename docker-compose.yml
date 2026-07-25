@@ -21,6 +21,8 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       DB_TOOLS_URL: ${DB_TOOLS_URL:-http://db-tools:3010}
       DB_TOOLS_SECRET: ${DB_TOOLS_SECRET:-changeme-generate-strong-db-tools-secret}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
     ports:
       - "${PORT:-3005}:${PORT:-3005}"
     networks:
