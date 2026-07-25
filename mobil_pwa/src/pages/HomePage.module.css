@@ -237,8 +237,37 @@
 .nutritionHeader {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 12px;
+  margin-bottom: 0;
+  padding-left: 0;
+}
+
+.nutritionIconCircle {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.nutritionIconShadow {
+  position: absolute;
+  inset: 0;
+  top: 2px;
+  left: 2px;
+  background: var(--shadow-hard);
+  border-radius: 20px;
+}
+
+.nutritionIconInner {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1.5px solid var(--stroke);
+  border-radius: 20px;
 }
 
 .nutritionTitle {
@@ -246,11 +275,95 @@
   font-weight: 800;
 }
 
+.mealsBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mealCards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .mealRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 0;
+  padding: 0;
+}
+
+.mealSection {
+  padding: 0;
+}
+
+.mealItems {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0 0;
+}
+
+.mealFoodItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1.5px solid var(--stroke);
+  background: #fff;
+  cursor: pointer;
+}
+
+.mealFoodItem:active {
+  transform: translate(1px, 1px);
+}
+
+.mealFoodLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.mealFoodName {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--stroke);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mealFoodMeta {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tab-inactive);
+}
+
+.mealFoodRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.mealFoodKcal {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--stroke);
+}
+
+.mealFoodMacros {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--tab-inactive);
 }
 
 .mealRowLeft {

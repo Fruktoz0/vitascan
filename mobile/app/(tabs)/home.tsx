@@ -23,6 +23,7 @@ import { useProfileStore } from '../../src/stores/profileStore';
 import { useDateStore } from '../../src/stores/dateStore';
 import AddFoodManualModal from '../../src/components/food/AddFoodManualModal';
 import FoodDetailModal from '../../src/components/food/FoodDetailModal';
+import EditLogModal, { type DailyLogItem } from '../../src/components/food/EditLogModal';
 import { UserAvatar } from '../../src/components/ui/AvatarPicker';
 
 type MealType = 'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK';
@@ -39,34 +40,73 @@ function sumMeal(logs: any[] | undefined) {
   );
 }
 
-function MealRow({
+function fmtMacro(n: number) {
+  return Math.round(n * 10) / 10;
+}
+
+function MealSection({
   label,
-  kcal,
-  protein,
-  carbs,
-  fat,
+  logs,
   onAdd,
+  onEditLog,
+  customRadius,
 }: {
   label: string;
-  kcal: number;
-  protein: number;
-  carbs: number;
-  fat: number;
+  logs: any[];
   onAdd: () => void;
+  onEditLog: (log: DailyLogItem) => void;
+  customRadius?: {
+    borderTopLeftRadius?: number;
+    borderTopRightRadius?: number;
+    borderBottomRightRadius?: number;
+    borderBottomLeftRadius?: number;
+  };
 }) {
+  const totals = sumMeal(logs);
   return (
-    <View style={styles.mealRow}>
-      <View style={styles.mealRowLeft}>
-        <Text style={styles.mealRowLabel}>{label}:</Text>
-        <Text style={styles.mealRowKcal}>{Math.round(kcal)} kcal</Text>
-        <Text style={styles.mealRowMacros}>
-          F {Math.round(protein * 10) / 10}g · Sz {Math.round(carbs * 10) / 10}g · Zs {Math.round(fat * 10) / 10}g
-        </Text>
+    <GlassCardSimple
+      backgroundColor="#FFFFFF"
+      padding={14}
+      shadowOffset={2}
+      customRadius={customRadius}
+    >
+      <View style={styles.mealSection}>
+        <View style={styles.mealRow}>
+          <View style={styles.mealRowLeft}>
+            <Text style={styles.mealRowLabel}>{label}</Text>
+            <Text style={styles.mealRowKcal}>{Math.round(totals.kcal)} kcal</Text>
+            <Text style={styles.mealRowMacros}>
+              F {fmtMacro(totals.protein)}g · Sz {fmtMacro(totals.carbs)}g · Zs {fmtMacro(totals.fat)}g
+            </Text>
+          </View>
+          <Pressable style={[styles.mealRowAddBtn, webPointer]} onPress={onAdd}>
+            <MaterialIcons name="add" size={16} color={Colors.dashboard.stroke} />
+          </Pressable>
+        </View>
+        {logs.length > 0 && (
+          <View style={styles.mealItems}>
+            {logs.map((log) => (
+              <Pressable
+                key={log.id}
+                style={[styles.mealFoodItem, webPointer]}
+                onPress={() => onEditLog(log)}
+              >
+                <View style={styles.mealFoodLeft}>
+                  <Text style={styles.mealFoodName} numberOfLines={1}>{log.foodName}</Text>
+                  <Text style={styles.mealFoodMeta}>{Math.round(log.amount ?? 100)}g</Text>
+                </View>
+                <View style={styles.mealFoodRight}>
+                  <Text style={styles.mealFoodKcal}>{Math.round(log.kcal)} kcal</Text>
+                  <Text style={styles.mealFoodMacros}>
+                    F {fmtMacro(log.protein)} · Sz {fmtMacro(log.carbs)} · Zs {fmtMacro(log.fat)}
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        )}
       </View>
-      <Pressable style={[styles.mealRowAddBtn, webPointer]} onPress={onAdd}>
-        <MaterialIcons name="add" size={16} color={Colors.dashboard.stroke} />
-      </Pressable>
-    </View>
+    </GlassCardSimple>
   );
 }
 
@@ -84,6 +124,7 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [manualOpen, setManualOpen] = useState(false);
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
+  const [selectedLog, setSelectedLog] = useState<DailyLogItem | null>(null);
   const [mealForAdd, setMealForAdd] = useState<MealType>('SNACK');
 
   const openAddFood = (meal: MealType) => {
@@ -175,15 +216,14 @@ export default function HomeScreen() {
     );
   }
 
-  const totals = data?.totals ?? { kcal: 1420, protein: 85, carbs: 120, fat: 45 };
+  const totals = data?.totals ?? { kcal: 0, protein: 0, carbs: 0, fat: 0 };
   const goals = data?.goals ?? { dailyKcalGoal: 2200 };
-  
-  // HTML mockup adatai ha nincsenek igaziak
-  const breakfast = sumMeal(data?.byMealType?.BREAKFAST);
-  const tizorai = sumMeal(data?.byMealType?.TIZORAI);
-  const lunch = sumMeal(data?.byMealType?.LUNCH);
-  const uzsonna = sumMeal(data?.byMealType?.UZSONNA);
-  const dinner = sumMeal(data?.byMealType?.DINNER);
+
+  const breakfastLogs = data?.byMealType?.BREAKFAST ?? [];
+  const tizoraiLogs = data?.byMealType?.TIZORAI ?? [];
+  const lunchLogs = data?.byMealType?.LUNCH ?? [];
+  const uzsonnaLogs = data?.byMealType?.UZSONNA ?? [];
+  const dinnerLogs = data?.byMealType?.DINNER ?? [];
   const weightValue = typeof weight?.weightKg === 'number' ? weight.weightKg.toFixed(1) : '--';
   const lastMeasuredText = weight?.lastMeasuredAt
     ? t('homeScreen.weightLastMeasuredToday', 'Utolsó mérés: ma')
@@ -267,7 +307,98 @@ export default function HomeScreen() {
               <MacroChip type="fat" value={totals.fat} goal={65} />
             </View>
 
-            {/* Weight Tracking Card */}
+            <GlassCardSimple
+              backgroundColor={Colors.dashboard.card}
+              customRadius={{
+                borderTopLeftRadius: 32,
+                borderTopRightRadius: 16,
+                borderBottomRightRadius: 24,
+                borderBottomLeftRadius: 32,
+              }}
+              padding={16}
+            >
+              <View style={styles.mealsBlock}>
+                <View style={styles.nutritionHeader}>
+                  <View style={styles.nutritionIconCircle}>
+                    <View style={styles.nutritionIconShadow} />
+                    <View style={styles.nutritionIconInner}>
+                      <MaterialIcons name="restaurant" size={20} color={Colors.dashboard.nutritionIcon} />
+                    </View>
+                  </View>
+                  <Text style={styles.nutritionTitle}>{t('homeScreen.todayMeals')}</Text>
+                </View>
+
+                <View style={styles.mealCards}>
+                  <MealSection
+                    label={t('food.breakfast')}
+                    logs={breakfastLogs}
+                    onAdd={() => openAddFood('BREAKFAST')}
+                    onEditLog={setSelectedLog}
+                    customRadius={{
+                      borderTopLeftRadius: 22,
+                      borderTopRightRadius: 14,
+                      borderBottomRightRadius: 18,
+                      borderBottomLeftRadius: 16,
+                    }}
+                  />
+                  <MealSection
+                    label={t('food.tizorai')}
+                    logs={tizoraiLogs}
+                    onAdd={() => openAddFood('TIZORAI')}
+                    onEditLog={setSelectedLog}
+                    customRadius={{
+                      borderTopLeftRadius: 16,
+                      borderTopRightRadius: 22,
+                      borderBottomRightRadius: 14,
+                      borderBottomLeftRadius: 20,
+                    }}
+                  />
+                  <MealSection
+                    label={t('food.lunch')}
+                    logs={lunchLogs}
+                    onAdd={() => openAddFood('LUNCH')}
+                    onEditLog={setSelectedLog}
+                    customRadius={{
+                      borderTopLeftRadius: 20,
+                      borderTopRightRadius: 14,
+                      borderBottomRightRadius: 22,
+                      borderBottomLeftRadius: 16,
+                    }}
+                  />
+                  <MealSection
+                    label={t('food.uzsonna')}
+                    logs={uzsonnaLogs}
+                    onAdd={() => openAddFood('UZSONNA')}
+                    onEditLog={setSelectedLog}
+                    customRadius={{
+                      borderTopLeftRadius: 14,
+                      borderTopRightRadius: 20,
+                      borderBottomRightRadius: 16,
+                      borderBottomLeftRadius: 22,
+                    }}
+                  />
+                  <MealSection
+                    label={t('food.dinner')}
+                    logs={dinnerLogs}
+                    onAdd={() => openAddFood('DINNER')}
+                    onEditLog={setSelectedLog}
+                    customRadius={{
+                      borderTopLeftRadius: 22,
+                      borderTopRightRadius: 16,
+                      borderBottomRightRadius: 18,
+                      borderBottomLeftRadius: 20,
+                    }}
+                  />
+                </View>
+              </View>
+            </GlassCardSimple>
+
+            <WaterProgressBar
+              totalMl={water?.totalMl ?? 1200}
+              goalMl={water?.goalMl ?? 2500}
+              onAdjust={handleAdjustWater}
+            />
+
             <View style={styles.weightCardWrapper}>
               <View style={styles.weightCardShadow} />
               <View style={styles.weightCard}>
@@ -297,44 +428,6 @@ export default function HomeScreen() {
                 </View>
               </View>
             </View>
-
-            {/* Water Tracking Card */}
-            <WaterProgressBar 
-              totalMl={water?.totalMl ?? 1200} 
-              goalMl={water?.goalMl ?? 2500} 
-              onAdjust={handleAdjustWater} 
-            />
-          </View>
-
-          <View style={isDesktop ? styles.desktopCol : undefined}>
-            {/* Nutrition Card */}
-            <GlassCardSimple
-              backgroundColor={Colors.dashboard.card}
-              customRadius={{
-                borderTopLeftRadius: 32,
-                borderTopRightRadius: 16,
-                borderBottomRightRadius: 24,
-                borderBottomLeftRadius: 32,
-              }}
-              padding={20}
-            >
-              <View style={styles.nutritionHeader}>
-                <MaterialIcons name="restaurant" size={20} color={Colors.dashboard.nutritionIcon} />
-                <Text style={styles.nutritionTitle}>{t('homeScreen.todayMeals')}</Text>
-              </View>
-              
-              <View style={styles.mealList}>
-                <MealRow label={t('food.breakfast')} {...breakfast} onAdd={() => openAddFood('BREAKFAST')} />
-                <View style={styles.mealDivider} />
-                <MealRow label={t('food.tizorai')} {...tizorai} onAdd={() => openAddFood('TIZORAI')} />
-                <View style={styles.mealDivider} />
-                <MealRow label={t('food.lunch')} {...lunch} onAdd={() => openAddFood('LUNCH')} />
-                <View style={styles.mealDivider} />
-                <MealRow label={t('food.uzsonna')} {...uzsonna} onAdd={() => openAddFood('UZSONNA')} />
-                <View style={styles.mealDivider} />
-                <MealRow label={t('food.dinner')} {...dinner} onAdd={() => openAddFood('DINNER')} />
-              </View>
-            </GlassCardSimple>
 
             <Pressable
               onPress={() => openAddFood('SNACK')}
@@ -367,6 +460,12 @@ export default function HomeScreen() {
         onLogAdded={fetchData}
         logSource="SEARCH"
         initialMealType={mealForAdd}
+      />
+      <EditLogModal
+        log={selectedLog}
+        visible={!!selectedLog}
+        onClose={() => setSelectedLog(null)}
+        onSaved={fetchData}
       />
     </View>
     </ResponsiveLayout>
@@ -538,8 +637,31 @@ const styles = StyleSheet.create({
   nutritionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
+    gap: 12,
+    marginBottom: 0,
+    paddingLeft: 0,
+  },
+  nutritionIconCircle: {
+    width: 40,
+    height: 40,
+    position: 'relative',
+  },
+  nutritionIconShadow: {
+    ...StyleSheet.absoluteFillObject,
+    top: 2,
+    left: 2,
+    backgroundColor: Colors.dashboard.shadowHard,
+    borderRadius: 20,
+  },
+  nutritionIconInner: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   nutritionIcon: {
     fontSize: 20,
@@ -549,13 +671,68 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: Colors.dashboard.stroke,
   },
-  mealList: {
+  mealsBlock: {
     gap: 12,
+  },
+  mealCards: {
+    gap: 10,
+  },
+  mealList: {
+    gap: 8,
+  },
+  mealSection: {
+    paddingVertical: 0,
+  },
+  mealItems: {
+    gap: 6,
+    paddingTop: 10,
+  },
+  mealFoodItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+    backgroundColor: '#fff',
+  },
+  mealFoodLeft: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  mealFoodName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.dashboard.stroke,
+  },
+  mealFoodMeta: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.dashboard.tabInactive,
+  },
+  mealFoodRight: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  mealFoodKcal: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: Colors.dashboard.stroke,
+  },
+  mealFoodMacros: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: Colors.dashboard.tabInactive,
   },
   mealRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: 0,
   },
   mealRowLeft: {
     flex: 1,

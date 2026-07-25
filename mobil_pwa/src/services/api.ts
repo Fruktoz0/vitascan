@@ -181,6 +181,8 @@ export const logApi = {
   getByDate: (date: string) => request<any>(`/logs?date=${date}`),
   getRange: (from: string, to: string) => request<any>(`/logs?from=${from}&to=${to}`),
   create: (data: unknown) => request('/logs', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: unknown) =>
+    request(`/logs/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: (id: string) => request(`/logs/${id}`, { method: 'DELETE' }),
 };
 

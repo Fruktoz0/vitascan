@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { CreateLogInput } from './log.schema';
+import { CreateLogInput, UpdateLogInput } from './log.schema';
 
 export async function getLogs(
   prisma: PrismaClient,
@@ -95,6 +95,49 @@ export async function createLog(
       source: data.source,
     },
   });
+}
+
+export async function updateLog(
+  prisma: PrismaClient,
+  logId: string,
+  userId: string,
+  data: UpdateLogInput
+) {
+  const log = await prisma.dailyLog.findUnique({ where: { id: logId } });
+  if (!log) throw new Error('Naplóbejegyzés nem található.');
+  if (log.userId !== userId) throw new Error('Nincs jogosultsága szerkeszteni ezt a bejegyzést.');
+
+  const update: Record<string, unknown> = {};
+  if (data.foodName !== undefined) update.foodName = data.foodName;
+  if (data.mealType !== undefined) update.mealType = data.mealType;
+
+  const hasExplicitMacros =
+    data.kcal !== undefined ||
+    data.protein !== undefined ||
+    data.carbs !== undefined ||
+    data.fat !== undefined;
+
+  if (data.amount !== undefined && !hasExplicitMacros) {
+    const ratio = data.amount / (log.amount || 1);
+    const round1 = (n: number) => Math.round(n * 10) / 10;
+    update.amount = data.amount;
+    update.kcal = round1(log.kcal * ratio);
+    update.protein = round1(log.protein * ratio);
+    update.carbs = round1(log.carbs * ratio);
+    update.fat = round1(log.fat * ratio);
+    if (log.fiber != null) update.fiber = round1(log.fiber * ratio);
+    if (log.sugar != null) update.sugar = round1(log.sugar * ratio);
+  } else {
+    if (data.amount !== undefined) update.amount = data.amount;
+    if (data.kcal !== undefined) update.kcal = data.kcal;
+    if (data.protein !== undefined) update.protein = data.protein;
+    if (data.carbs !== undefined) update.carbs = data.carbs;
+    if (data.fat !== undefined) update.fat = data.fat;
+    if (data.fiber !== undefined) update.fiber = data.fiber;
+    if (data.sugar !== undefined) update.sugar = data.sugar;
+  }
+
+  return prisma.dailyLog.update({ where: { id: logId }, data: update });
 }
 
 export async function deleteLog(prisma: PrismaClient, logId: string, userId: string) {

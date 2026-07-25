@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { BentoCard } from '../components/ui/BentoCard';
-import { AddFoodManualModal, FoodDetailModal } from '../components/food/FoodModals';
+import { AddFoodManualModal, FoodDetailModal, EditLogModal, type DailyLogItem } from '../components/food/FoodModals';
 import {
   IconAdd,
   IconBakeryDining,
@@ -13,6 +13,7 @@ import {
   IconIcecream,
   IconLocalFire,
   IconLunchDining,
+  IconPieChartOutline,
   IconRamenDining,
 } from '../components/ui/Icons';
 import { statsApi, type Food } from '../services/api';
@@ -42,6 +43,7 @@ export default function FoodLibraryPage() {
   const [loading, setLoading] = useState(true);
   const [manualOpen, setManualOpen] = useState(false);
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
+  const [selectedLog, setSelectedLog] = useState<DailyLogItem | null>(null);
   const [mealForAdd, setMealForAdd] = useState<MealType>('SNACK');
 
   const fetchData = useCallback(async () => {
@@ -62,7 +64,8 @@ export default function FoodLibraryPage() {
     month: 'long',
     day: 'numeric',
   });
-  const totals = data?.totals ?? { kcal: 0 };
+  const totals = data?.totals ?? { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+  const goals = data?.goals ?? { dailyKcalGoal: 2000 };
   const meals: MealType[] = ['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK'];
   const labels: Record<MealType, string> = {
     BREAKFAST: t('food.breakfast'),
@@ -72,6 +75,20 @@ export default function FoodLibraryPage() {
     DINNER: t('food.dinner'),
     SNACK: t('food.snack'),
   };
+
+  const fmt = (n: number) => Math.round(n * 10) / 10;
+  const kcalGoal = goals.dailyKcalGoal || 2000;
+  const kcalPct = Math.min(100, Math.round(((totals.kcal ?? 0) / kcalGoal) * 100));
+  const macroSum = Math.max(0.1, (totals.protein ?? 0) + (totals.carbs ?? 0) + (totals.fat ?? 0));
+  const proteinPct = Math.round(((totals.protein ?? 0) / macroSum) * 100);
+  const carbsPct = Math.round(((totals.carbs ?? 0) / macroSum) * 100);
+  const fatPct = Math.round(((totals.fat ?? 0) / macroSum) * 100);
+  const analysisHint =
+    kcalPct >= 100
+      ? t('foodLibraryScreen.analysisOver', 'Elérted vagy meghaladtad a napi kalóriacélt.')
+      : kcalPct >= 70
+        ? t('foodLibraryScreen.analysisOnTrack', 'Jó úton vagy a napi cél felé.')
+        : t('foodLibraryScreen.analysisLow', 'Még van tér a napi célhoz képest.');
 
   return (
     <div className={`${styles.screen} page-scroll`}>
@@ -107,9 +124,18 @@ export default function FoodLibraryPage() {
             <div className="spinner" />
           </div>
         ) : (
-          meals.map((meal) => {
+          <>
+          {meals.map((meal) => {
             const logs = data?.byMealType?.[meal] ?? [];
-            const mealKcal = logs.reduce((a: number, l: any) => a + (l.kcal ?? 0), 0);
+            const mealTotals = logs.reduce(
+              (acc: { kcal: number; protein: number; carbs: number; fat: number }, l: any) => ({
+                kcal: acc.kcal + (l.kcal ?? 0),
+                protein: acc.protein + (l.protein ?? 0),
+                carbs: acc.carbs + (l.carbs ?? 0),
+                fat: acc.fat + (l.fat ?? 0),
+              }),
+              { kcal: 0, protein: 0, carbs: 0, fat: 0 },
+            );
             const meta = MEAL_META[meal];
             const MealIcon = meta.Icon;
             return (
@@ -119,21 +145,36 @@ export default function FoodLibraryPage() {
                     <span className={styles.iconCircle} style={{ background: meta.bg }}>
                       <MealIcon size={28} color={Colors.dashboard.stroke} />
                     </span>
-                    <h2 className={styles.mealTitle}>{labels[meal]}</h2>
+                    <div className={styles.mealTitleBlock}>
+                      <h2 className={styles.mealTitle}>{labels[meal]}</h2>
+                      <div className={styles.mealSummaryMacros}>
+                        F {fmt(mealTotals.protein)}g · Sz {fmt(mealTotals.carbs)}g · Zs {fmt(mealTotals.fat)}g
+                      </div>
+                    </div>
                   </div>
                   <span className={`${styles.kcalBadge} ${logs.length === 0 ? styles.kcalEmpty : ''}`}>
-                    {mealKcal} kcal
+                    {Math.round(mealTotals.kcal)} kcal
                   </span>
                 </div>
 
                 {logs.map((log: any) => (
-                  <div key={log.id} className={styles.mealItem}>
-                    <div>
+                  <button
+                    key={log.id}
+                    type="button"
+                    className={styles.mealItem}
+                    onClick={() => setSelectedLog(log)}
+                  >
+                    <div className={styles.itemLeft}>
                       <div className={styles.itemName}>{log.foodName}</div>
-                      <div className={styles.itemMeta}>{log.amount ?? 100}g</div>
+                      <div className={styles.itemMeta}>{Math.round(log.amount ?? 100)}g</div>
                     </div>
-                    <div className={styles.itemKcal}>{log.kcal} kcal</div>
-                  </div>
+                    <div className={styles.itemRight}>
+                      <div className={styles.itemKcal}>{Math.round(log.kcal ?? 0)} kcal</div>
+                      <div className={styles.itemMacros}>
+                        F {fmt(log.protein ?? 0)} · Sz {fmt(log.carbs ?? 0)} · Zs {fmt(log.fat ?? 0)}
+                      </div>
+                    </div>
+                  </button>
                 ))}
 
                 <div className={styles.actions}>
@@ -159,7 +200,50 @@ export default function FoodLibraryPage() {
                 </div>
               </BentoCard>
             );
-          })
+          })}
+
+          <BentoCard backgroundColor={Colors.dashboard.card} padding={16}>
+            <div className={styles.mealHead}>
+              <div className={styles.mealTitleRow}>
+                <span className={styles.iconCircle} style={{ background: Colors.dashboard.softBlue }}>
+                  <IconPieChartOutline size={24} color={Colors.dashboard.stroke} />
+                </span>
+                <h2 className={styles.mealTitle}>{t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés')}</h2>
+              </div>
+              <span className={styles.kcalBadge}>{kcalPct}%</span>
+            </div>
+
+            <div className={styles.analysisKcalRow}>
+              <span className={styles.analysisKcalLabel}>{t('food.energy')}</span>
+              <span className={styles.analysisKcalValue}>
+                {Math.round(totals.kcal ?? 0)} / {Math.round(kcalGoal)} kcal
+              </span>
+            </div>
+            <div className={styles.analysisTrack}>
+              <div className={styles.analysisFill} style={{ width: `${kcalPct}%` }} />
+            </div>
+
+            <div className={styles.analysisMacros}>
+              <div className={styles.analysisMacroRow}>
+                <span className={styles.analysisMacroDot} style={{ background: Colors.dashboard.proteinFill }} />
+                <span className={styles.analysisMacroLabel}>{t('food.protein')}</span>
+                <span className={styles.analysisMacroValue}>{fmt(totals.protein ?? 0)}g · {proteinPct}%</span>
+              </div>
+              <div className={styles.analysisMacroRow}>
+                <span className={styles.analysisMacroDot} style={{ background: Colors.dashboard.carbsFill }} />
+                <span className={styles.analysisMacroLabel}>{t('food.carbs')}</span>
+                <span className={styles.analysisMacroValue}>{fmt(totals.carbs ?? 0)}g · {carbsPct}%</span>
+              </div>
+              <div className={styles.analysisMacroRow}>
+                <span className={styles.analysisMacroDot} style={{ background: Colors.dashboard.fatFill }} />
+                <span className={styles.analysisMacroLabel}>{t('food.fat')}</span>
+                <span className={styles.analysisMacroValue}>{fmt(totals.fat ?? 0)}g · {fatPct}%</span>
+              </div>
+            </div>
+
+            <p className={styles.analysisHint}>{analysisHint}</p>
+          </BentoCard>
+          </>
         )}
       </div>
 
@@ -176,6 +260,12 @@ export default function FoodLibraryPage() {
         onLogAdded={fetchData}
         logSource="MANUAL"
         initialMealType={mealForAdd}
+      />
+      <EditLogModal
+        log={selectedLog}
+        visible={!!selectedLog}
+        onClose={() => setSelectedLog(null)}
+        onSaved={fetchData}
       />
     </div>
   );

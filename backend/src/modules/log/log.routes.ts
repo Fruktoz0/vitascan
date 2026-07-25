@@ -1,8 +1,8 @@
 import { FastifyPluginAsync } from 'fastify';
 import { authenticate } from '../../middleware/authenticate';
 import { dailyLogLimitGuard } from '../../middleware/tierGuard';
-import { CreateLogSchema, LogQuerySchema } from './log.schema';
-import { getLogs, createLog, deleteLog } from './log.service';
+import { CreateLogSchema, LogQuerySchema, UpdateLogSchema } from './log.schema';
+import { getLogs, createLog, updateLog, deleteLog } from './log.service';
 
 const logRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /logs?date=2025-03-01 or ?from=...&to=...
@@ -32,6 +32,22 @@ const logRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
   );
+
+  // PATCH /logs/:id — mennyiség / étkezés / makrók szerkesztése
+  fastify.patch('/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = UpdateLogSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.errors[0].message });
+    }
+    try {
+      const log = await updateLog(fastify.prisma, id, request.user.userId, parsed.data);
+      return reply.send(log);
+    } catch (err: any) {
+      const status = err.message?.includes('nem található') ? 404 : 403;
+      return reply.status(status).send({ error: err.message });
+    }
+  });
 
   // DELETE /logs/:id
   fastify.delete('/:id', { preHandler: authenticate }, async (request, reply) => {

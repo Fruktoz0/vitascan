@@ -13,6 +13,7 @@ import { Food, statsApi } from '../../src/services/api';
 import { BentoCard } from '../../src/components/ui/BentoCard';
 import AddFoodManualModal from '../../src/components/food/AddFoodManualModal';
 import FoodDetailModal from '../../src/components/food/FoodDetailModal';
+import EditLogModal, { type DailyLogItem } from '../../src/components/food/EditLogModal';
 import { Colors, Spacing } from '../../src/design/tokens';
 import { useDateStore } from '../../src/stores/dateStore';
 import { ResponsiveLayout, webPointer } from '../../src/components/layout/ResponsiveLayout';
@@ -23,15 +24,45 @@ import { useAuthStore } from '../../src/stores/authStore';
 import { UserAvatar } from '../../src/components/ui/AvatarPicker';
 
 // ─── MealItem ────────────────────────────────────────────────────────────────
-function MealItem({ name, meta, kcal, isLast }: { name: string; meta: string; kcal: number; isLast?: boolean }) {
+function fmtMacro(n: number) {
+  return Math.round(n * 10) / 10;
+}
+
+function MealItem({
+  name,
+  amount,
+  kcal,
+  protein,
+  carbs,
+  fat,
+  isLast,
+  onPress,
+}: {
+  name: string;
+  amount: number;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  isLast?: boolean;
+  onPress?: () => void;
+}) {
   return (
-    <View style={[styles.mealItem, !isLast && styles.mealItemBorder]}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.mealItemName}>{name}</Text>
-        <Text style={styles.mealItemMeta}>{meta}</Text>
+    <Pressable
+      style={[styles.mealItem, !isLast && styles.mealItemBorder, webPointer]}
+      onPress={onPress}
+    >
+      <View style={styles.mealItemLeft}>
+        <Text style={styles.mealItemName} numberOfLines={1}>{name}</Text>
+        <Text style={styles.mealItemMeta}>{Math.round(amount)}g</Text>
       </View>
-      <Text style={styles.mealItemKcal}>{kcal}</Text>
-    </View>
+      <View style={styles.mealItemRight}>
+        <Text style={styles.mealItemKcal}>{Math.round(kcal)} kcal</Text>
+        <Text style={styles.mealItemMacros}>
+          F {fmtMacro(protein)} · Sz {fmtMacro(carbs)} · Zs {fmtMacro(fat)}
+        </Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -41,16 +72,26 @@ interface MealSectionProps {
   title: string;
   icon: keyof typeof MaterialIcons.glyphMap;
   iconBg: string;
-  kcal: number | string;
   items: any[];
   onAdd: () => void;
   onEdit: () => void;
+  onEditLog: (log: DailyLogItem) => void;
 }
 
-function MealSection({ title, icon, iconBg, kcal, items, onAdd, onEdit }: MealSectionProps) {
+function MealSection({ title, icon, iconBg, items, onAdd, onEdit, onEditLog }: MealSectionProps) {
   const { t } = useTranslation();
   const { isDesktop } = useResponsive();
-  
+  const mealTotals = items.reduce(
+    (acc, l) => ({
+      kcal: acc.kcal + (l.kcal ?? 0),
+      protein: acc.protein + (l.protein ?? 0),
+      carbs: acc.carbs + (l.carbs ?? 0),
+      fat: acc.fat + (l.fat ?? 0),
+    }),
+    { kcal: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+  const empty = items.length === 0;
+
   return (
     <View style={[styles.mealSectionWrap, isDesktop && styles.mealSectionDesktop]}>
     <BentoCard>
@@ -59,10 +100,15 @@ function MealSection({ title, icon, iconBg, kcal, items, onAdd, onEdit }: MealSe
           <View style={[styles.iconCircle, { backgroundColor: iconBg }]}>
             <MaterialIcons name={icon} size={28} color={Colors.dashboard.stroke} />
           </View>
-          <Text style={styles.mealTitle}>{title}</Text>
+          <View style={styles.mealTitleBlock}>
+            <Text style={styles.mealTitle}>{title}</Text>
+            <Text style={styles.mealSummaryMacros}>
+              F {fmtMacro(mealTotals.protein)}g · Sz {fmtMacro(mealTotals.carbs)}g · Zs {fmtMacro(mealTotals.fat)}g
+            </Text>
+          </View>
         </View>
-        <View style={[styles.kcalBadge, kcal === '--' && styles.kcalBadgeEmpty]}>
-          <Text style={styles.kcalBadgeValue}>{kcal}</Text>
+        <View style={[styles.kcalBadge, empty && styles.kcalBadgeEmpty]}>
+          <Text style={styles.kcalBadgeValue}>{Math.round(mealTotals.kcal)}</Text>
           <Text style={styles.kcalBadgeUnit}>kcal</Text>
         </View>
       </View>
@@ -70,12 +116,16 @@ function MealSection({ title, icon, iconBg, kcal, items, onAdd, onEdit }: MealSe
       {items.length > 0 ? (
         <View style={styles.itemList}>
           {items.map((item, index) => (
-            <MealItem 
+            <MealItem
               key={item.id || index}
-              name={item.food?.displayName || item.food?.name || 'Food'}
-              meta={`${item.amount}${item.unit || 'g'}`}
-              kcal={item.kcal}
+              name={item.foodName || item.food?.displayName || item.food?.name || 'Étel'}
+              amount={item.amount ?? 100}
+              kcal={item.kcal ?? 0}
+              protein={item.protein ?? 0}
+              carbs={item.carbs ?? 0}
+              fat={item.fat ?? 0}
               isLast={index === items.length - 1}
+              onPress={() => onEditLog(item)}
             />
           ))}
         </View>
@@ -120,6 +170,7 @@ export default function FoodLibraryScreen() {
   const [manualVisible, setManualVisible] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
+  const [selectedLog, setSelectedLog] = useState<DailyLogItem | null>(null);
   const [selectedMealType, setSelectedMealType] = useState<'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK'>('SNACK');
 
   const getHeaderDateText = () => {
@@ -179,9 +230,21 @@ export default function FoodLibraryScreen() {
     );
   }
 
-  const totals = data?.totals ?? { kcal: 1450 };
+  const totals = data?.totals ?? { kcal: 0, protein: 0, carbs: 0, fat: 0 };
   const goals = data?.goals ?? { dailyKcalGoal: 2200 };
   const meals = data?.byMealType ?? {};
+  const kcalGoal = goals.dailyKcalGoal || 2000;
+  const kcalPct = Math.min(100, Math.round(((totals.kcal ?? 0) / kcalGoal) * 100));
+  const macroSum = Math.max(0.1, (totals.protein ?? 0) + (totals.carbs ?? 0) + (totals.fat ?? 0));
+  const proteinPct = Math.round(((totals.protein ?? 0) / macroSum) * 100);
+  const carbsPct = Math.round(((totals.carbs ?? 0) / macroSum) * 100);
+  const fatPct = Math.round(((totals.fat ?? 0) / macroSum) * 100);
+  const analysisHint =
+    kcalPct >= 100
+      ? t('foodLibraryScreen.analysisOver', 'Elérted vagy meghaladtad a napi kalóriacélt.')
+      : kcalPct >= 70
+        ? t('foodLibraryScreen.analysisOnTrack', 'Jó úton vagy a napi cél felé.')
+        : t('foodLibraryScreen.analysisLow', 'Még van tér a napi célhoz képest.');
 
   const openAddFlow = (mealType: 'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK') => {
     setSelectedMealType(mealType);
@@ -241,10 +304,10 @@ export default function FoodLibraryScreen() {
           title={t('food.breakfast')}
           icon="bakery-dining"
           iconBg={Colors.dashboard.tertiaryFixed}
-          kcal={meals.BREAKFAST?.reduce((acc: number, l: any) => acc + l.kcal, 0) || 0}
           items={meals.BREAKFAST || []}
           onAdd={() => openAddFlow('BREAKFAST')}
           onEdit={() => router.push('/(tabs)/scanner')}
+          onEditLog={setSelectedLog}
         />
 
         <MealSection 
@@ -252,10 +315,10 @@ export default function FoodLibraryScreen() {
           title={t('food.tizorai')}
           icon="egg-alt"
           iconBg={Colors.dashboard.primaryFixed}
-          kcal={meals.TIZORAI?.reduce((acc: number, l: any) => acc + l.kcal, 0) || 0}
           items={meals.TIZORAI || []}
           onAdd={() => openAddFlow('TIZORAI')}
           onEdit={() => router.push('/(tabs)/scanner')}
+          onEditLog={setSelectedLog}
         />
 
         <MealSection 
@@ -263,10 +326,10 @@ export default function FoodLibraryScreen() {
           title={t('food.lunch')}
           icon="lunch-dining"
           iconBg={Colors.dashboard.errorContainer}
-          kcal={meals.LUNCH?.reduce((acc: number, l: any) => acc + l.kcal, 0) || 0}
           items={meals.LUNCH || []}
           onAdd={() => openAddFlow('LUNCH')}
           onEdit={() => router.push('/(tabs)/scanner')}
+          onEditLog={setSelectedLog}
         />
 
         <MealSection 
@@ -274,10 +337,10 @@ export default function FoodLibraryScreen() {
           title={t('food.uzsonna')}
           icon="icecream"
           iconBg={Colors.dashboard.secondaryContainer}
-          kcal={meals.UZSONNA?.reduce((acc: number, l: any) => acc + l.kcal, 0) || 0}
           items={meals.UZSONNA || []}
           onAdd={() => openAddFlow('UZSONNA')}
           onEdit={() => router.push('/(tabs)/scanner')}
+          onEditLog={setSelectedLog}
         />
 
         <MealSection 
@@ -285,14 +348,10 @@ export default function FoodLibraryScreen() {
           title={t('food.dinner')}
           icon="ramen-dining"
           iconBg={Colors.dashboard.surfaceContainerHigh}
-          kcal={
-            (meals.DINNER?.length ?? 0) > 0
-              ? meals.DINNER!.reduce((acc: number, l: any) => acc + l.kcal, 0)
-              : '--'
-          }
           items={meals.DINNER || []}
           onAdd={() => openAddFlow('DINNER')}
           onEdit={() => router.push('/(tabs)/scanner')}
+          onEditLog={setSelectedLog}
         />
 
         <MealSection 
@@ -300,12 +359,59 @@ export default function FoodLibraryScreen() {
           title={t('food.snack')}
           icon="icecream"
           iconBg={Colors.dashboard.blobPeach}
-          kcal={meals.SNACK?.reduce((acc: number, l: any) => acc + l.kcal, 0) || 0}
           items={meals.SNACK || []}
           onAdd={() => openAddFlow('SNACK')}
           onEdit={() => router.push('/(tabs)/scanner')}
+          onEditLog={setSelectedLog}
         />
         </View>
+
+        <BentoCard>
+          <View style={styles.mealHeader}>
+            <View style={styles.mealTitleRow}>
+              <View style={[styles.iconCircle, { backgroundColor: Colors.dashboard.softBlue }]}>
+                <MaterialIcons name="pie-chart" size={24} color={Colors.dashboard.stroke} />
+              </View>
+              <Text style={styles.mealTitle}>{t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés')}</Text>
+            </View>
+            <View style={styles.kcalBadge}>
+              <Text style={styles.kcalBadgeValue}>{kcalPct}</Text>
+              <Text style={styles.kcalBadgeUnit}>%</Text>
+            </View>
+          </View>
+
+          <View style={styles.analysisKcalRow}>
+            <Text style={styles.analysisKcalLabel}>{t('food.energy', 'Energia')}</Text>
+            <Text style={styles.analysisKcalValue}>
+              {Math.round(totals.kcal ?? 0)} / {Math.round(kcalGoal)} kcal
+            </Text>
+          </View>
+          <View style={styles.analysisTrack}>
+            <View style={[styles.analysisFill, { width: `${kcalPct}%` as any }]} />
+          </View>
+
+          <View style={styles.analysisMacros}>
+            <View style={styles.analysisMacroRow}>
+              <View style={[styles.analysisMacroDot, { backgroundColor: Colors.dashboard.proteinFill }]} />
+              <Text style={styles.analysisMacroLabel}>{t('food.protein')}</Text>
+              <Text style={styles.analysisMacroValue}>{fmtMacro(totals.protein ?? 0)}g · {proteinPct}%</Text>
+            </View>
+            <View style={styles.analysisMacroRow}>
+              <View style={[styles.analysisMacroDot, { backgroundColor: Colors.dashboard.carbsFill }]} />
+              <Text style={styles.analysisMacroLabel}>{t('food.carbs')}</Text>
+              <Text style={styles.analysisMacroValue}>{fmtMacro(totals.carbs ?? 0)}g · {carbsPct}%</Text>
+            </View>
+            <View style={styles.analysisMacroRow}>
+              <View style={[styles.analysisMacroDot, { backgroundColor: Colors.dashboard.fatFill }]} />
+              <Text style={styles.analysisMacroLabel}>{t('food.fat')}</Text>
+              <Text style={styles.analysisMacroValue}>{fmtMacro(totals.fat ?? 0)}g · {fatPct}%</Text>
+            </View>
+          </View>
+
+          <View style={styles.analysisHint}>
+            <Text style={styles.analysisHintText}>{analysisHint}</Text>
+          </View>
+        </BentoCard>
 
         <View style={{ height: Platform.OS === 'web' ? 72 : 120 }} />
       </ScrollView>
@@ -330,6 +436,12 @@ export default function FoodLibraryScreen() {
         }}
         initialMealType={selectedMealType}
         logSource="MANUAL"
+      />
+      <EditLogModal
+        log={selectedLog}
+        visible={!!selectedLog}
+        onClose={() => setSelectedLog(null)}
+        onSaved={fetchData}
       />
     </View>
     </ResponsiveLayout>
@@ -409,11 +521,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   mealHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
-  mealTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  mealTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, paddingRight: 8 },
+  mealTitleBlock: { flex: 1, minWidth: 0, gap: 2 },
   iconCircle: { width: 40, height: 40, borderRadius: 20, borderWidth: 0.8, borderColor: Colors.dashboard.stroke, alignItems: 'center', justifyContent: 'center', 
     shadowColor: Colors.dashboard.shadowHard, shadowOffset: { width: 2, height: 2 }, shadowOpacity: 1, shadowRadius: 0,
   },
-  mealTitle: { fontSize: 24, fontWeight: '700', color: Colors.dashboard.stroke },
+  mealTitle: { fontSize: 22, fontWeight: '700', color: Colors.dashboard.stroke },
+  mealSummaryMacros: { fontSize: 11, fontWeight: '600', color: Colors.dashboard.tabInactive },
   kcalBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: Colors.dashboard.primaryFixed,
@@ -425,14 +539,76 @@ const styles = StyleSheet.create({
   kcalBadgeValue: { fontSize: 14, fontWeight: '700', color: Colors.dashboard.stroke },
   kcalBadgeUnit: { fontSize: 10, fontWeight: '700', color: Colors.dashboard.stroke },
   itemList: { marginBottom: 16 },
-  mealItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
+  mealItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, gap: 10 },
   mealItemBorder: { borderBottomWidth: 0.8, borderBottomColor: Colors.dashboard.outlineVariant, borderStyle: 'dashed' },
-  mealItemName: { fontSize: 16, fontWeight: '500', color: Colors.dashboard.stroke },
-  mealItemMeta: { fontSize: 12, fontWeight: '700', color: Colors.dashboard.tabInactive },
-  mealItemKcal: { fontSize: 14, fontWeight: '700', color: Colors.dashboard.stroke },
+  mealItemLeft: { flex: 1, gap: 2, minWidth: 0 },
+  mealItemRight: { alignItems: 'flex-end', gap: 2 },
+  mealItemName: { fontSize: 15, fontWeight: '700', color: Colors.dashboard.stroke },
+  mealItemMeta: { fontSize: 12, fontWeight: '600', color: Colors.dashboard.tabInactive },
+  mealItemKcal: { fontSize: 14, fontWeight: '800', color: Colors.dashboard.stroke },
+  mealItemMacros: { fontSize: 10, fontWeight: '600', color: Colors.dashboard.tabInactive },
   emptyState: { paddingVertical: 24, alignItems: 'center', opacity: 0.7 },
   emptyText: { fontSize: 16, color: Colors.dashboard.tabInactive },
   actionRow: { flexDirection: 'row', gap: 12 },
+  analysisKcalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 8,
+  },
+  analysisKcalLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.dashboard.tabInactive,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  analysisKcalValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.dashboard.stroke,
+  },
+  analysisTrack: {
+    height: 12,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+    backgroundColor: Colors.dashboard.surfaceContainerLow,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  analysisFill: {
+    height: '100%',
+    backgroundColor: Colors.dashboard.nutritionIcon,
+    borderRadius: 999,
+    minWidth: 4,
+  },
+  analysisMacros: { gap: 10 },
+  analysisMacroRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  analysisMacroDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.dashboard.stroke,
+  },
+  analysisMacroLabel: { flex: 1, fontSize: 14, fontWeight: '700', color: Colors.dashboard.stroke },
+  analysisMacroValue: { fontSize: 13, fontWeight: '700', color: Colors.dashboard.tabInactive },
+  analysisHint: {
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+    backgroundColor: Colors.dashboard.softGreen,
+  },
+  analysisHintText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.dashboard.stroke,
+    lineHeight: 18,
+  },
   addBtn: { flex: 3, height: 52 },
   editBtn: { flex: 1, height: 52 },
   btnShadow: {

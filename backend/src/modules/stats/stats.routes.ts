@@ -52,7 +52,7 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     });
   });
 
-  // GET /stats/day?date=YYYY-MM-DD — adott nap összesítője
+  // GET /stats/day?date=YYYY-MM-DD — adott nap összesítője (+ byMealType, goals)
   fastify.get('/day', { preHandler: authenticate }, async (request, reply) => {
     const userId = request.user.userId;
     const { date } = request.query as { date?: string };
@@ -62,10 +62,13 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     const nextDay = new Date(day);
     nextDay.setDate(nextDay.getDate() + 1);
 
-    const logs = await fastify.prisma.dailyLog.findMany({
-      where: { userId, createdAt: { gte: day, lt: nextDay } },
-      orderBy: { createdAt: 'asc' },
-    });
+    const [logs, profile] = await Promise.all([
+      fastify.prisma.dailyLog.findMany({
+        where: { userId, createdAt: { gte: day, lt: nextDay } },
+        orderBy: { createdAt: 'asc' },
+      }),
+      fastify.prisma.userProfile.findUnique({ where: { userId } }),
+    ]);
 
     const totals = logs.reduce(
       (acc, l) => ({
@@ -79,10 +82,21 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 }
     );
 
+    const byMealType: Record<string, typeof logs> = {};
+    for (const log of logs) {
+      if (!byMealType[log.mealType]) byMealType[log.mealType] = [];
+      byMealType[log.mealType].push(log);
+    }
+
     return reply.send({
       date: day.toISOString().split('T')[0],
       totals,
+      byMealType,
       logs,
+      goals: {
+        dailyKcalGoal:    profile?.dailyKcalGoal ?? 2000,
+        dailyWaterGoalMl: profile?.dailyWaterGoalMl ?? 2000,
+      },
     });
   });
 

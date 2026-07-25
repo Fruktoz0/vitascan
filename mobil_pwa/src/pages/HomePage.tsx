@@ -6,12 +6,14 @@ import { GlassCardSimple } from '../components/ui/GlassCard';
 import KcalRing from '../components/ui/KcalRing';
 import { MacroChip } from '../components/ui/MacroBar';
 import WaterProgressBar from '../components/ui/WaterProgressBar';
-import { AddFoodManualModal, FoodDetailModal } from '../components/food/FoodModals';
+import { AddFoodManualModal, FoodDetailModal, EditLogModal, type DailyLogItem } from '../components/food/FoodModals';
 import { IconAdd, IconAddCircle, IconCalendarToday, IconRestaurant, IconWeight } from '../components/ui/Icons';
 import { Colors } from '../design/tokens';
 import { statsApi, waterApi, weightApi, type Food } from '../services/api';
+import { useDateStore } from '../stores/dateStore';
 import { useProfileStore } from '../stores/profileStore';
 import { UserAvatar } from '../components/ui/AvatarPicker';
+import styles from './HomePage.module.css';
 
 type MealType = 'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK';
 
@@ -27,34 +29,74 @@ function sumMeal(logs: any[] | undefined) {
   );
 }
 
-function MealRow({
+function fmtMacro(n: number) {
+  return Math.round(n * 10) / 10;
+}
+
+function MealSection({
   label,
-  kcal,
-  protein,
-  carbs,
-  fat,
+  logs,
   onAdd,
+  onEditLog,
+  customRadius,
 }: {
   label: string;
-  kcal: number;
-  protein: number;
-  carbs: number;
-  fat: number;
+  logs: any[];
   onAdd: () => void;
+  onEditLog: (log: DailyLogItem) => void;
+  customRadius?: {
+    borderTopLeftRadius?: number;
+    borderTopRightRadius?: number;
+    borderBottomRightRadius?: number;
+    borderBottomLeftRadius?: number;
+  };
 }) {
+  const totals = sumMeal(logs);
   return (
-    <div className={styles.mealRow}>
-      <div className={styles.mealRowLeft}>
-        <span className={styles.mealRowLabel}>{label}:</span>
-        <span className={styles.mealRowKcal}>{Math.round(kcal)} kcal</span>
-        <span className={styles.mealRowMacros}>
-          F {Math.round(protein * 10) / 10}g · Sz {Math.round(carbs * 10) / 10}g · Zs {Math.round(fat * 10) / 10}g
-        </span>
+    <GlassCardSimple
+      backgroundColor="#FFFFFF"
+      padding={14}
+      shadowOffset={2}
+      customRadius={customRadius}
+    >
+      <div className={styles.mealSection}>
+        <div className={styles.mealRow}>
+          <div className={styles.mealRowLeft}>
+            <span className={styles.mealRowLabel}>{label}</span>
+            <span className={styles.mealRowKcal}>{Math.round(totals.kcal)} kcal</span>
+            <span className={styles.mealRowMacros}>
+              F {fmtMacro(totals.protein)}g · Sz {fmtMacro(totals.carbs)}g · Zs {fmtMacro(totals.fat)}g
+            </span>
+          </div>
+          <button type="button" className={styles.mealRowAddBtn} onClick={onAdd}>
+            <IconAdd size={16} color={Colors.dashboard.stroke} />
+          </button>
+        </div>
+        {logs.length > 0 && (
+          <div className={styles.mealItems}>
+            {logs.map((log) => (
+              <button
+                key={log.id}
+                type="button"
+                className={styles.mealFoodItem}
+                onClick={() => onEditLog(log)}
+              >
+                <div className={styles.mealFoodLeft}>
+                  <span className={styles.mealFoodName}>{log.foodName}</span>
+                  <span className={styles.mealFoodMeta}>{Math.round(log.amount ?? 100)}g</span>
+                </div>
+                <div className={styles.mealFoodRight}>
+                  <span className={styles.mealFoodKcal}>{Math.round(log.kcal)} kcal</span>
+                  <span className={styles.mealFoodMacros}>
+                    F {fmtMacro(log.protein)} · Sz {fmtMacro(log.carbs)} · Zs {fmtMacro(log.fat)}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-      <button type="button" className={styles.mealRowAddBtn} onClick={onAdd}>
-        <IconAdd size={16} color={Colors.dashboard.stroke} />
-      </button>
-    </div>
+    </GlassCardSimple>
   );
 }
 
@@ -69,6 +111,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [manualOpen, setManualOpen] = useState(false);
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
+  const [selectedLog, setSelectedLog] = useState<DailyLogItem | null>(null);
   const [mealForAdd, setMealForAdd] = useState<MealType>('SNACK');
   const touchStartX = useRef<number | null>(null);
 
@@ -140,11 +183,11 @@ export default function HomePage() {
 
   const totals = data?.totals ?? { kcal: 0, protein: 0, carbs: 0, fat: 0 };
   const goals = data?.goals ?? { dailyKcalGoal: 2200 };
-  const breakfast = sumMeal(data?.byMealType?.BREAKFAST);
-  const tizorai = sumMeal(data?.byMealType?.TIZORAI);
-  const lunch = sumMeal(data?.byMealType?.LUNCH);
-  const uzsonna = sumMeal(data?.byMealType?.UZSONNA);
-  const dinner = sumMeal(data?.byMealType?.DINNER);
+  const breakfastLogs = data?.byMealType?.BREAKFAST ?? [];
+  const tizoraiLogs = data?.byMealType?.TIZORAI ?? [];
+  const lunchLogs = data?.byMealType?.LUNCH ?? [];
+  const uzsonnaLogs = data?.byMealType?.UZSONNA ?? [];
+  const dinnerLogs = data?.byMealType?.DINNER ?? [];
   const weightValue = typeof weight?.weightKg === 'number' ? weight.weightKg.toFixed(1) : '--';
   const lastMeasuredText = weight?.lastMeasuredAt
     ? t('homeScreen.weightLastMeasuredToday')
@@ -208,6 +251,93 @@ export default function HomePage() {
           <MacroChip type="fat" value={totals.fat} goal={65} />
         </div>
 
+        <GlassCardSimple
+          backgroundColor={Colors.dashboard.card}
+          padding={16}
+          customRadius={{
+            borderTopLeftRadius: 32,
+            borderTopRightRadius: 16,
+            borderBottomRightRadius: 24,
+            borderBottomLeftRadius: 32,
+          }}
+        >
+          <div className={styles.mealsBlock}>
+            <div className={styles.nutritionHeader}>
+              <span className={styles.nutritionIconCircle}>
+                <span className={styles.nutritionIconShadow} />
+                <span className={styles.nutritionIconInner}>
+                  <IconRestaurant size={20} color={Colors.dashboard.nutritionIcon} />
+                </span>
+              </span>
+              <span className={styles.nutritionTitle}>{t('homeScreen.todayMeals')}</span>
+            </div>
+            <div className={styles.mealCards}>
+              <MealSection
+                label={t('food.breakfast')}
+                logs={breakfastLogs}
+                onAdd={() => openAddFood('BREAKFAST')}
+                onEditLog={setSelectedLog}
+                customRadius={{
+                  borderTopLeftRadius: 22,
+                  borderTopRightRadius: 14,
+                  borderBottomRightRadius: 18,
+                  borderBottomLeftRadius: 16,
+                }}
+              />
+              <MealSection
+                label={t('food.tizorai')}
+                logs={tizoraiLogs}
+                onAdd={() => openAddFood('TIZORAI')}
+                onEditLog={setSelectedLog}
+                customRadius={{
+                  borderTopLeftRadius: 16,
+                  borderTopRightRadius: 22,
+                  borderBottomRightRadius: 14,
+                  borderBottomLeftRadius: 20,
+                }}
+              />
+              <MealSection
+                label={t('food.lunch')}
+                logs={lunchLogs}
+                onAdd={() => openAddFood('LUNCH')}
+                onEditLog={setSelectedLog}
+                customRadius={{
+                  borderTopLeftRadius: 20,
+                  borderTopRightRadius: 14,
+                  borderBottomRightRadius: 22,
+                  borderBottomLeftRadius: 16,
+                }}
+              />
+              <MealSection
+                label={t('food.uzsonna')}
+                logs={uzsonnaLogs}
+                onAdd={() => openAddFood('UZSONNA')}
+                onEditLog={setSelectedLog}
+                customRadius={{
+                  borderTopLeftRadius: 14,
+                  borderTopRightRadius: 20,
+                  borderBottomRightRadius: 16,
+                  borderBottomLeftRadius: 22,
+                }}
+              />
+              <MealSection
+                label={t('food.dinner')}
+                logs={dinnerLogs}
+                onAdd={() => openAddFood('DINNER')}
+                onEditLog={setSelectedLog}
+                customRadius={{
+                  borderTopLeftRadius: 22,
+                  borderTopRightRadius: 16,
+                  borderBottomRightRadius: 18,
+                  borderBottomLeftRadius: 20,
+                }}
+              />
+            </div>
+          </div>
+        </GlassCardSimple>
+
+        <WaterProgressBar totalMl={water?.totalMl ?? 0} goalMl={water?.goalMl ?? 2500} onAdjust={handleAdjustWater} />
+
         <div className={styles.weightWrap}>
           <span className={styles.weightShadow} />
           <div className={styles.weightCard}>
@@ -237,33 +367,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        <WaterProgressBar totalMl={water?.totalMl ?? 0} goalMl={water?.goalMl ?? 2500} onAdjust={handleAdjustWater} />
-
-        <GlassCardSimple
-          backgroundColor={Colors.dashboard.card}
-          padding={20}
-          customRadius={{
-            borderTopLeftRadius: 32,
-            borderTopRightRadius: 16,
-            borderBottomRightRadius: 24,
-            borderBottomLeftRadius: 32,
-          }}
-        >
-          <div className={styles.nutritionHeader}>
-            <IconRestaurant size={20} color={Colors.dashboard.nutritionIcon} />
-            <span className={styles.nutritionTitle}>{t('homeScreen.todayMeals')}</span>
-          </div>
-          <MealRow label={t('food.breakfast')} {...breakfast} onAdd={() => openAddFood('BREAKFAST')} />
-          <div className={styles.mealDivider} />
-          <MealRow label={t('food.tizorai')} {...tizorai} onAdd={() => openAddFood('TIZORAI')} />
-          <div className={styles.mealDivider} />
-          <MealRow label={t('food.lunch')} {...lunch} onAdd={() => openAddFood('LUNCH')} />
-          <div className={styles.mealDivider} />
-          <MealRow label={t('food.uzsonna')} {...uzsonna} onAdd={() => openAddFood('UZSONNA')} />
-          <div className={styles.mealDivider} />
-          <MealRow label={t('food.dinner')} {...dinner} onAdd={() => openAddFood('DINNER')} />
-        </GlassCardSimple>
-
         <button type="button" className={styles.addFoodOuter} onClick={() => openAddFood('SNACK')}>
           <span className={styles.addFoodShadow} />
           <span className={styles.addFoodBtn}>
@@ -289,6 +392,12 @@ export default function HomePage() {
         onLogAdded={fetchData}
         logSource="SEARCH"
         initialMealType={mealForAdd}
+      />
+      <EditLogModal
+        log={selectedLog}
+        visible={!!selectedLog}
+        onClose={() => setSelectedLog(null)}
+        onSaved={fetchData}
       />
     </div>
   );

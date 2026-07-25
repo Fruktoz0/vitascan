@@ -30,7 +30,8 @@
     "search": "Keresés",
     "language": "Nyelv",
     "or": "VAGY",
-    "add": "Hozzáadás"
+    "add": "Hozzáadás",
+    "delete": "Törlés"
   },
   "language": {
     "hungarian": "Magyar",
@@ -65,6 +66,8 @@
     "grams": "gramm",
     "mealType": "Étkezés típusa",
     "addToLog": "Hozzáadás a naplóhoz",
+    "editLogTitle": "Bejegyzés szerkesztése",
+    "confirmDeleteLog": "Biztosan törölöd ezt a bejegyzést?",
     "communityRating": "Közösségi értékelés",
     "accurate": "Helyes",
     "inaccurate": "Pontatlan",

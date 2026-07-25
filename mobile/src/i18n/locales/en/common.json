@@ -22,7 +22,8 @@
     "save": "Save",
     "search": "Search",
     "language": "Language",
-    "or": "OR"
+    "or": "OR",
+    "delete": "Delete"
   },
   "language": {
     "hungarian": "Hungarian",
@@ -54,6 +55,8 @@
     "grams": "grams",
     "mealType": "Meal type",
     "addToLog": "Add to log",
+    "editLogTitle": "Edit log entry",
+    "confirmDeleteLog": "Delete this log entry?",
     "communityRating": "Community rating",
     "accurate": "Accurate",
     "inaccurate": "Inaccurate",

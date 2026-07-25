@@ -138,6 +138,20 @@
 .mealTitle {
   font-size: 22px;
   font-weight: 700;
+  margin: 0;
+}
+
+.mealTitleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mealSummaryMacros {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tab-inactive);
 }
 
 .kcalBadge {
@@ -163,25 +177,61 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  width: 100%;
+  text-align: left;
   padding: 12px 0;
+  border: none;
   border-bottom: 0.8px dashed var(--outline-variant);
-  gap: 8px;
+  background: transparent;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.mealItem:active {
+  opacity: 0.85;
+}
+
+.itemLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.itemRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 .itemName {
-  font-size: 16px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--stroke);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .itemMeta {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--tab-inactive);
 }
 
 .itemKcal {
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 800;
+  color: var(--stroke);
+}
+
+.itemMacros {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--tab-inactive);
 }
 
 .actions {
@@ -231,4 +281,87 @@
 
 .editFace {
   background: #fff;
+}
+
+.analysisKcalRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.analysisKcalLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--tab-inactive);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.analysisKcalValue {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--stroke);
+}
+
+.analysisTrack {
+  height: 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--stroke);
+  background: var(--surface-low);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.analysisFill {
+  height: 100%;
+  background: var(--nutrition-icon);
+  border-radius: 999px;
+  min-width: 4px;
+}
+
+.analysisMacros {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.analysisMacroRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.analysisMacroDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid var(--stroke);
+  flex-shrink: 0;
+}
+
+.analysisMacroLabel {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--stroke);
+}
+
+.analysisMacroValue {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--tab-inactive);
+}
+
+.analysisHint {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1.5px solid var(--stroke);
+  background: var(--soft-green, #e8f5e9);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--stroke);
+  line-height: 1.4;
 }

@@ -21,4 +21,20 @@ export const LogQuerySchema = z.object({
   mealType: z.enum(['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK', 'OTHER']).optional(),
 });
 
+export const UpdateLogSchema = z.object({
+  foodName: z.string().min(1).max(100).optional(),
+  amount: z.number().min(1, 'Mennyiség min. 1g').optional(),
+  mealType: z.enum(['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK', 'OTHER']).optional(),
+  kcal: z.number().min(0).optional(),
+  protein: z.number().min(0).optional(),
+  carbs: z.number().min(0).optional(),
+  fat: z.number().min(0).optional(),
+  fiber: z.number().min(0).optional().nullable(),
+  sugar: z.number().min(0).optional().nullable(),
+}).refine(
+  (d) => Object.keys(d).length > 0,
+  { message: 'Legalább egy mezőt meg kell adni.' }
+);
+
 export type CreateLogInput = z.infer<typeof CreateLogSchema>;
+export type UpdateLogInput = z.infer<typeof UpdateLogSchema>;

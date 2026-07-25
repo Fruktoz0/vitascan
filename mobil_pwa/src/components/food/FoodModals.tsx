@@ -489,6 +489,283 @@ export function FoodDetailModal({
   );
 }
 
+export type DailyLogItem = {
+  id: string;
+  foodName: string;
+  amount: number;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber?: number | null;
+  sugar?: number | null;
+  mealType: MealType | string;
+};
+
+interface EditLogModalProps {
+  log: DailyLogItem | null;
+  visible: boolean;
+  onClose: () => void;
+  onSaved?: () => void;
+}
+
+export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalProps) {
+  const { t } = useTranslation();
+  const [amount, setAmount] = useState('100');
+  const [mealType, setMealType] = useState<MealType>('SNACK');
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [base, setBase] = useState<DailyLogItem | null>(null);
+
+  useEffect(() => {
+    if (visible && log) {
+      setBase(log);
+      setAmount(String(Math.round(log.amount || 100)));
+      setMealType((log.mealType as MealType) || 'SNACK');
+    }
+  }, [visible, log]);
+
+  if (!visible || !base) return null;
+
+  const baseAmount = base.amount > 0 ? base.amount : 100;
+  const g = parseFloat(amount) || 0;
+  const ratio = g / baseAmount;
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+  const calc = {
+    kcal: Math.round(base.kcal * ratio),
+    protein: round1(base.protein * ratio),
+    carbs: round1(base.carbs * ratio),
+    fat: round1(base.fat * ratio),
+    sugar: base.sugar != null ? round1(base.sugar * ratio) : null,
+    fiber: base.fiber != null ? round1(base.fiber * ratio) : null,
+  };
+
+  const per100 = {
+    protein: (base.protein / baseAmount) * 100,
+    carbs: (base.carbs / baseAmount) * 100,
+    fat: (base.fat / baseAmount) * 100,
+    sugar: base.sugar != null ? (base.sugar / baseAmount) * 100 : null,
+    fiber: base.fiber != null ? (base.fiber / baseAmount) * 100 : null,
+  };
+  const totalMacro = Math.max(0.1, per100.carbs + per100.protein + per100.fat);
+  const carbsPct = (per100.carbs / totalMacro) * 100;
+  const proteinPct = (per100.protein / totalMacro) * 100;
+  const fatPct = (per100.fat / totalMacro) * 100;
+
+  const mealLabel = (m: MealType) => {
+    if (m === 'BREAKFAST') return t('food.breakfast');
+    if (m === 'TIZORAI') return t('food.tizorai');
+    if (m === 'LUNCH') return t('food.lunch');
+    if (m === 'UZSONNA') return t('food.uzsonna');
+    if (m === 'DINNER') return t('food.dinner');
+    return t('food.snack');
+  };
+
+  const adjustAmount = (delta: number) => {
+    const next = Math.max(0, Math.round((parseFloat(amount) || 0) + delta));
+    setAmount(String(next));
+  };
+
+  const handleSave = async () => {
+    if (!g || g <= 0) {
+      window.alert(t('food.enterAmount'));
+      return;
+    }
+    setSaving(true);
+    try {
+      await logApi.update(base.id, { amount: g, mealType });
+      onSaved?.();
+      onClose();
+    } catch (e: any) {
+      window.alert(e?.message || t('food.errorTitle'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm(t('food.confirmDeleteLog', 'Biztosan törölöd ezt a bejegyzést?'))) return;
+    setDeleting(true);
+    try {
+      await logApi.delete(base.id);
+      onSaved?.();
+      onClose();
+    } catch (e: any) {
+      window.alert(e?.message || t('food.errorTitle'));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const busy = saving || deleting;
+
+  return createPortal(
+    <div className={styles.detailScreen}>
+      <header className={styles.detailHeader}>
+        <button type="button" className={styles.backBtn} onClick={onClose}>
+          <span className={styles.backBtnShadow} />
+          <span className={styles.backBtnInner}>
+            <IconArrowBack size={24} color={Colors.dashboard.stroke} />
+          </span>
+        </button>
+        <h2 className={styles.detailTitle}>{t('food.editLogTitle', 'Bejegyzés szerkesztése')}</h2>
+        <span className={styles.headerSpacer} />
+      </header>
+
+      <div className={styles.detailBody}>
+        <div className={styles.productCard}>
+          <span className={styles.productShadow} />
+          <div className={styles.productInner}>
+            <span className={styles.productDecorLeft}>
+              <IconApple size={80} color={Colors.dashboard.stroke} style={{ opacity: 0.1 }} />
+            </span>
+            <span className={styles.productDecorRight}>
+              <IconLeaf size={32} color={Colors.dashboard.nutritionIcon} style={{ opacity: 0.3 }} />
+            </span>
+            <h3 className={styles.foodName}>{base.foodName}</h3>
+            <div className={styles.portionBadgeWrap}>
+              <span className={styles.portionBadgeShadow} />
+              <span className={styles.portionBadgeInner}>
+                <span className={styles.portionText}>{Math.round(baseAmount)}g</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className={styles.sections}>
+          <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
+            <div className={styles.amountStepper}>
+              <button type="button" className={styles.amountStepBtn} onClick={() => adjustAmount(-10)}>
+                <span className={styles.amountStepShadow} />
+                <span className={styles.amountStepFace}>
+                  <IconRemove size={22} color={Colors.dashboard.stroke} />
+                </span>
+              </button>
+              <div className={styles.amountCenter}>
+                <input
+                  className={styles.amountInputCompact}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))}
+                  inputMode="decimal"
+                  placeholder="100"
+                />
+                <span className={styles.amountUnit}>g</span>
+              </div>
+              <button type="button" className={styles.amountStepBtn} onClick={() => adjustAmount(10)}>
+                <span className={styles.amountStepShadow} />
+                <span className={styles.amountStepFace}>
+                  <IconAdd size={22} color={Colors.dashboard.stroke} />
+                </span>
+              </button>
+            </div>
+          </GlassCardSimple>
+
+          <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
+            <div className={styles.sectionHeaderSmall}>
+              <IconPieChartOutline size={24} color={Colors.dashboard.stroke} />
+              <span className={styles.sectionTitle}>Makrotápanyagok</span>
+            </div>
+            <div className={styles.macroEnergyRow}>
+              <div className={styles.energyLeft}>
+                <IconBolt size={20} color={Colors.dashboard.nutritionIcon} />
+                <span className={styles.energyLabel}>{t('food.energy').toUpperCase()}</span>
+              </div>
+              <span className={styles.energyValue}>{calc.kcal} kcal</span>
+            </div>
+            <div className={styles.macroBars}>
+              <MacroBar
+                label={t('food.protein')}
+                grams={round1(per100.protein)}
+                percent={proteinPct}
+                color={Colors.dashboard.proteinFill}
+                rotation={0.5}
+              />
+              <MacroBar
+                label={t('food.carbs')}
+                grams={round1(per100.carbs)}
+                percent={carbsPct}
+                color={Colors.dashboard.carbsFill}
+                rotation={-0.5}
+                sugarNote={
+                  per100.sugar != null
+                    ? `${t('food.ofWhichSugar')}: ${round1(per100.sugar)}g / 100g`
+                    : undefined
+                }
+              />
+              <MacroBar
+                label={t('food.fat')}
+                grams={round1(per100.fat)}
+                percent={fatPct}
+                color={Colors.dashboard.fatFill}
+                rotation={-0.5}
+              />
+            </div>
+          </GlassCardSimple>
+
+          <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
+            <div className={styles.sectionHeaderSmall}>
+              <IconRestaurantOutline size={24} color={Colors.dashboard.stroke} />
+              <span className={styles.sectionTitle}>{t('food.mealType')}</span>
+            </div>
+            <div className={styles.mealRow}>
+              {MEAL_TYPES.map((m) => {
+                const active = mealType === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    className={styles.mealBtnWrap}
+                    onClick={() => setMealType(m)}
+                  >
+                    {active && <span className={styles.mealBtnShadow} />}
+                    <span className={`${styles.mealBtnInner} ${active ? styles.mealBtnInnerActive : ''}`}>
+                      <span className={`${styles.mealBtnText} ${active ? styles.mealBtnTextActive : ''}`}>
+                        {mealLabel(m)}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </GlassCardSimple>
+
+          <div className={styles.scrollSpacer} />
+        </div>
+      </div>
+
+      <footer className={styles.detailFooter}>
+        <div className={styles.editFooterRow}>
+          <button
+            type="button"
+            className={styles.deleteBtnWrap}
+            onClick={handleDelete}
+            disabled={busy}
+          >
+            <span className={styles.deleteBtnShadow} />
+            <span className={styles.deleteBtnInner}>
+              {deleting ? '...' : t('common.delete', 'Törlés')}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={styles.addBtnWrap}
+            onClick={handleSave}
+            disabled={busy}
+          >
+            <span className={styles.addBtnShadow} />
+            <span className={styles.addBtnInner}>
+              <span className={styles.addBtnLabel}>
+                {saving ? 'Folyamatban...' : t('common.save')}
+              </span>
+            </span>
+          </button>
+        </div>
+      </footer>
+    </div>,
+    document.body,
+  );
+}
+
 interface AddFoodManualModalProps {
   visible: boolean;
   prefillBarcode?: string;

@@ -588,6 +588,56 @@
   opacity: 0.7;
 }
 
+.editFooterRow {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  pointer-events: auto;
+}
+
+.editFooterRow .addBtnWrap {
+  flex: 1;
+}
+
+.deleteBtnWrap {
+  position: relative;
+  width: 110px;
+  height: 56px;
+  flex-shrink: 0;
+  padding-right: 4px;
+  padding-bottom: 4px;
+  pointer-events: auto;
+}
+
+.deleteBtnShadow {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  right: -4px;
+  bottom: -4px;
+  background: var(--shadow-hard);
+  border-radius: 999px;
+}
+
+.deleteBtnInner {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #FADBD8;
+  border: 0.8px solid var(--stroke);
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #B83B3B;
+}
+
+.deleteBtnWrap:disabled {
+  opacity: 0.6;
+}
+
 /* Shared icon button (manual add header) */
 .iconBtn,
 .iconBtnAbsolute {
