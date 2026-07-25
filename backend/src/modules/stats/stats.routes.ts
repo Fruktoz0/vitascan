@@ -2,6 +2,18 @@ import { FastifyPluginAsync } from 'fastify';
 import { authenticate } from '../../middleware/authenticate';
 import { weeklyStatsGuard } from '../../middleware/tierGuard';
 
+type LogWithFoodBrand = {
+  food: { brand: string | null } | null;
+  [key: string]: unknown;
+};
+
+function flattenLogsWithBrand<T extends LogWithFoodBrand>(logs: T[]) {
+  return logs.map(({ food, ...log }) => ({
+    ...log,
+    brand: food?.brand ?? null,
+  }));
+}
+
 const statsRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /stats/today — mai összesítő + makrók + étkezéstípus bontás
@@ -13,22 +25,25 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const [logs, profile] = await Promise.all([
+    const [rawLogs, profile] = await Promise.all([
       fastify.prisma.dailyLog.findMany({
         where: { userId, createdAt: { gte: today, lt: tomorrow } },
+        include: { food: { select: { brand: true } } },
         orderBy: { createdAt: 'asc' },
       }),
       fastify.prisma.userProfile.findUnique({ where: { userId } }),
     ]);
 
+    const logs = flattenLogsWithBrand(rawLogs);
+
     const totals = logs.reduce(
       (acc, l) => ({
-        kcal:    acc.kcal    + l.kcal,
-        protein: acc.protein + l.protein,
-        carbs:   acc.carbs   + l.carbs,
-        fat:     acc.fat     + l.fat,
-        fiber:   acc.fiber   + (l.fiber ?? 0),
-        sugar:   acc.sugar   + (l.sugar ?? 0),
+        kcal:    acc.kcal    + (l.kcal as number),
+        protein: acc.protein + (l.protein as number),
+        carbs:   acc.carbs   + (l.carbs as number),
+        fat:     acc.fat     + (l.fat as number),
+        fiber:   acc.fiber   + ((l.fiber as number | null) ?? 0),
+        sugar:   acc.sugar   + ((l.sugar as number | null) ?? 0),
       }),
       { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 }
     );
@@ -36,8 +51,9 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     // Étkezéstípus bontás
     const byMealType: Record<string, typeof logs> = {};
     for (const log of logs) {
-      if (!byMealType[log.mealType]) byMealType[log.mealType] = [];
-      byMealType[log.mealType].push(log);
+      const mealType = log.mealType as string;
+      if (!byMealType[mealType]) byMealType[mealType] = [];
+      byMealType[mealType].push(log);
     }
 
     return reply.send({
@@ -48,6 +64,9 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       goals: {
         dailyKcalGoal:    profile?.dailyKcalGoal ?? 2000,
         dailyWaterGoalMl: profile?.dailyWaterGoalMl ?? 2000,
+        dailyProteinGoal: profile?.dailyProteinGoal ?? 140,
+        dailyCarbsGoal:   profile?.dailyCarbsGoal ?? 250,
+        dailyFatGoal:     profile?.dailyFatGoal ?? 65,
       },
     });
   });
@@ -62,30 +81,34 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     const nextDay = new Date(day);
     nextDay.setDate(nextDay.getDate() + 1);
 
-    const [logs, profile] = await Promise.all([
+    const [rawLogs, profile] = await Promise.all([
       fastify.prisma.dailyLog.findMany({
         where: { userId, createdAt: { gte: day, lt: nextDay } },
+        include: { food: { select: { brand: true } } },
         orderBy: { createdAt: 'asc' },
       }),
       fastify.prisma.userProfile.findUnique({ where: { userId } }),
     ]);
 
+    const logs = flattenLogsWithBrand(rawLogs);
+
     const totals = logs.reduce(
       (acc, l) => ({
-        kcal:    acc.kcal    + l.kcal,
-        protein: acc.protein + l.protein,
-        carbs:   acc.carbs   + l.carbs,
-        fat:     acc.fat     + l.fat,
-        fiber:   acc.fiber   + (l.fiber ?? 0),
-        sugar:   acc.sugar   + (l.sugar ?? 0),
+        kcal:    acc.kcal    + (l.kcal as number),
+        protein: acc.protein + (l.protein as number),
+        carbs:   acc.carbs   + (l.carbs as number),
+        fat:     acc.fat     + (l.fat as number),
+        fiber:   acc.fiber   + ((l.fiber as number | null) ?? 0),
+        sugar:   acc.sugar   + ((l.sugar as number | null) ?? 0),
       }),
       { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 }
     );
 
     const byMealType: Record<string, typeof logs> = {};
     for (const log of logs) {
-      if (!byMealType[log.mealType]) byMealType[log.mealType] = [];
-      byMealType[log.mealType].push(log);
+      const mealType = log.mealType as string;
+      if (!byMealType[mealType]) byMealType[mealType] = [];
+      byMealType[mealType].push(log);
     }
 
     return reply.send({
@@ -96,6 +119,9 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       goals: {
         dailyKcalGoal:    profile?.dailyKcalGoal ?? 2000,
         dailyWaterGoalMl: profile?.dailyWaterGoalMl ?? 2000,
+        dailyProteinGoal: profile?.dailyProteinGoal ?? 140,
+        dailyCarbsGoal:   profile?.dailyCarbsGoal ?? 250,
+        dailyFatGoal:     profile?.dailyFatGoal ?? 65,
       },
     });
   });

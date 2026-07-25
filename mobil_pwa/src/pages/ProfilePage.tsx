@@ -148,7 +148,7 @@ export default function ProfilePage() {
           <SettingsRow
             icon={<IconTarget size={20} color="#E65100" />}
             label={t('profile.settingsGoals')}
-            onClick={() => navigate('/personal-data')}
+            onClick={() => navigate('/goals')}
           />
         </div>
       </div>

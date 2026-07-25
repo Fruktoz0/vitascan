@@ -11,7 +11,7 @@ export const CreateLogSchema = z.object({
   sugar: z.number().min(0).optional(),
   amount: z.number().min(1, 'Mennyiség min. 1g'),
   mealType: z.enum(['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK', 'OTHER']).default('OTHER'),
-  source: z.enum(['MANUAL', 'SCAN', 'SEARCH']).default('MANUAL'),
+  source: z.enum(['MANUAL', 'SCAN', 'SEARCH', 'AI']).default('MANUAL'),
 });
 
 export const LogQuerySchema = z.object({

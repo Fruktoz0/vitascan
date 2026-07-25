@@ -3,7 +3,7 @@
 .detailScreen {
   position: fixed;
   inset: 0;
-  z-index: 200;
+  z-index: 220;
   background: var(--page);
   display: flex;
   flex-direction: column;
@@ -112,7 +112,7 @@
 }
 
 .foodName {
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   font-size: 48px;
   font-weight: 900;
   line-height: 1.05;
@@ -120,6 +120,14 @@
   text-align: center;
   text-shadow: 2px 2px 0 var(--shadow-hard);
   word-break: break-word;
+}
+
+.foodBrand {
+  margin: 0 0 14px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--tab-inactive);
+  text-align: center;
 }
 
 .portionBadgeWrap {
@@ -641,17 +649,23 @@
 /* Shared icon button (manual add header) */
 .iconBtn,
 .iconBtnAbsolute {
-  position: relative;
+  position: absolute;
+  left: 0;
+  top: 0;
   width: 40px;
   height: 40px;
   padding-right: 2px;
   padding-bottom: 2px;
 }
 
-.iconBtnAbsolute {
+.iconBtnAbsoluteRight {
   position: absolute;
-  left: 0;
+  right: 0;
   top: 0;
+  width: 40px;
+  height: 40px;
+  padding-right: 2px;
+  padding-bottom: 2px;
 }
 
 .iconShadow {
@@ -710,6 +724,55 @@
   font-weight: 800;
   color: var(--stroke);
   text-align: center;
+  margin: 0 48px;
+}
+
+.formLabel {
+  display: block;
+  margin: 12px 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--stroke);
+}
+
+.formLabel:first-of-type {
+  margin-top: 4px;
+}
+
+.formInput {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1.5px solid var(--stroke);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--stroke);
+  background: #fff;
+  outline: none;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  margin-top: 4px;
+}
+
+.formField {
+  min-width: 0;
+}
+
+.formField .formLabel {
+  margin-top: 0;
+}
+
+.formHint {
+  margin: 14px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--tab-inactive);
+  font-weight: 600;
 }
 
 .searchWrap {
@@ -768,6 +831,8 @@
   border-radius: 16px;
   padding: 5px 10px;
   background: #d5e6f0;
+  cursor: pointer;
+  font: inherit;
 }
 
 .tabChipActive {
@@ -865,7 +930,7 @@
 .quickRow {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
   padding: 10px 0;
   text-align: left;
@@ -876,8 +941,33 @@
   border-bottom: none;
 }
 
+.quickRowMain {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
 .quickEmoji {
   font-size: 22px;
+}
+
+.originIcon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  border: 1.2px solid var(--stroke);
+  background: #fff;
 }
 
 .resultInfo {
@@ -896,6 +986,16 @@
   text-overflow: ellipsis;
 }
 
+.quickBrand {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tab-inactive);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .quickMeta {
   font-size: 12px;
   color: var(--tab-inactive);
@@ -907,11 +1007,31 @@
   height: 34px;
   border-radius: 17px;
   border: 1.5px solid var(--stroke);
-  background: #cddfd3;
-  display: flex;
+  background: var(--accent, #a8e6a1);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  cursor: pointer;
+  padding: 0;
+}
+
+.quickFavBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 17px;
+  border: 1.5px solid var(--stroke);
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  padding: 0;
+}
+
+.quickFavBtn:disabled {
+  opacity: 0.6;
 }
 
 .scanCardWrap {
@@ -943,6 +1063,10 @@
   border: 1.5px solid var(--stroke);
   border-radius: 24px;
   background: #d8eadf;
+}
+
+.aiCardInner {
+  background: #efe8ff;
 }
 
 .scanIconWrap {

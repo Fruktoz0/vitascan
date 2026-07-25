@@ -6,16 +6,16 @@ import { GlassCardSimple } from '../components/ui/GlassCard';
 import KcalRing from '../components/ui/KcalRing';
 import { MacroChip } from '../components/ui/MacroBar';
 import WaterProgressBar from '../components/ui/WaterProgressBar';
-import { AddFoodManualModal, FoodDetailModal, EditLogModal, type DailyLogItem } from '../components/food/FoodModals';
+import { AddFoodManualModal, FoodDetailModal, EditLogModal, distinctBrand, type DailyLogItem } from '../components/food/FoodModals';
 import { IconAdd, IconAddCircle, IconCalendarToday, IconRestaurant, IconWeight } from '../components/ui/Icons';
 import { Colors } from '../design/tokens';
 import { statsApi, waterApi, weightApi, type Food } from '../services/api';
 import { useDateStore } from '../stores/dateStore';
 import { useProfileStore } from '../stores/profileStore';
 import { UserAvatar } from '../components/ui/AvatarPicker';
+import { MEAL_META, type MealType } from '../utils/mealMeta';
 import styles from './HomePage.module.css';
 
-type MealType = 'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK';
 
 function sumMeal(logs: any[] | undefined) {
   return (logs ?? []).reduce(
@@ -34,12 +34,14 @@ function fmtMacro(n: number) {
 }
 
 function MealSection({
+  meal,
   label,
   logs,
   onAdd,
   onEditLog,
   customRadius,
 }: {
+  meal: MealType;
   label: string;
   logs: any[];
   onAdd: () => void;
@@ -52,6 +54,8 @@ function MealSection({
   };
 }) {
   const totals = sumMeal(logs);
+  const meta = MEAL_META[meal];
+  const MealIcon = meta.Icon;
   return (
     <GlassCardSimple
       backgroundColor="#FFFFFF"
@@ -62,11 +66,16 @@ function MealSection({
       <div className={styles.mealSection}>
         <div className={styles.mealRow}>
           <div className={styles.mealRowLeft}>
-            <span className={styles.mealRowLabel}>{label}</span>
-            <span className={styles.mealRowKcal}>{Math.round(totals.kcal)} kcal</span>
-            <span className={styles.mealRowMacros}>
-              F {fmtMacro(totals.protein)}g · Sz {fmtMacro(totals.carbs)}g · Zs {fmtMacro(totals.fat)}g
+            <span className={styles.mealIconCircle} style={{ background: meta.bg }}>
+              <MealIcon size={18} color={Colors.dashboard.stroke} />
             </span>
+            <div className={styles.mealRowText}>
+              <span className={styles.mealRowLabel}>{label}</span>
+              <span className={styles.mealRowKcal}>{Math.round(totals.kcal)} kcal</span>
+              <span className={styles.mealRowMacros}>
+                F {fmtMacro(totals.protein)}g · Sz {fmtMacro(totals.carbs)}g · Zs {fmtMacro(totals.fat)}g
+              </span>
+            </div>
           </div>
           <button type="button" className={styles.mealRowAddBtn} onClick={onAdd}>
             <IconAdd size={16} color={Colors.dashboard.stroke} />
@@ -74,7 +83,9 @@ function MealSection({
         </div>
         {logs.length > 0 && (
           <div className={styles.mealItems}>
-            {logs.map((log) => (
+            {logs.map((log) => {
+              const brand = distinctBrand(log.foodName, log.brand);
+              return (
               <button
                 key={log.id}
                 type="button"
@@ -83,6 +94,7 @@ function MealSection({
               >
                 <div className={styles.mealFoodLeft}>
                   <span className={styles.mealFoodName}>{log.foodName}</span>
+                  {brand ? <span className={styles.mealFoodBrand}>{brand}</span> : null}
                   <span className={styles.mealFoodMeta}>{Math.round(log.amount ?? 100)}g</span>
                 </div>
                 <div className={styles.mealFoodRight}>
@@ -92,7 +104,8 @@ function MealSection({
                   </span>
                 </div>
               </button>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -165,8 +178,8 @@ export default function HomePage() {
   const handleAdjustWeight = async (delta: number) => {
     try {
       const dateStr = selectedDate.toISOString().split('T')[0];
-      const baseWeight = typeof weight?.weightKg === 'number' ? weight.weightKg : 72.5;
-      const nextWeight = Math.max(20, Math.min(500, Math.round((baseWeight + delta) * 10) / 10));
+      if (typeof weight?.weightKg !== 'number') return;
+      const nextWeight = Math.max(20, Math.min(500, Math.round((weight.weightKg + delta) * 10) / 10));
       setWeight(await weightApi.setForDate(dateStr, nextWeight));
     } catch {}
   };
@@ -182,15 +195,32 @@ export default function HomePage() {
   }
 
   const totals = data?.totals ?? { kcal: 0, protein: 0, carbs: 0, fat: 0 };
-  const goals = data?.goals ?? { dailyKcalGoal: 2200 };
+  const goals = data?.goals ?? {
+    dailyKcalGoal: 2200,
+    dailyProteinGoal: 140,
+    dailyCarbsGoal: 250,
+    dailyFatGoal: 65,
+  };
   const breakfastLogs = data?.byMealType?.BREAKFAST ?? [];
   const tizoraiLogs = data?.byMealType?.TIZORAI ?? [];
   const lunchLogs = data?.byMealType?.LUNCH ?? [];
   const uzsonnaLogs = data?.byMealType?.UZSONNA ?? [];
   const dinnerLogs = data?.byMealType?.DINNER ?? [];
   const weightValue = typeof weight?.weightKg === 'number' ? weight.weightKg.toFixed(1) : '--';
-  const lastMeasuredText = weight?.lastMeasuredAt
-    ? t('homeScreen.weightLastMeasuredToday')
+  const measuredDate =
+    weight?.lastMeasuredAt != null
+      ? new Date(weight.lastMeasuredAt).toISOString().split('T')[0]
+      : null;
+  const selectedDateStr = selectedDate.toISOString().split('T')[0];
+  const lastMeasuredText = measuredDate
+    ? measuredDate === selectedDateStr
+      ? t('homeScreen.weightLastMeasuredToday')
+      : t('homeScreen.weightLastMeasuredOn', {
+          date: new Date(weight.lastMeasuredAt).toLocaleDateString(
+            i18n.language === 'hu' ? 'hu-HU' : 'en-US',
+            { month: 'short', day: 'numeric' },
+          ),
+        })
     : t('homeScreen.weightNoMeasurement');
 
   return (
@@ -246,9 +276,24 @@ export default function HomePage() {
         </GlassCardSimple>
 
         <div className={styles.macroRow}>
-          <MacroChip type="protein" value={totals.protein} goal={140} />
-          <MacroChip type="carbs" value={totals.carbs} goal={250} />
-          <MacroChip type="fat" value={totals.fat} goal={65} />
+          <MacroChip
+            type="protein"
+            value={totals.protein}
+            goal={goals.dailyProteinGoal ?? 140}
+            onClick={() => navigate('/goals?focus=protein')}
+          />
+          <MacroChip
+            type="carbs"
+            value={totals.carbs}
+            goal={goals.dailyCarbsGoal ?? 250}
+            onClick={() => navigate('/goals?focus=carbs')}
+          />
+          <MacroChip
+            type="fat"
+            value={totals.fat}
+            goal={goals.dailyFatGoal ?? 65}
+            onClick={() => navigate('/goals?focus=fat')}
+          />
         </div>
 
         <GlassCardSimple
@@ -273,6 +318,7 @@ export default function HomePage() {
             </div>
             <div className={styles.mealCards}>
               <MealSection
+                meal="BREAKFAST"
                 label={t('food.breakfast')}
                 logs={breakfastLogs}
                 onAdd={() => openAddFood('BREAKFAST')}
@@ -285,6 +331,7 @@ export default function HomePage() {
                 }}
               />
               <MealSection
+                meal="TIZORAI"
                 label={t('food.tizorai')}
                 logs={tizoraiLogs}
                 onAdd={() => openAddFood('TIZORAI')}
@@ -297,6 +344,7 @@ export default function HomePage() {
                 }}
               />
               <MealSection
+                meal="LUNCH"
                 label={t('food.lunch')}
                 logs={lunchLogs}
                 onAdd={() => openAddFood('LUNCH')}
@@ -309,6 +357,7 @@ export default function HomePage() {
                 }}
               />
               <MealSection
+                meal="UZSONNA"
                 label={t('food.uzsonna')}
                 logs={uzsonnaLogs}
                 onAdd={() => openAddFood('UZSONNA')}
@@ -321,6 +370,7 @@ export default function HomePage() {
                 }}
               />
               <MealSection
+                meal="DINNER"
                 label={t('food.dinner')}
                 logs={dinnerLogs}
                 onAdd={() => openAddFood('DINNER')}
@@ -381,15 +431,21 @@ export default function HomePage() {
         onClose={() => setManualOpen(false)}
         onCreated={(food) => {
           setSelectedFood(food);
-          setManualOpen(false);
         }}
         onOpenScanner={() => navigate('/scanner')}
+        onOpenAiRecognize={() =>
+          navigate(`/ai-recognize?mealType=${mealForAdd}`)
+        }
       />
       <FoodDetailModal
         food={selectedFood}
         visible={!!selectedFood}
         onClose={() => setSelectedFood(null)}
-        onLogAdded={fetchData}
+        onLogAdded={() => {
+          setSelectedFood(null);
+          setManualOpen(false);
+          fetchData();
+        }}
         logSource="SEARCH"
         initialMealType={mealForAdd}
       />

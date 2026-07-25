@@ -24,6 +24,7 @@ const fastify = Fastify({
   logger: {
     level: process.env.NODE_ENV === 'production' ? 'warn' : 'info',
   },
+  bodyLimit: 12 * 1024 * 1024, // AI photo recognize (base64) — images are not stored
 });
 
 async function bootstrap() {

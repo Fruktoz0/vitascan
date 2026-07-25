@@ -2,8 +2,19 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authenticate } from '../../middleware/authenticate';
 import { scanLimitGuard } from '../../middleware/tierGuard';
-import { fetchOFFByBarcode } from '../../services/openFoodFacts';
+import { fetchOFFByBarcode, searchOFF, type OFFNormalizedFood } from '../../services/openFoodFacts';
+import { searchUSDA, type USDANormalizedFood } from '../../services/usdaFoodData';
 import { checkProfanity } from '../../utils/profanity';
+import {
+  compareFoodsForSearch,
+  foodHasCyrillic,
+  mapFoodResponse,
+  resolveOrigin,
+  type FoodOrigin,
+} from '../../utils/foodSearch';
+import { recognizeFoodWithGemini } from './food.ai-recognize';
+
+export const AI_FOOD_RECOGNIZE_DAILY_LIMIT = 10;
 
 // ─── Validation schemas ───────────────────────────────────────────────────────
 
@@ -28,84 +39,378 @@ const VoteSchema = z.object({
   value: z.literal(1).or(z.literal(-1)),
 });
 
+type ExternalCandidate = OFFNormalizedFood | USDANormalizedFood;
+
+type CachedExternal = {
+  expiresAt: number;
+  items: ExternalCandidate[];
+};
+
+const externalSearchCache = new Map<string, CachedExternal>();
+const EXTERNAL_CACHE_TTL_MS = 60_000;
+const MIN_EXTERNAL_QUERY_LEN = 3;
+
+function getCachedExternal(q: string): ExternalCandidate[] | null {
+  const key = q.toLowerCase().trim();
+  const hit = externalSearchCache.get(key);
+  if (!hit) return null;
+  if (Date.now() > hit.expiresAt) {
+    externalSearchCache.delete(key);
+    return null;
+  }
+  return hit.items;
+}
+
+function setCachedExternal(q: string, items: ExternalCandidate[]) {
+  const key = q.toLowerCase().trim();
+  externalSearchCache.set(key, { expiresAt: Date.now() + EXTERNAL_CACHE_TTL_MS, items });
+  if (externalSearchCache.size > 200) {
+    const first = externalSearchCache.keys().next().value;
+    if (first) externalSearchCache.delete(first);
+  }
+}
+
+const foodInclude = {
+  creator: { select: { username: true, reputation: true } },
+  _count: { select: { votes: true } },
+} as const;
+
+async function favoriteIdSet(prisma: any, userId: string, foodIds: string[]): Promise<Set<string>> {
+  if (foodIds.length === 0) return new Set();
+  const rows = await prisma.foodFavorite.findMany({
+    where: { userId, foodId: { in: foodIds } },
+    select: { foodId: true },
+  });
+  return new Set(rows.map((r: { foodId: string }) => r.foodId));
+}
+
+async function upsertExternalFood(
+  prisma: any,
+  candidate: ExternalCandidate,
+  creatorId: string,
+) {
+  if (foodHasCyrillic(candidate)) return null;
+
+  const externalId = candidate.externalId;
+  const barcode = candidate.barcode;
+
+  if (externalId) {
+    const byExt = await prisma.food.findUnique({
+      where: { externalId },
+      include: foodInclude,
+    });
+    if (byExt && byExt.status !== 'BANNED') return byExt;
+  }
+
+  if (barcode) {
+    const byBarcode = await prisma.food.findUnique({
+      where: { barcode },
+      include: foodInclude,
+    });
+    if (byBarcode && byBarcode.status !== 'BANNED') {
+      if (externalId && !byBarcode.externalId) {
+        try {
+          return await prisma.food.update({
+            where: { id: byBarcode.id },
+            data: { externalId },
+            include: foodInclude,
+          });
+        } catch {
+          return byBarcode;
+        }
+      }
+      return byBarcode;
+    }
+  }
+
+  try {
+    const saved = await prisma.food.create({
+      data: {
+        name: candidate.name,
+        nameHu: candidate.name,
+        nameEn: candidate.name,
+        brand: candidate.brand,
+        barcode: barcode || undefined,
+        externalId: externalId || undefined,
+        kcal: candidate.kcal,
+        protein: candidate.protein,
+        carbs: candidate.carbs,
+        fat: candidate.fat,
+        fiber: candidate.fiber,
+        sugar: candidate.sugar,
+        servingSize: candidate.servingSize ?? 100,
+        servingUnit: candidate.servingUnit ?? 'g',
+        status: 'UNVERIFIED',
+        tier: 'FREE',
+        source: 'EXTERNAL_API',
+        creatorId,
+      },
+      include: foodInclude,
+    });
+    await seedCreatorUpvote(prisma, saved.id, creatorId);
+    return saved;
+  } catch {
+    if (externalId) {
+      const again = await prisma.food.findUnique({
+        where: { externalId },
+        include: foodInclude,
+      });
+      if (again && again.status !== 'BANNED') return again;
+    }
+    if (barcode) {
+      const again = await prisma.food.findUnique({
+        where: { barcode },
+        include: foodInclude,
+      });
+      if (again && again.status !== 'BANNED') return again;
+    }
+    return null;
+  }
+}
+
+function decorateFoods(
+  foods: any[],
+  favIds: Set<string>,
+  originOverride?: (f: any) => FoodOrigin,
+) {
+  return foods
+    .filter((f) => !foodHasCyrillic(f))
+    .map((food) =>
+      mapFoodResponse(food, {
+        origin: originOverride?.(food) ?? resolveOrigin(food, false),
+        isFavorite: favIds.has(food.id),
+      }),
+    );
+}
+
 // ─── Routes ──────────────────────────────────────────────────────────────────
 
 export default async function foodRoutes(fastify: FastifyInstance) {
 
-  // GET /foods — keresés (kétnyelvű + hitelességi rangsor)
+  // GET /foods — saját DB + OFF + USDA
   fastify.get('/', {
     preHandler: [authenticate],
   }, async (req, reply) => {
-    const { q = '', status, limit = '20', offset = '0' } =
+    const { q = '', status, limit = '20', offset = '0', mine } =
       req.query as any;
 
     const prisma = (fastify as any).prisma;
+    const user = (req as any).user;
+    const userId = user.userId ?? user.id;
+    const lim = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
+    const off = Math.max(parseInt(offset, 10) || 0, 0);
+    const query = String(q).trim();
+    const onlyMine = mine === '1' || mine === 'true';
 
     const where: any = {
       status: status ?? { not: 'BANNED' },
     };
-    if (q) {
+    if (onlyMine) where.creatorId = userId;
+    if (query) {
       where.OR = [
-        { name: { contains: q, mode: 'insensitive' } },
-        { nameHu: { contains: q, mode: 'insensitive' } },
-        { nameEn: { contains: q, mode: 'insensitive' } },
-        { brand: { contains: q, mode: 'insensitive' } },
+        { name: { contains: query, mode: 'insensitive' } },
+        { nameHu: { contains: query, mode: 'insensitive' } },
+        { nameEn: { contains: query, mode: 'insensitive' } },
+        { brand: { contains: query, mode: 'insensitive' } },
       ];
     }
 
-    const [foodsRaw, total] = await Promise.all([
+    const [foodsRaw, totalLocal] = await Promise.all([
       prisma.food.findMany({
         where,
         orderBy: { createdAt: 'desc' },
-        include: {
-          creator: { select: { username: true, reputation: true } },
-          _count: { select: { votes: true } },
-        },
+        include: foodInclude,
       }),
       prisma.food.count({ where }),
     ]);
 
-    const rankBySourceAndStatus = (food: any) => {
-      if (food.source === 'INTERNAL') return 0;
-      if (food.source === 'USER_SCAN' && food.status === 'VERIFIED') return 1;
-      if (food.source === 'EXTERNAL_API') return 2;
-      if (food.source === 'USER_SCAN' && food.status === 'UNVERIFIED') return 3;
-      return 4;
-    };
-
-    const foods = foodsRaw
+    const localSorted = foodsRaw
+      .filter((f: any) => !foodHasCyrillic(f))
       .slice()
-      .sort((a: any, b: any) => {
-        const rankDiff = rankBySourceAndStatus(a) - rankBySourceAndStatus(b);
-        if (rankDiff !== 0) return rankDiff;
-        return b.createdAt.getTime() - a.createdAt.getTime();
-      })
-      .slice(parseInt(offset), parseInt(offset) + parseInt(limit))
-      .map((food: any) => ({
-        ...food,
-        displayName: food.nameHu ?? food.nameEn ?? food.name,
-      }));
+      .sort((a: any, b: any) => compareFoodsForSearch(a, b, query));
+
+    const localPage = localSorted.slice(off, off + lim);
+
+    const shouldFetchExternal =
+      !onlyMine && query.length >= MIN_EXTERNAL_QUERY_LEN && off === 0;
+
+    let externalFoods: any[] = [];
+
+    if (shouldFetchExternal) {
+      let candidates = getCachedExternal(query);
+
+      if (!candidates) {
+        const [offHits, usdaHits] = await Promise.all([
+          searchOFF(query).catch(() => [] as OFFNormalizedFood[]),
+          searchUSDA(query).catch(() => [] as USDANormalizedFood[]),
+        ]);
+        candidates = [...offHits, ...usdaHits].filter((c) => !foodHasCyrillic(c));
+        setCachedExternal(query, candidates);
+      } else {
+        candidates = candidates.filter((c) => !foodHasCyrillic(c));
+      }
+
+      const seenIds = new Set(localPage.map((f: any) => f.id as string));
+      const seenBarcodes = new Set(
+        localPage.map((f: any) => f.barcode).filter(Boolean) as string[],
+      );
+      const seenExternalIds = new Set(
+        localPage.map((f: any) => f.externalId).filter(Boolean) as string[],
+      );
+
+      const slotsLeft = Math.max(0, lim - localPage.length);
+
+      for (const candidate of candidates) {
+        if (!candidate.externalId && !candidate.barcode) continue;
+        if (candidate.externalId && seenExternalIds.has(candidate.externalId)) continue;
+        if (candidate.barcode && seenBarcodes.has(candidate.barcode)) continue;
+
+        const saved = await upsertExternalFood(prisma, candidate, userId);
+        if (!saved || foodHasCyrillic(saved)) continue;
+
+        if (saved.barcode) seenBarcodes.add(saved.barcode);
+        if (saved.externalId) seenExternalIds.add(saved.externalId);
+
+        if (localSorted.some((f: any) => f.id === saved.id) || seenIds.has(saved.id)) {
+          seenIds.add(saved.id);
+          continue;
+        }
+
+        seenIds.add(saved.id);
+
+        if (externalFoods.length < slotsLeft) {
+          externalFoods.push(saved);
+        }
+      }
+
+      externalFoods.sort((a, b) => compareFoodsForSearch(a, b, query));
+    }
+
+    const combined = [...localPage, ...externalFoods].slice(0, lim);
+    const favIds = await favoriteIdSet(prisma, userId, combined.map((f) => f.id));
+
+    const foods = combined.map((food) => {
+      const fromExternal = externalFoods.some((e) => e.id === food.id);
+      return mapFoodResponse(food, {
+        origin: resolveOrigin(food, fromExternal),
+        isFavorite: favIds.has(food.id),
+      });
+    });
 
     return reply.send({
       foods,
-      total,
+      total: totalLocal + (shouldFetchExternal ? externalFoods.length : 0),
     });
   });
 
-  // GET /barcode/:barcode — vonalkód keresés + OFF fallback
+  // GET /foods/recent — legutóbb naplózott egyedi ételek
+  fastify.get('/recent', {
+    preHandler: [authenticate],
+  }, async (req, reply) => {
+    const prisma = (fastify as any).prisma;
+    const userId = (req as any).user.userId ?? (req as any).user.id;
+    const limit = Math.min(parseInt(String((req.query as any).limit ?? '20'), 10) || 20, 50);
+
+    const logs = await prisma.dailyLog.findMany({
+      where: { userId, foodId: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      select: { foodId: true },
+    });
+
+    const orderedIds: string[] = [];
+    const seen = new Set<string>();
+    for (const row of logs) {
+      if (!row.foodId || seen.has(row.foodId)) continue;
+      seen.add(row.foodId);
+      orderedIds.push(row.foodId);
+      if (orderedIds.length >= limit) break;
+    }
+
+    if (orderedIds.length === 0) return reply.send({ foods: [], total: 0 });
+
+    const foodsRaw = await prisma.food.findMany({
+      where: { id: { in: orderedIds }, status: { not: 'BANNED' } },
+      include: foodInclude,
+    });
+    const byId = new Map(foodsRaw.map((f: any) => [f.id, f]));
+    const ordered = orderedIds.map((id) => byId.get(id)).filter(Boolean);
+    const favIds = await favoriteIdSet(prisma, userId, ordered.map((f: any) => f.id));
+
+    return reply.send({
+      foods: decorateFoods(ordered, favIds),
+      total: ordered.length,
+    });
+  });
+
+  // GET /foods/frequent — leggyakrabban naplózott
+  fastify.get('/frequent', {
+    preHandler: [authenticate],
+  }, async (req, reply) => {
+    const prisma = (fastify as any).prisma;
+    const userId = (req as any).user.userId ?? (req as any).user.id;
+    const limit = Math.min(parseInt(String((req.query as any).limit ?? '20'), 10) || 20, 50);
+
+    const grouped = await prisma.dailyLog.groupBy({
+      by: ['foodId'],
+      where: { userId, foodId: { not: null } },
+      _count: { foodId: true },
+      orderBy: { _count: { foodId: 'desc' } },
+      take: limit,
+    });
+
+    const ids = grouped.map((g: { foodId: string | null }) => g.foodId).filter(Boolean) as string[];
+    if (ids.length === 0) return reply.send({ foods: [], total: 0 });
+
+    const foodsRaw = await prisma.food.findMany({
+      where: { id: { in: ids }, status: { not: 'BANNED' } },
+      include: foodInclude,
+    });
+    const byId = new Map(foodsRaw.map((f: any) => [f.id, f]));
+    const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
+    const favIds = await favoriteIdSet(prisma, userId, ordered.map((f: any) => f.id));
+
+    return reply.send({
+      foods: decorateFoods(ordered, favIds),
+      total: ordered.length,
+    });
+  });
+
+  // GET /foods/favorites
+  fastify.get('/favorites', {
+    preHandler: [authenticate],
+  }, async (req, reply) => {
+    const prisma = (fastify as any).prisma;
+    const userId = (req as any).user.userId ?? (req as any).user.id;
+    const limit = Math.min(parseInt(String((req.query as any).limit ?? '50'), 10) || 50, 100);
+
+    const favs = await prisma.foodFavorite.findMany({
+      where: { userId, food: { status: { not: 'BANNED' } } },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: { food: { include: foodInclude } },
+    });
+
+    const foods = favs
+      .map((f: any) => f.food)
+      .filter((f: any) => f && !foodHasCyrillic(f));
+
+    return reply.send({
+      foods: decorateFoods(foods, new Set(foods.map((f: any) => f.id))),
+      total: foods.length,
+    });
+  });
+
+  // GET /barcode/:barcode
   fastify.get('/barcode/:barcode', {
     preHandler: [authenticate, scanLimitGuard],
   }, async (req, reply) => {
     const { barcode } = req.params as { barcode: string };
     const prisma = (fastify as any).prisma;
 
-    // 1. Saját DB-ben keresünk
     const dbFood = await prisma.food.findUnique({
       where: { barcode },
-      include: {
-        creator: { select: { username: true, reputation: true } },
-        _count: { select: { votes: true } },
-      },
+      include: foodInclude,
     });
 
     if (dbFood && dbFood.status !== 'BANNED') {
@@ -124,14 +429,12 @@ export default async function foodRoutes(fastify: FastifyInstance) {
       });
     }
 
-    // 2. OFF API fallback
     const offFood = await fetchOFFByBarcode(barcode);
 
-    if (!offFood) {
+    if (!offFood || foodHasCyrillic(offFood)) {
       return reply.status(404).send({ error: 'Étel nem található az adatbázisban vagy az Open Food Facts-ban.' });
     }
 
-    // 3. Automatikus mentés a saját DB-be (UNVERIFIED) + létrehozó +1 szavazat
     try {
       const user = (req as any).user;
       const creatorId = user.userId ?? user.id;
@@ -142,6 +445,7 @@ export default async function foodRoutes(fastify: FastifyInstance) {
           nameEn: offFood.name,
           brand: offFood.brand,
           barcode: offFood.barcode,
+          externalId: offFood.externalId,
           kcal: offFood.kcal,
           protein: offFood.protein,
           carbs: offFood.carbs,
@@ -155,16 +459,12 @@ export default async function foodRoutes(fastify: FastifyInstance) {
           source: 'EXTERNAL_API',
           creatorId,
         },
-        include: {
-          creator: { select: { username: true, reputation: true } },
-          _count: { select: { votes: true } },
-        },
+        include: foodInclude,
       });
       await seedCreatorUpvote(prisma, saved.id, creatorId);
       const score = await getScore(prisma, saved.id);
       return reply.send({ ...saved, score, myVote: 1 as const, source: 'EXTERNAL_API' });
     } catch {
-      // Ha barcode unique conflict → visszaadjuk az OFF adatot mentés nélkül
       return reply.send({
         ...offFood,
         id: `off_${barcode}`,
@@ -177,14 +477,85 @@ export default async function foodRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // POST /foods — manuális étel beküldés
+  // POST /foods/ai-recognize — Gemini vision/text (kép NEM tárolódik), napi 10 limit
+  fastify.post('/ai-recognize', {
+    preHandler: [authenticate],
+  }, async (req, reply) => {
+    const bodySchema = z.object({
+      mode: z.enum(['photo', 'text']),
+      text: z.string().max(4000).optional(),
+      imageBase64: z.string().max(12_000_000).optional(),
+      mimeType: z.string().max(64).optional(),
+      locale: z.enum(['hu', 'en']).optional(),
+    });
+    const parsed = bodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.errors[0].message });
+    }
+
+    const { mode, text, imageBase64, mimeType, locale } = parsed.data;
+    if (mode === 'text' && !String(text || '').trim()) {
+      return reply.status(400).send({ error: 'Adj meg egy szöveges leírást.' });
+    }
+    if (mode === 'photo' && !imageBase64) {
+      return reply.status(400).send({ error: 'Hiányzik a kép.' });
+    }
+
+    const prisma = (fastify as any).prisma;
+    const userId = (req as any).user.userId ?? (req as any).user.id;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const usage = await prisma.aiFoodRecognition.upsert({
+      where: { userId_loggedDate: { userId, loggedDate: today } },
+      create: { userId, loggedDate: today, count: 0 },
+      update: {},
+    });
+
+    if (usage.count >= AI_FOOD_RECOGNIZE_DAILY_LIMIT) {
+      return reply.status(429).send({
+        error: 'Elérted a napi AI felismerési limitet (10). Próbáld holnap.',
+        remaining: 0,
+        limit: AI_FOOD_RECOGNIZE_DAILY_LIMIT,
+      });
+    }
+
+    try {
+      const result = await recognizeFoodWithGemini({
+        locale: locale ?? 'hu',
+        mode,
+        text,
+        imageBase64,
+        mimeType,
+      });
+
+      const updated = await prisma.aiFoodRecognition.update({
+        where: { userId_loggedDate: { userId, loggedDate: today } },
+        data: { count: { increment: 1 } },
+      });
+
+      return reply.send({
+        ...result,
+        remaining: Math.max(0, AI_FOOD_RECOGNIZE_DAILY_LIMIT - updated.count),
+        limit: AI_FOOD_RECOGNIZE_DAILY_LIMIT,
+      });
+    } catch (err: any) {
+      const status = err?.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 502;
+      return reply.status(status).send({
+        error: err?.message || 'A felismerés sikertelen.',
+        remaining: Math.max(0, AI_FOOD_RECOGNIZE_DAILY_LIMIT - usage.count),
+        limit: AI_FOOD_RECOGNIZE_DAILY_LIMIT,
+      });
+    }
+  });
+
+  // POST /foods
   fastify.post('/', {
     preHandler: [authenticate],
   }, async (req, reply) => {
     const user = (req as any).user;
     const body = CreateFoodSchema.parse(req.body);
 
-    // Profanity szűrő
     if (checkProfanity(body.name) || (body.brand && checkProfanity(body.brand))) {
       return reply.status(400).send({ error: 'A megadott név nem megfelelő.' });
     }
@@ -212,7 +583,41 @@ export default async function foodRoutes(fastify: FastifyInstance) {
     return reply.status(201).send({ ...food, score, myVote: 1 });
   });
 
-  // PATCH /foods/:id — saját étel szerkesztése
+  // POST /foods/:id/favorite
+  fastify.post('/:id/favorite', {
+    preHandler: [authenticate],
+  }, async (req, reply) => {
+    const prisma = (fastify as any).prisma;
+    const userId = (req as any).user.userId ?? (req as any).user.id;
+    const { id } = req.params as { id: string };
+
+    const food = await prisma.food.findUnique({ where: { id } });
+    if (!food || food.status === 'BANNED') {
+      return reply.status(404).send({ error: 'Étel nem található.' });
+    }
+
+    await prisma.foodFavorite.upsert({
+      where: { userId_foodId: { userId, foodId: id } },
+      create: { userId, foodId: id },
+      update: {},
+    });
+
+    return reply.send({ isFavorite: true });
+  });
+
+  // DELETE /foods/:id/favorite
+  fastify.delete('/:id/favorite', {
+    preHandler: [authenticate],
+  }, async (req, reply) => {
+    const prisma = (fastify as any).prisma;
+    const userId = (req as any).user.userId ?? (req as any).user.id;
+    const { id } = req.params as { id: string };
+
+    await prisma.foodFavorite.deleteMany({ where: { userId, foodId: id } });
+    return reply.send({ isFavorite: false });
+  });
+
+  // PATCH /foods/:id
   fastify.patch('/:id', {
     preHandler: [authenticate],
   }, async (req, reply) => {
@@ -232,7 +637,7 @@ export default async function foodRoutes(fastify: FastifyInstance) {
     return reply.send(updated);
   });
 
-  // POST /foods/:id/vote — szavazás (+1 / -1)
+  // POST /foods/:id/vote
   fastify.post('/:id/vote', {
     preHandler: [authenticate],
   }, async (req, reply) => {
@@ -247,44 +652,38 @@ export default async function foodRoutes(fastify: FastifyInstance) {
 
     const userId = user.userId ?? user.id;
 
-    // Már szavazott-e erre?
     const existing = await prisma.vote.findUnique({
       where: { userId_foodId: { userId, foodId: id } },
     });
 
     if (existing) {
       if (existing.value === value) {
-        // Visszavonja a szavazatát
         await prisma.vote.delete({ where: { id: existing.id } });
         const { score, status } = await recalcScore(prisma, id);
         return reply.send({ action: 'removed', score, status, myVote: null });
       } else {
-        // Szavazatot vált
         await prisma.vote.update({ where: { id: existing.id }, data: { value } });
         const { score, status } = await recalcScore(prisma, id);
         return reply.send({ action: 'changed', score, status, myVote: value });
       }
     }
 
-    // Új szavazat
     await prisma.vote.create({ data: { userId, foodId: id, value } });
     const { score, status } = await recalcScore(prisma, id);
 
-    // Reputation frissítés az étel létrehozójának
     const reputationDelta = value === 1 ? 1 : -1;
     await prisma.user.update({
       where: { id: food.creatorId },
       data: { reputation: { increment: reputationDelta } },
     });
 
-    // Badge küszöb ellenőrzés (reputation >= 10 → log, frontend mutatja)
     const creator = await prisma.user.findUnique({ where: { id: food.creatorId } });
     const earnedExpertBadge = (creator?.reputation ?? 0) >= 10;
 
     return reply.send({ action: 'added', score, status, myVote: value, earnedExpertBadge });
   });
 
-  // GET /:id — részletek + szavazatok
+  // GET /:id
   fastify.get('/:id', {
     preHandler: [authenticate],
   }, async (req, reply) => {
@@ -306,8 +705,18 @@ export default async function foodRoutes(fastify: FastifyInstance) {
 
     const score = await getScore(prisma, id);
     const myVote = food.votes[0]?.value ?? null;
+    const fav = await prisma.foodFavorite.findUnique({
+      where: { userId_foodId: { userId, foodId: id } },
+    });
 
-    return reply.send({ ...food, score, myVote, votes: undefined });
+    return reply.send({
+      ...food,
+      score,
+      myVote,
+      votes: undefined,
+      isFavorite: !!fav,
+      origin: resolveOrigin(food, false),
+    });
   });
 }
 

@@ -185,6 +185,8 @@ export const statsApi = {
 
 export type FoodStatus = 'UNVERIFIED' | 'VERIFIED' | 'BANNED';
 
+export type FoodOrigin = 'local' | 'off' | 'usda' | 'external';
+
 export interface Food {
   id: string;
   name: string;
@@ -193,6 +195,7 @@ export interface Food {
   displayName?: string;
   brand?: string;
   barcode?: string;
+  externalId?: string;
   kcal: number;
   protein: number;
   carbs: number;
@@ -206,18 +209,56 @@ export interface Food {
   score?: number;
   myVote?: 1 | -1 | null;
   source?: 'INTERNAL' | 'USER_SCAN' | 'EXTERNAL_API' | 'MANUAL' | 'SCAN' | 'SEARCH';
+  origin?: FoodOrigin;
+  isFavorite?: boolean;
   creator?: { username: string; reputation: number };
   _count?: { votes: number };
 }
 
 export const foodApi = {
-  search: (q: string, opts?: { limit?: number; offset?: number; includeOFF?: boolean }) => {
+  search: (q: string, opts?: { limit?: number; offset?: number; mine?: boolean }) => {
     const p = new URLSearchParams({ q, limit: String(opts?.limit ?? 20), offset: String(opts?.offset ?? 0) });
+    if (opts?.mine) p.set('mine', '1');
     return request<{ foods: Food[]; total: number }>(`/foods?${p}`);
   },
+  recent: (limit = 20) =>
+    request<{ foods: Food[]; total: number }>(`/foods/recent?limit=${limit}`),
+  frequent: (limit = 20) =>
+    request<{ foods: Food[]; total: number }>(`/foods/frequent?limit=${limit}`),
+  favorites: (limit = 50) =>
+    request<{ foods: Food[]; total: number }>(`/foods/favorites?limit=${limit}`),
+  addFavorite: (id: string) =>
+    request<{ isFavorite: boolean }>(`/foods/${id}/favorite`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  removeFavorite: (id: string) =>
+    request<{ isFavorite: boolean }>(`/foods/${id}/favorite`, { method: 'DELETE' }),
   getById: (id: string) => request<Food & { score: number; myVote: 1 | -1 | null }>(`/foods/${id}`),
   getByBarcode: (barcode: string) => request<Food & { source: string }>(`/foods/barcode/${barcode}`),
   create: (data: unknown) => request<Food>('/foods', { method: 'POST', body: JSON.stringify(data) }),
+  aiRecognize: (data: {
+    mode: 'photo' | 'text';
+    text?: string;
+    imageBase64?: string;
+    mimeType?: string;
+    locale?: 'hu' | 'en';
+  }) =>
+    request<{
+      dishName: string;
+      ingredients: Array<{
+        name: string;
+        amountG: number;
+        kcal: number;
+        protein: number;
+        carbs: number;
+        fat: number;
+        fiber?: number;
+        sugar?: number;
+      }>;
+      remaining: number;
+      limit: number;
+    }>('/foods/ai-recognize', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: Partial<Food>) =>
     request<Food>(`/foods/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   vote: (foodId: string, value: 1 | -1) =>
@@ -308,6 +349,11 @@ export const weightApi = {
 export const profileApi = {
   getMe: () => request<any>('/profile/me'),
   update: (data: unknown) => request('/profile', { method: 'PUT', body: JSON.stringify(data) }),
+  aiCalculateGoals: (data?: { goal?: 'LOSE' | 'MAINTAIN' | 'GAIN'; locale?: 'hu' | 'en' }) =>
+    request<{ profile: any; goals: any }>('/profile/ai-calculate-goals', {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
 };
 
 export const premiumApi = {

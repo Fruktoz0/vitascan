@@ -24,11 +24,13 @@ model User {
   logs          DailyLog[]
   createdFoods  Food[]
   votes         Vote[]
+  favorites     FoodFavorite[]
   profile       UserProfile?
   refreshTokens RefreshToken[]
   waterLogs     WaterLog[]
   weightLogs    WeightLog[]
   dailyAnalyses DailyAnalysis[]
+  aiFoodRecognitions AiFoodRecognition[]
 
   deletedAt DateTime? // Soft delete (GDPR - 30 napos türelmi idő)
   createdAt DateTime  @default(now())
@@ -47,6 +49,9 @@ model UserProfile {
   goal             Goal          @default(MAINTAIN)
   dailyKcalGoal    Float? // Kiszámított TDEE, felülírható
   dailyWaterGoalMl Int? // ml/nap, default: testsúly * 30
+  dailyProteinGoal Float? // g / nap
+  dailyCarbsGoal   Float? // g / nap
+  dailyFatGoal     Float? // g / nap
   avatarKey        String? // DiceBear seed, pl. Felix — ingyenes választható avatar
 
   tier Tier @default(FREE) // Freemium
@@ -59,6 +64,8 @@ model Food {
   nameEn      String?
   brand       String?
   barcode     String? @unique
+  // Külső forrás dedup: pl. off:3017620422003, usda:173410
+  externalId  String? @unique
   kcal        Float
   protein     Float // g / 100g
   carbs       Float // g / 100g
@@ -75,8 +82,22 @@ model Food {
   creatorId String
   creator   User   @relation(fields: [creatorId], references: [id])
   votes     Vote[]
+  favorites FoodFavorite[]
+  logs      DailyLog[]
 
   createdAt DateTime @default(now())
+}
+
+model FoodFavorite {
+  id        String   @id @default(uuid())
+  userId    String
+  foodId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  food Food @relation(fields: [foodId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, foodId])
 }
 
 model Vote {
@@ -95,6 +116,8 @@ model DailyLog {
   id     String @id @default(uuid())
   userId String
 
+  foodId   String?
+  food     Food?   @relation(fields: [foodId], references: [id], onDelete: SetNull)
   foodName String
   kcal     Float
   protein  Float
@@ -170,6 +193,20 @@ model DailyAnalysis {
   generationCount Int      @default(1)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@unique([userId, loggedDate])
+  @@index([userId, loggedDate])
+}
+
+/** Napi AI ételfelismerés számláló — max 10 / nap. Képet NEM tárolunk. */
+model AiFoodRecognition {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  loggedDate DateTime @db.Date
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, loggedDate])
   @@index([userId, loggedDate])

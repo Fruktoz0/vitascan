@@ -33,6 +33,9 @@ export async function getLogs(
   const logs = await prisma.dailyLog.findMany({
     where,
     orderBy: { createdAt: 'asc' },
+    include: {
+      food: { select: { brand: true } },
+    },
   });
 
   // Daily summary
@@ -48,7 +51,12 @@ export async function getLogs(
     { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 }
   );
 
-  return { logs, summary };
+  const mapped = logs.map(({ food, ...log }) => ({
+    ...log,
+    brand: food?.brand ?? null,
+  }));
+
+  return { logs: mapped, summary };
 }
 
 export async function createLog(
@@ -64,6 +72,7 @@ export async function createLog(
       return prisma.dailyLog.create({
         data: {
           userId,
+          foodId: food.id,
           foodName: food.nameHu ?? food.nameEn ?? food.name,
           kcal: Math.round(food.kcal * ratio * 10) / 10,
           protein: Math.round(food.protein * ratio * 10) / 10,
@@ -83,6 +92,7 @@ export async function createLog(
   return prisma.dailyLog.create({
     data: {
       userId,
+      foodId: data.foodId,
       foodName: data.foodName,
       kcal: data.kcal,
       protein: data.protein,

@@ -107,6 +107,35 @@
   margin-top: 8px;
 }
 
+.aiBtn {
+  height: 56px;
+  border-radius: 999px;
+  border: 1.5px solid var(--stroke);
+  background: #fff;
+  color: var(--stroke);
+  font-size: 16px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 3px 3px 0 var(--shadow-hard);
+  margin-top: 4px;
+}
+
+.aiBtn:disabled {
+  opacity: 0.65;
+}
+
+.aiHint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tab-inactive);
+  text-align: center;
+  line-height: 1.4;
+}
+
 .toggleRow {
   display: flex;
   align-items: center;

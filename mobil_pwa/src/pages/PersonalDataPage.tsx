@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../design/tokens';
-import { IconArrowBack, IconHeight, IconPersonOutlineIo } from '../components/ui/Icons';
+import { IconArrowBack, IconHeight, IconPersonOutlineIo, IconWeight } from '../components/ui/Icons';
 import { profileApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import styles from './StackPage.module.css';
@@ -19,6 +19,7 @@ export default function PersonalDataPage() {
   const [name, setName] = useState(user?.username ?? '');
   const [birthYear, setBirthYear] = useState('1990');
   const [heightCm, setHeightCm] = useState('175');
+  const [weightKg, setWeightKg] = useState('70');
   const [gender, setGender] = useState<Gender>('MALE');
   const [activity, setActivity] = useState<ActivityKey>('ACTIVE');
   const [message, setMessage] = useState('');
@@ -30,6 +31,7 @@ export default function PersonalDataPage() {
         const prof = p?.profile;
         if (p?.username) setName(p.username);
         if (prof?.heightCm) setHeightCm(String(prof.heightCm));
+        if (prof?.weightKg) setWeightKg(String(prof.weightKg));
         if (prof?.birthYear) setBirthYear(String(prof.birthYear));
         if (prof?.gender === 'FEMALE') setGender('FEMALE');
         if (prof?.activityLevel === 'SEDENTARY' || prof?.activityLevel === 'LIGHT') setActivity('SEDENTARY');
@@ -54,10 +56,12 @@ export default function PersonalDataPage() {
     setMessage('');
     try {
       const heightNum = Number(heightCm);
+      const weightNum = Number(weightKg);
       const yearNum = Number(birthYear);
       const activityLevel = activity === 'SEDENTARY' ? 'LIGHT' : activity === 'VERY_ACTIVE' ? 'VERY_ACTIVE' : 'ACTIVE';
       await profileApi.update({
         heightCm: Number.isFinite(heightNum) ? heightNum : undefined,
+        weightKg: Number.isFinite(weightNum) ? weightNum : undefined,
         birthYear: Number.isFinite(yearNum) ? yearNum : undefined,
         gender,
         activityLevel,
@@ -104,6 +108,13 @@ export default function PersonalDataPage() {
             <IconHeight size={16} color={Colors.dashboard.stroke} /> {t('personalData.height')}
           </div>
           <input className={styles.input} value={heightCm} onChange={(e) => setHeightCm(e.target.value)} inputMode="numeric" />
+        </div>
+
+        <div className={styles.fieldCard}>
+          <div className={styles.fieldLabel}>
+            <IconWeight size={16} color={Colors.dashboard.stroke} /> {t('personalData.weight')}
+          </div>
+          <input className={styles.input} value={weightKg} onChange={(e) => setWeightKg(e.target.value)} inputMode="decimal" />
         </div>
 
         <div className={styles.fieldCard}>

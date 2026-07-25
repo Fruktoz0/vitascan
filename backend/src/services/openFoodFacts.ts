@@ -3,6 +3,9 @@
 
 const OFF_BASE = 'https://world.openfoodfacts.org';
 
+/** OFF elvárás: appnév/verzió + kapcsolat — nem botnak tűnjön a forgalom */
+const OFF_USER_AGENT = 'VitaScan/1.0 (https://vitascan.hu; contact@vitascan.hu)';
+
 interface OFFProduct {
   code: string;
   product_name?: string;
@@ -24,6 +27,7 @@ export interface OFFNormalizedFood {
   name: string;
   brand?: string;
   barcode?: string;
+  externalId?: string;
   kcal: number;
   protein: number;
   carbs: number;
@@ -57,6 +61,9 @@ export function normalizeOFFProduct(
 
   const name = product.product_name?.trim();
   if (!name) return null;
+  if (/\p{Script=Cyrillic}/u.test(name) || (product.brands && /\p{Script=Cyrillic}/u.test(product.brands))) {
+    return null;
+  }
 
   // Adag felismerése (pl. "30 g" → 30)
   let servingSize: number | undefined;
@@ -72,10 +79,13 @@ export function normalizeOFFProduct(
     }
   }
 
+  const code = product.code?.trim();
+
   return {
     name,
     brand: product.brands?.split(',')[0].trim() || undefined,
-    barcode: product.code || undefined,
+    barcode: code || undefined,
+    externalId: code ? `off:${code}` : undefined,
     kcal: Math.round(kcal * 10) / 10,
     protein: Math.round(protein * 10) / 10,
     carbs: Math.round(carbs * 10) / 10,
@@ -98,7 +108,7 @@ export async function fetchOFFByBarcode(
   const url = `${OFF_BASE}/api/v2/product/${barcode}?fields=code,product_name,brands,nutriments,serving_size,serving_quantity`;
 
   const res = await fetch(url, {
-    headers: { 'User-Agent': 'VitaScan/1.0 (https://vitascan.hu)' },
+    headers: { 'User-Agent': OFF_USER_AGENT },
     signal: AbortSignal.timeout(8000),
   });
 
@@ -131,18 +141,22 @@ export async function searchOFF(
 
   const url = `${OFF_BASE}/cgi/search.pl?${params}`;
 
-  const res = await fetch(url, {
-    headers: { 'User-Agent': 'VitaScan/1.0 (https://vitascan.hu)' },
-    signal: AbortSignal.timeout(8000),
-  });
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': OFF_USER_AGENT },
+      signal: AbortSignal.timeout(8000),
+    });
 
-  if (!res.ok) return [];
+    if (!res.ok) return [];
 
-  const data = await res.json();
-  const products: OFFProduct[] = data.products ?? [];
+    const data = await res.json();
+    const products: OFFProduct[] = data.products ?? [];
 
-  return products
-    .map(normalizeOFFProduct)
-    .filter((p): p is OFFNormalizedFood => p !== null)
-    .slice(0, 5);
+    return products
+      .map(normalizeOFFProduct)
+      .filter((p): p is OFFNormalizedFood => p !== null)
+      .slice(0, 5);
+  } catch {
+    return [];
+  }
 }

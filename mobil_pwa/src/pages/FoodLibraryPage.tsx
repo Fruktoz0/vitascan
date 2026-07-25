@@ -3,18 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { BentoCard } from '../components/ui/BentoCard';
-import { AddFoodManualModal, FoodDetailModal, EditLogModal, type DailyLogItem } from '../components/food/FoodModals';
+import { AddFoodManualModal, FoodDetailModal, EditLogModal, distinctBrand, type DailyLogItem } from '../components/food/FoodModals';
 import {
   IconAdd,
-  IconBakeryDining,
   IconCalendarToday,
   IconEdit,
-  IconEggAlt,
-  IconIcecream,
   IconLocalFire,
-  IconLunchDining,
   IconPieChartOutline,
-  IconRamenDining,
 } from '../components/ui/Icons';
 import { analysisApi, statsApi, ApiError, type DailyAnalysisResult, type Food } from '../services/api';
 import { useDateStore } from '../stores/dateStore';
@@ -24,23 +19,14 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { AnalysisResultView } from '../components/food/AnalysisResult';
 import { parseAnalysisContent } from '../utils/parseAnalysisContent';
 import { Colors } from '../design/tokens';
+import { MEAL_META, type MealType } from '../utils/mealMeta';
 import styles from './FoodLibraryPage.module.css';
-
-type MealType = 'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK';
 
 type DialogState =
   | null
   | { mode: 'alert'; title: string; message: string }
   | { mode: 'confirm'; title: string; message: string; onConfirm: () => void };
 
-const MEAL_META: Record<MealType, { Icon: typeof IconBakeryDining; bg: string }> = {
-  BREAKFAST: { Icon: IconBakeryDining, bg: Colors.dashboard.tertiaryFixed },
-  TIZORAI: { Icon: IconEggAlt, bg: Colors.dashboard.primaryFixed },
-  LUNCH: { Icon: IconLunchDining, bg: Colors.dashboard.errorContainer },
-  UZSONNA: { Icon: IconIcecream, bg: Colors.dashboard.secondaryContainer },
-  DINNER: { Icon: IconRamenDining, bg: Colors.dashboard.surfaceContainerHigh },
-  SNACK: { Icon: IconIcecream, bg: Colors.dashboard.blobPeach },
-};
 
 export default function FoodLibraryPage() {
   const { t } = useTranslation();
@@ -217,7 +203,9 @@ export default function FoodLibraryPage() {
                   </span>
                 </div>
 
-                {logs.map((log: any) => (
+                {logs.map((log: any) => {
+                  const brand = distinctBrand(log.foodName, log.brand);
+                  return (
                   <button
                     key={log.id}
                     type="button"
@@ -226,6 +214,7 @@ export default function FoodLibraryPage() {
                   >
                     <div className={styles.itemLeft}>
                       <div className={styles.itemName}>{log.foodName}</div>
+                      {brand ? <div className={styles.itemBrand}>{brand}</div> : null}
                       <div className={styles.itemMeta}>{Math.round(log.amount ?? 100)}g</div>
                     </div>
                     <div className={styles.itemRight}>
@@ -235,7 +224,8 @@ export default function FoodLibraryPage() {
                       </div>
                     </div>
                   </button>
-                ))}
+                  );
+                })}
 
                 <div className={styles.actions}>
                   <button
@@ -336,12 +326,19 @@ export default function FoodLibraryPage() {
         onClose={() => setManualOpen(false)}
         onCreated={(food) => setSelectedFood(food)}
         onOpenScanner={() => navigate('/scanner')}
+        onOpenAiRecognize={() =>
+          navigate(`/ai-recognize?mealType=${mealForAdd}`)
+        }
       />
       <FoodDetailModal
         food={selectedFood}
         visible={!!selectedFood}
         onClose={() => setSelectedFood(null)}
-        onLogAdded={fetchData}
+        onLogAdded={() => {
+          setSelectedFood(null);
+          setManualOpen(false);
+          fetchData();
+        }}
         logSource="MANUAL"
         initialMealType={mealForAdd}
       />

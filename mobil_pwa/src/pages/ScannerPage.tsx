@@ -121,7 +121,16 @@ export default function ScannerPage() {
           </button>
         </div>
         <AddFoodManualModal visible={manualVisible} onClose={() => setManualVisible(false)} onCreated={(f) => { setFoundFood(f); setDetailVisible(true); }} />
-        <FoodDetailModal food={foundFood} visible={detailVisible} onClose={() => { setDetailVisible(false); setScanState('idle'); lastBarcode.current = ''; }} logSource="MANUAL" />
+        <FoodDetailModal
+          food={foundFood}
+          visible={detailVisible}
+          onClose={() => setDetailVisible(false)}
+          onLogAdded={() => {
+            setDetailVisible(false);
+            setManualVisible(false);
+          }}
+          logSource="MANUAL"
+        />
       </div>
     );
   }
@@ -160,6 +169,14 @@ export default function ScannerPage() {
         visible={detailVisible}
         onClose={() => {
           setDetailVisible(false);
+          if (!manualVisible) {
+            setScanState('idle');
+            lastBarcode.current = '';
+          }
+        }}
+        onLogAdded={() => {
+          setDetailVisible(false);
+          setManualVisible(false);
           setScanState('idle');
           lastBarcode.current = '';
         }}

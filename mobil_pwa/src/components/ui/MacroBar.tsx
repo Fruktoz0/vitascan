@@ -36,21 +36,25 @@ const CONFIG: Record<
   },
 };
 
-export function MacroChip({ type, value, goal }: { type: MacroType; value: number; goal?: number }) {
+export function MacroChip({
+  type,
+  value,
+  goal,
+  onClick,
+}: {
+  type: MacroType;
+  value: number;
+  goal?: number;
+  onClick?: () => void;
+}) {
   const { t } = useTranslation();
   const cfg = CONFIG[type];
   const pct = goal && goal > 0 ? Math.min(value / goal, 1) : 0;
   const label =
     type === 'protein' ? t('food.protein') : type === 'carbs' ? t('food.carbs') : t('food.fat');
 
-  return (
-    <GlassCardSimple
-      className={styles.chip}
-      padding={12}
-      shadowOffset={3}
-      customRadius={cfg.radii}
-      style={{ flex: 1, minHeight: 110 }}
-    >
+  const inner = (
+    <>
       <div className={styles.header}>
         <span className={styles.label}>{label}</span>
         <cfg.Icon size={16} color={Colors.dashboard.stroke} />
@@ -60,6 +64,34 @@ export function MacroChip({ type, value, goal }: { type: MacroType; value: numbe
         <div className={styles.fill} style={{ width: `${pct * 100}%`, background: cfg.fill }} />
       </div>
       {goal != null && <div className={styles.goal}>/ {goal} g</div>}
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button type="button" className={styles.chipBtn} onClick={onClick} style={{ flex: 1, minHeight: 110 }}>
+        <GlassCardSimple
+          className={styles.chip}
+          padding={12}
+          shadowOffset={3}
+          customRadius={cfg.radii}
+          style={{ height: '100%', minHeight: 110 }}
+        >
+          {inner}
+        </GlassCardSimple>
+      </button>
+    );
+  }
+
+  return (
+    <GlassCardSimple
+      className={styles.chip}
+      padding={12}
+      shadowOffset={3}
+      customRadius={cfg.radii}
+      style={{ flex: 1, minHeight: 110 }}
+    >
+      {inner}
     </GlassCardSimple>
   );
 }

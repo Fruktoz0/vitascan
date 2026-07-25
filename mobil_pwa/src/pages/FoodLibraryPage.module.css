@@ -216,6 +216,15 @@
   text-overflow: ellipsis;
 }
 
+.itemBrand {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tab-inactive);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .itemMeta {
   font-size: 12px;
   font-weight: 600;

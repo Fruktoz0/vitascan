@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
@@ -9,25 +9,74 @@ import {
   IconArrowBack,
   IconArrowForward,
   IconBolt,
+  IconBrain,
+  IconEarth,
+  IconHeart,
+  IconHeartOutline,
   IconLeaf,
   IconPeopleOutline,
   IconPieChartOutline,
   IconQrCodeScanner,
   IconRemove,
   IconRestaurantOutline,
+  IconScience,
   IconSearch,
   IconThumbDown,
   IconThumbUp,
   IconVerified,
 } from '../ui/Icons';
 import { GlassCardSimple } from '../ui/GlassCard';
-import { foodApi, logApi, type Food, type FoodStatus } from '../../services/api';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { foodApi, logApi, type Food, type FoodOrigin, type FoodStatus } from '../../services/api';
 import { Colors } from '../../design/tokens';
 import styles from './FoodModals.module.css';
 
 type MealType = 'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK';
 
 const MEAL_TYPES: MealType[] = ['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK'];
+
+/** Márka csak ha van és nem egyezik a termék nevével. */
+export function distinctBrand(name: string | null | undefined, brand?: string | null): string | null {
+  const b = brand?.trim();
+  if (!b) return null;
+  const n = (name ?? '').trim();
+  if (n && b.toLowerCase() === n.toLowerCase()) return null;
+  return b;
+}
+
+type FilterTab = 'recent' | 'favorites' | 'frequent' | 'mine';
+
+const FILTER_TABS: { id: FilterTab; labelKey: string }[] = [
+  { id: 'recent', labelKey: 'food.tabRecent' },
+  { id: 'favorites', labelKey: 'food.tabFavorites' },
+  { id: 'frequent', labelKey: 'food.tabFrequent' },
+  { id: 'mine', labelKey: 'food.tabMine' },
+];
+
+function resolveOrigin(item: Food): FoodOrigin {
+  if (item.origin === 'off' || item.origin === 'usda' || item.origin === 'local') return item.origin;
+  if (item.externalId?.startsWith('usda:')) return 'usda';
+  if (item.externalId?.startsWith('off:')) return 'off';
+  if (item.origin === 'external') return 'off';
+  return 'local';
+}
+
+function OriginIcon({ item }: { item: Food }) {
+  const origin = resolveOrigin(item);
+  const title =
+    origin === 'usda' ? 'USDA' : origin === 'off' ? 'Open Food Facts' : 'Saját adatbázis';
+  return (
+    <span className={styles.originIcon} aria-hidden title={title}>
+      {origin === 'usda' ? (
+        <IconScience size={18} color={Colors.dashboard.stroke} />
+      ) : origin === 'off' ? (
+        <IconEarth size={18} color={Colors.dashboard.stroke} />
+      ) : (
+        <IconLeaf size={18} color={Colors.dashboard.stroke} />
+      )}
+    </span>
+  );
+}
 
 interface FoodDetailModalProps {
   food: Food | null;
@@ -58,9 +107,9 @@ function MacroBar({
     <div className={styles.macroBarRow}>
       <div className={styles.macroLabelRow}>
         <span className={styles.macroLabel}>
-          {label} ({grams}g)
+          {label} ({Math.round(percent)}%)
         </span>
-        <span className={styles.macroPct}>{Math.round(percent)}%</span>
+        <span className={styles.macroPct}>{grams}g</span>
       </div>
       <div className={styles.macroTrack}>
         <div
@@ -247,6 +296,7 @@ export function FoodDetailModal({
     (i18n.language === 'en' ? currentFood.nameEn : currentFood.nameHu) ??
     currentFood.displayName ??
     currentFood.name;
+  const brandLabel = distinctBrand(displayName, currentFood.brand);
 
   const servingSize = currentFood.servingSize != null && currentFood.servingSize > 0 ? currentFood.servingSize : 100;
   const servingUnit = currentFood.servingUnit?.trim() || 'g';
@@ -341,6 +391,7 @@ export function FoodDetailModal({
               <IconLeaf size={32} color={Colors.dashboard.nutritionIcon} style={{ opacity: 0.3 }} />
             </span>
             <h3 className={styles.foodName}>{displayName}</h3>
+            {brandLabel ? <p className={styles.foodBrand}>{brandLabel}</p> : null}
             <div className={styles.portionBadgeWrap}>
               <span className={styles.portionBadgeShadow} />
               <span className={styles.portionBadgeInner}>
@@ -393,38 +444,38 @@ export function FoodDetailModal({
             <div className={styles.macroBars}>
               <MacroBar
                 label={t('food.protein')}
-                grams={currentFood.protein}
+                grams={calc.protein}
                 percent={proteinPct}
                 color={Colors.dashboard.proteinFill}
                 rotation={0.5}
               />
               <MacroBar
                 label={t('food.carbs')}
-                grams={currentFood.carbs}
+                grams={calc.carbs}
                 percent={carbsPct}
                 color={Colors.dashboard.carbsFill}
                 rotation={-0.5}
                 sugarNote={
-                  currentFood.sugar != null
-                    ? `${t('food.ofWhichSugar')}: ${currentFood.sugar}g / 100g`
+                  calc.sugar != null
+                    ? `${t('food.ofWhichSugar')}: ${calc.sugar}g`
                     : undefined
                 }
               />
               <MacroBar
                 label={t('food.fat')}
-                grams={currentFood.fat}
+                grams={calc.fat}
                 percent={fatPct}
                 color={Colors.dashboard.fatFill}
                 rotation={-0.5}
               />
             </div>
-            {currentFood.fiber != null && (
+            {calc.fiber != null && (
               <div className={styles.extraNutri}>
                 <div className={styles.nutrRow}>
                   <span className={styles.nutrDot} style={{ background: Colors.macro.fiber }} />
-                  <span className={styles.nutrLabel}>{t('food.fiberPer100g')}</span>
+                  <span className={styles.nutrLabel}>{t('food.fiber')}</span>
                   <span className={styles.nutrValue} style={{ color: Colors.macro.fiber }}>
-                    {currentFood.fiber}g
+                    {calc.fiber}g
                   </span>
                 </div>
               </div>
@@ -492,6 +543,7 @@ export function FoodDetailModal({
 export type DailyLogItem = {
   id: string;
   foodName: string;
+  brand?: string | null;
   amount: number;
   kcal: number;
   protein: number;
@@ -528,6 +580,7 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
   if (!visible || !base) return null;
 
   const baseAmount = base.amount > 0 ? base.amount : 100;
+  const brandLabel = distinctBrand(base.foodName, base.brand);
   const g = parseFloat(amount) || 0;
   const ratio = g / baseAmount;
   const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -623,6 +676,7 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
               <IconLeaf size={32} color={Colors.dashboard.nutritionIcon} style={{ opacity: 0.3 }} />
             </span>
             <h3 className={styles.foodName}>{base.foodName}</h3>
+            {brandLabel ? <p className={styles.foodBrand}>{brandLabel}</p> : null}
             <div className={styles.portionBadgeWrap}>
               <span className={styles.portionBadgeShadow} />
               <span className={styles.portionBadgeInner}>
@@ -675,26 +729,26 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
             <div className={styles.macroBars}>
               <MacroBar
                 label={t('food.protein')}
-                grams={round1(per100.protein)}
+                grams={calc.protein}
                 percent={proteinPct}
                 color={Colors.dashboard.proteinFill}
                 rotation={0.5}
               />
               <MacroBar
                 label={t('food.carbs')}
-                grams={round1(per100.carbs)}
+                grams={calc.carbs}
                 percent={carbsPct}
                 color={Colors.dashboard.carbsFill}
                 rotation={-0.5}
                 sugarNote={
-                  per100.sugar != null
-                    ? `${t('food.ofWhichSugar')}: ${round1(per100.sugar)}g / 100g`
+                  calc.sugar != null
+                    ? `${t('food.ofWhichSugar')}: ${calc.sugar}g`
                     : undefined
                 }
               />
               <MacroBar
                 label={t('food.fat')}
-                grams={round1(per100.fat)}
+                grams={calc.fat}
                 percent={fatPct}
                 color={Colors.dashboard.fatFill}
                 rotation={-0.5}
@@ -773,9 +827,8 @@ interface AddFoodManualModalProps {
   onClose: () => void;
   onCreated?: (food: Food) => void;
   onOpenScanner?: () => void;
+  onOpenAiRecognize?: () => void;
 }
-
-const FILTER_TABS = ['Legutobbiak', 'Kedvencek', 'Gyakori', 'Sajat etelek'];
 
 export function AddFoodManualModal({
   visible,
@@ -784,43 +837,108 @@ export function AddFoodManualModal({
   onClose,
   onCreated,
   onOpenScanner,
+  onOpenAiRecognize,
 }: AddFoodManualModalProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState(prefillName ?? prefillBarcode ?? '');
   const [foods, setFoods] = useState<Food[]>([]);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<FilterTab>('recent');
+  const [favBusyId, setFavBusyId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
   const cleanQuery = query.trim();
+  const searchSeq = useRef(0);
+  const isSearching = cleanQuery.length >= 3;
 
   useEffect(() => {
     if (!visible) return;
     setQuery(prefillName ?? prefillBarcode ?? '');
+    setActiveTab('recent');
+    setCreateOpen(false);
   }, [visible, prefillName, prefillBarcode]);
 
   useEffect(() => {
     if (!visible) return;
-    if (cleanQuery.length < 2) {
-      setFoods([]);
-      setLoading(false);
-      return;
+
+    const seq = ++searchSeq.current;
+
+    if (isSearching) {
+      const timer = setTimeout(async () => {
+        setLoading(true);
+        try {
+          const res = await foodApi.search(cleanQuery, { limit: 20 });
+          if (seq !== searchSeq.current) return;
+          setFoods(res.foods);
+        } catch {
+          if (seq !== searchSeq.current) return;
+          setFoods([]);
+        } finally {
+          if (seq === searchSeq.current) setLoading(false);
+        }
+      }, 500);
+      return () => clearTimeout(timer);
     }
-    const timer = setTimeout(async () => {
+
+    let cancelled = false;
+    (async () => {
       setLoading(true);
       try {
-        const res = await foodApi.search(cleanQuery, { limit: 20 });
+        let res: { foods: Food[] };
+        if (activeTab === 'favorites') res = await foodApi.favorites(50);
+        else if (activeTab === 'frequent') res = await foodApi.frequent(20);
+        else if (activeTab === 'mine') res = await foodApi.search('', { limit: 30, mine: true });
+        else res = await foodApi.recent(20);
+        if (cancelled || seq !== searchSeq.current) return;
         setFoods(res.foods);
       } catch {
+        if (cancelled || seq !== searchSeq.current) return;
         setFoods([]);
       } finally {
-        setLoading(false);
+        if (!cancelled && seq === searchSeq.current) setLoading(false);
       }
-    }, 280);
-    return () => clearTimeout(timer);
-  }, [cleanQuery, visible]);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cleanQuery, visible, activeTab, isSearching]);
+
+  const toggleFavorite = async (item: Food, e: MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (favBusyId) return;
+    setFavBusyId(item.id);
+    const next = !item.isFavorite;
+    setFoods((prev) => prev.map((f) => (f.id === item.id ? { ...f, isFavorite: next } : f)));
+    try {
+      if (next) await foodApi.addFavorite(item.id);
+      else await foodApi.removeFavorite(item.id);
+      if (activeTab === 'favorites' && !isSearching && !next) {
+        setFoods((prev) => prev.filter((f) => f.id !== item.id));
+      }
+    } catch (err: any) {
+      setFoods((prev) => prev.map((f) => (f.id === item.id ? { ...f, isFavorite: item.isFavorite } : f)));
+      window.alert(err?.message || t('food.errorTitle'));
+    } finally {
+      setFavBusyId(null);
+    }
+  };
 
   if (!visible) return null;
 
   const getDisplayName = (item: Food) =>
     (i18n.language === 'en' ? item.nameEn : item.nameHu) ?? item.displayName ?? item.name;
+
+  const showSkeleton = !isSearching && loading && foods.length === 0;
+  const emptyHint = isSearching
+    ? t('food.noResults')
+    : activeTab === 'favorites'
+      ? t('food.emptyFavorites')
+      : activeTab === 'frequent'
+        ? t('food.emptyFrequent')
+        : activeTab === 'mine'
+          ? t('food.emptyMine')
+          : t('food.emptyRecent');
 
   return createPortal(
     <div className={styles.addOverlay}>
@@ -834,6 +952,17 @@ export function AddFoodManualModal({
               </span>
             </button>
             <h2 className={styles.addTitle}>{t('food.manualAddTitle')}</h2>
+            <button
+              type="button"
+              className={styles.iconBtnAbsoluteRight}
+              aria-label={t('food.newFood')}
+              onClick={() => setCreateOpen(true)}
+            >
+              <span className={styles.iconShadow} />
+              <span className={styles.iconFace}>
+                <IconAdd size={22} color={Colors.dashboard.stroke} />
+              </span>
+            </button>
           </div>
 
           <div className={styles.searchWrap}>
@@ -851,17 +980,30 @@ export function AddFoodManualModal({
           </div>
 
           <div className={styles.tabRow}>
-            {FILTER_TABS.map((label, idx) => (
-              <div key={label} className={`${styles.tabChip} ${idx === 0 ? styles.tabChipActive : ''}`}>
-                <span className={idx === 0 ? styles.tabChipTextActive : styles.tabChipText}>{label}</span>
-              </div>
-            ))}
+            {FILTER_TABS.map((tab) => {
+              const active = !isSearching && activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={`${styles.tabChip} ${active ? styles.tabChipActive : ''}`}
+                  onClick={() => {
+                    setQuery('');
+                    setActiveTab(tab.id);
+                  }}
+                >
+                  <span className={active ? styles.tabChipTextActive : styles.tabChipText}>
+                    {t(tab.labelKey)}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
         <div className={styles.addBody}>
           <GlassCardSimple padding={16} shadowOffset={3}>
-            {cleanQuery.length < 2 ? (
+            {showSkeleton ? (
               <div className={styles.skeletonWrap}>
                 {[0, 1, 2, 3].map((row) => (
                   <div key={row} className={styles.skeletonRow}>
@@ -874,38 +1016,61 @@ export function AddFoodManualModal({
                   </div>
                 ))}
               </div>
-            ) : loading ? (
+            ) : loading && isSearching ? (
               <div className={styles.loadingWrap}>
                 <div className="spinner" />
                 <p className={styles.emptyHint}>{t('food.searching')}</p>
               </div>
             ) : foods.length === 0 ? (
               <div className={styles.loadingWrap}>
-                <p className={styles.emptyHint}>{t('food.noResults')}</p>
+                <p className={styles.emptyHint}>{emptyHint}</p>
               </div>
             ) : (
-              foods.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={styles.quickRow}
-                  onClick={() => {
-                    onCreated?.(item);
-                    onClose();
-                  }}
-                >
-                  <span className={styles.quickEmoji} aria-hidden>
-                    {'\u{1F37D}'}
-                  </span>
-                  <span className={styles.resultInfo}>
-                    <span className={styles.quickName}>{getDisplayName(item)}</span>
-                    <span className={styles.quickMeta}>{Math.round(item.kcal)} kcal / 100g</span>
-                  </span>
-                  <span className={styles.quickAddBtn}>
+              foods.map((item) => {
+                const name = getDisplayName(item);
+                const brand = distinctBrand(name, item.brand);
+                return (
+                <div key={item.id} className={styles.quickRow}>
+                  <button
+                    type="button"
+                    className={styles.quickRowMain}
+                    onClick={() => {
+                      onCreated?.(item);
+                    }}
+                  >
+                    <OriginIcon item={item} />
+                    <span className={styles.resultInfo}>
+                      <span className={styles.quickName}>{name}</span>
+                      {brand ? <span className={styles.quickBrand}>{brand}</span> : null}
+                      <span className={styles.quickMeta}>{Math.round(item.kcal)} kcal / 100g</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.quickFavBtn}
+                    aria-label={item.isFavorite ? t('food.unfavorite') : t('food.favorite')}
+                    disabled={favBusyId === item.id}
+                    onClick={(e) => toggleFavorite(item, e)}
+                  >
+                    {item.isFavorite ? (
+                      <IconHeart size={18} color={Colors.dashboard.nutritionIcon} />
+                    ) : (
+                      <IconHeartOutline size={18} color={Colors.dashboard.stroke} />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.quickAddBtn}
+                    aria-label={t('food.addToLog')}
+                    onClick={() => {
+                      onCreated?.(item);
+                    }}
+                  >
                     <IconAdd size={18} color={Colors.dashboard.stroke} />
-                  </span>
-                </button>
-              ))
+                  </button>
+                </div>
+              );
+              })
             )}
           </GlassCardSimple>
 
@@ -924,8 +1089,31 @@ export function AddFoodManualModal({
                   <IconQrCodeScanner size={22} color={Colors.dashboard.stroke} />
                 </span>
                 <span className={styles.resultInfo}>
-                  <span className={styles.scanTitle}>Vonalkod beolvasasa</span>
-                  <span className={styles.scanSub}>Gyorsabb hozzaadas termekekhez</span>
+                  <span className={styles.scanTitle}>{t('food.scanBarcodeTitle')}</span>
+                  <span className={styles.scanSub}>{t('food.scanBarcodeSub')}</span>
+                </span>
+                <IconArrowForward size={14} color={Colors.dashboard.tabInactive} />
+              </span>
+            </button>
+          )}
+
+          {onOpenAiRecognize && (
+            <button
+              type="button"
+              className={styles.scanCardWrap}
+              onClick={() => {
+                onClose();
+                onOpenAiRecognize();
+              }}
+            >
+              <span className={styles.scanCardShadow} />
+              <span className={`${styles.scanCardInner} ${styles.aiCardInner}`}>
+                <span className={styles.scanIconWrap}>
+                  <IconBrain size={22} color={Colors.dashboard.stroke} />
+                </span>
+                <span className={styles.resultInfo}>
+                  <span className={styles.scanTitle}>{t('aiRecognize.entryTitle')}</span>
+                  <span className={styles.scanSub}>{t('aiRecognize.entrySub')}</span>
                 </span>
                 <IconArrowForward size={14} color={Colors.dashboard.tabInactive} />
               </span>
@@ -933,7 +1121,263 @@ export function AddFoodManualModal({
           )}
         </div>
       </div>
+
+      <CreateFoodModal
+        visible={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={(food) => {
+          setCreateOpen(false);
+          onCreated?.(food);
+        }}
+      />
     </div>,
+    document.body,
+  );
+}
+
+interface CreateFoodModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onCreated?: (food: Food) => void;
+}
+
+export function CreateFoodModal({ visible, onClose, onCreated }: CreateFoodModalProps) {
+  const { t } = useTranslation();
+  const [name, setName] = useState('');
+  const [brand, setBrand] = useState('');
+  const [barcode, setBarcode] = useState('');
+  const [kcal, setKcal] = useState('');
+  const [protein, setProtein] = useState('');
+  const [carbs, setCarbs] = useState('');
+  const [fat, setFat] = useState('');
+  const [fiber, setFiber] = useState('');
+  const [sugar, setSugar] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [dialog, setDialog] = useState<{ title: string; message: string } | null>(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    setName('');
+    setBrand('');
+    setBarcode('');
+    setKcal('');
+    setProtein('');
+    setCarbs('');
+    setFat('');
+    setFiber('');
+    setSugar('');
+    setDialog(null);
+  }, [visible]);
+
+  if (!visible) return null;
+
+  const showDialog = (title: string, message: string) => setDialog({ title, message });
+
+  const num = (v: string) => {
+    const n = parseFloat(v.replace(',', '.'));
+    return Number.isFinite(n) ? n : NaN;
+  };
+
+  const handleSubmit = async () => {
+    const trimmed = name.trim();
+    const k = num(kcal);
+    const p = num(protein);
+    const c = num(carbs);
+    const f = num(fat);
+    const missing: string[] = [];
+    if (trimmed.length < 2) missing.push(t('food.foodName'));
+    if (!Number.isFinite(k) || k < 0) missing.push(t('food.caloriesPer100g'));
+    if (!Number.isFinite(p) || p < 0) missing.push(t('food.proteinPer100g'));
+    if (!Number.isFinite(c) || c < 0) missing.push(t('food.carbsPer100g'));
+    if (!Number.isFinite(f) || f < 0) missing.push(t('food.fatPer100g'));
+    if (missing.length) {
+      showDialog(t('food.missingDataTitle'), t('food.fillFields', { fields: missing.join(', ') }));
+      return;
+    }
+
+    const fiberN = fiber.trim() ? num(fiber) : undefined;
+    const sugarN = sugar.trim() ? num(sugar) : undefined;
+    if (fiberN != null && (!Number.isFinite(fiberN) || fiberN < 0)) {
+      showDialog(t('food.missingDataTitle'), t('food.fiberPer100g'));
+      return;
+    }
+    if (sugarN != null && (!Number.isFinite(sugarN) || sugarN < 0)) {
+      showDialog(t('food.missingDataTitle'), t('food.sugarPer100g'));
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const brandTrim = brand.trim();
+      const created = await foodApi.create({
+        name: trimmed,
+        nameHu: trimmed,
+        nameEn: trimmed,
+        brand: brandTrim || undefined,
+        barcode: barcode.trim() || undefined,
+        kcal: k,
+        protein: p,
+        carbs: c,
+        fat: f,
+        fiber: fiberN,
+        sugar: sugarN,
+        servingSize: 100,
+        servingUnit: 'g',
+        source: 'USER_SCAN',
+      });
+      onCreated?.(created);
+    } catch (e: any) {
+      showDialog(t('food.errorTitle'), e?.message || t('food.errorTitle'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return createPortal(
+    <>
+    <div className={styles.detailScreen}>
+      <header className={styles.detailHeader}>
+        <button type="button" className={styles.backBtn} onClick={onClose}>
+          <span className={styles.backBtnShadow} />
+          <span className={styles.backBtnInner}>
+            <IconArrowBack size={24} color={Colors.dashboard.stroke} />
+          </span>
+        </button>
+        <h2 className={styles.detailTitle}>{t('food.createFoodTitle')}</h2>
+        <span className={styles.headerSpacer} />
+      </header>
+
+      <div className={styles.detailBody}>
+        <div className={styles.sections}>
+          <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
+            <div className={styles.sectionHeaderSmall}>
+              <IconLeaf size={24} color={Colors.dashboard.stroke} />
+              <span className={styles.sectionTitle}>{t('food.baseData')}</span>
+            </div>
+            <label className={styles.formLabel}>{t('food.foodName')}</label>
+            <input
+              className={styles.formInput}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t('food.foodName')}
+              autoFocus
+            />
+            <label className={styles.formLabel}>{t('food.brandOptional')}</label>
+            <input
+              className={styles.formInput}
+              value={brand}
+              onChange={(e) => setBrand(e.target.value)}
+              placeholder={t('food.brandOptional')}
+            />
+            <label className={styles.formLabel}>{t('food.barcodeOptional')}</label>
+            <input
+              className={styles.formInput}
+              value={barcode}
+              onChange={(e) => setBarcode(e.target.value)}
+              placeholder={t('food.barcodeOptional')}
+              inputMode="numeric"
+            />
+          </GlassCardSimple>
+
+          <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
+            <div className={styles.sectionHeaderSmall}>
+              <IconPieChartOutline size={24} color={Colors.dashboard.stroke} />
+              <span className={styles.sectionTitle}>{t('food.nutritionPer100g')}</span>
+            </div>
+            <div className={styles.formGrid}>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>{t('food.caloriesPer100g')}</label>
+                <input
+                  className={styles.formInput}
+                  value={kcal}
+                  onChange={(e) => setKcal(e.target.value.replace(/[^\d.,]/g, ''))}
+                  inputMode="decimal"
+                  placeholder="0"
+                />
+              </div>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>{t('food.proteinPer100g')}</label>
+                <input
+                  className={styles.formInput}
+                  value={protein}
+                  onChange={(e) => setProtein(e.target.value.replace(/[^\d.,]/g, ''))}
+                  inputMode="decimal"
+                  placeholder="0"
+                />
+              </div>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>{t('food.carbsPer100g')}</label>
+                <input
+                  className={styles.formInput}
+                  value={carbs}
+                  onChange={(e) => setCarbs(e.target.value.replace(/[^\d.,]/g, ''))}
+                  inputMode="decimal"
+                  placeholder="0"
+                />
+              </div>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>{t('food.fatPer100g')}</label>
+                <input
+                  className={styles.formInput}
+                  value={fat}
+                  onChange={(e) => setFat(e.target.value.replace(/[^\d.,]/g, ''))}
+                  inputMode="decimal"
+                  placeholder="0"
+                />
+              </div>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>{t('food.fiberPer100g')}</label>
+                <input
+                  className={styles.formInput}
+                  value={fiber}
+                  onChange={(e) => setFiber(e.target.value.replace(/[^\d.,]/g, ''))}
+                  inputMode="decimal"
+                  placeholder="0"
+                />
+              </div>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>{t('food.sugarPer100g')}</label>
+                <input
+                  className={styles.formInput}
+                  value={sugar}
+                  onChange={(e) => setSugar(e.target.value.replace(/[^\d.,]/g, ''))}
+                  inputMode="decimal"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+            <p className={styles.formHint}>{t('food.infoPer100g')}</p>
+          </GlassCardSimple>
+
+          <div className={styles.scrollSpacer} />
+        </div>
+      </div>
+
+      <footer className={styles.detailFooter}>
+        <button
+          type="button"
+          className={styles.addBtnWrap}
+          onClick={handleSubmit}
+          disabled={submitting}
+        >
+          <span className={styles.addBtnShadow} />
+          <span className={styles.addBtnInner}>
+            <IconAddCircle size={24} color="#fff" />
+            <span className={styles.addBtnLabel}>
+              {submitting ? '...' : t('food.submit')}
+            </span>
+          </span>
+        </button>
+      </footer>
+    </div>
+    <ConfirmDialog
+      visible={!!dialog}
+      title={dialog?.title ?? ''}
+      message={dialog?.message ?? ''}
+      confirmLabel={t('common.ok', 'OK')}
+      onClose={() => setDialog(null)}
+    />
+    </>,
     document.body,
   );
 }

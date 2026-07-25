@@ -3,6 +3,25 @@
   min-width: 0;
 }
 
+.chipBtn {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  font: inherit;
+  color: inherit;
+}
+
+.chipBtn:active {
+  opacity: 0.92;
+  transform: scale(0.98);
+}
+
 .header {
   display: flex;
   justify-content: space-between;

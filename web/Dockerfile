@@ -9,7 +9,8 @@ RUN npm ci
 COPY . .
 
 # Böngészőből elérhető API bazis URL (build-time)
-ARG VITE_API_URL=http://localhost:3005/api
+# Same-origin: a böngésző a web host /api útvonalát hívja (nginx → api konténer)
+ARG VITE_API_URL=/api
 ENV VITE_API_URL=$VITE_API_URL
 
 RUN npm run build

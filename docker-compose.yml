@@ -16,7 +16,7 @@ services:
       [
         "sh",
         "-c",
-        "apt-get update -y && apt-get install -y openssl && npm install && npx prisma generate && (npx prisma db execute --file prisma/sql/migrate_water_to_daily.sql --schema prisma/schema.prisma || true) && npx prisma db push && npm run dev",
+        "apt-get update -y && apt-get install -y openssl && npm install && npx prisma generate && (npx prisma db execute --file prisma/sql/migrate_water_to_daily.sql --schema prisma/schema.prisma || true) && npx prisma db push --accept-data-loss && npm run dev",
       ]
     volumes:
       - ./backend:/app
@@ -31,6 +31,7 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
       GEMINI_FALLBACK_MODEL: ${GEMINI_FALLBACK_MODEL:-gemini-3.5-flash-lite}
+      USDA_API_KEY: ${USDA_API_KEY:-}
     ports:
       - "${PORT:-3005}:${PORT:-3005}"
     networks:
@@ -41,9 +42,9 @@ services:
       context: ./web
       dockerfile: Dockerfile
       args:
-        # A böngésző (nem a konténer!) ezt az URL-t hívja. Port egyezzen a fenti api PORT-tal.
-        # Ha ez eltér a compose defaulttól, állíts VITE_API_URL-t a gyökér .env-ben és: docker compose build web --no-cache
-        VITE_API_URL: ${VITE_API_URL:-http://192.168.1.115:3005/api}
+        # Same-origin /api — nginx a web konténerben proxizza az api szolgáltatásra.
+        # Abszolút URL is megadható (pl. http://vitascan.bdev.hu/api). Újraépítés: docker compose build web --no-cache
+        VITE_API_URL: ${VITE_API_URL:-/api}
     container_name: vitascan_web
     restart: unless-stopped
     ports:

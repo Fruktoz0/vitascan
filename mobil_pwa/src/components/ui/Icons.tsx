@@ -22,6 +22,7 @@ import {
   MdEnergySavingsLeaf,
   MdEvent,
   MdFavorite,
+  MdFavoriteBorder,
   MdFlashlightOff,
   MdFlashlightOn,
   MdHeight,
@@ -39,6 +40,8 @@ import {
   MdOutlineNote,
   MdPeopleOutline,
   MdPersonOutline,
+  MdPhotoCamera,
+  MdPhotoLibrary,
   MdPieChartOutline,
   MdPsychology,
   MdPublic,
@@ -46,6 +49,7 @@ import {
   MdRamenDining,
   MdRemove,
   MdRestaurant,
+  MdScience,
   MdSearch,
   MdShield,
   MdStar,
@@ -140,7 +144,11 @@ export const IconPieChartOutline = wrap(MdPieChartOutline);
 export const IconApple = wrap(FaAppleAlt);
 export const IconLeaf = wrap(MdEnergySavingsLeaf);
 export const IconBrain = wrap(MdPsychology);
+export const IconPhotoCamera = wrap(MdPhotoCamera);
+export const IconPhotoLibrary = wrap(MdPhotoLibrary);
 export const IconHeart = wrap(MdFavorite);
+export const IconHeartOutline = wrap(MdFavoriteBorder);
+export const IconScience = wrap(MdScience);
 export const IconVerified = wrap(MdVerified);
 export const IconPeopleOutline = wrap(MdPeopleOutline);
 export const IconRestaurantOutline = wrap(IoRestaurantOutline);

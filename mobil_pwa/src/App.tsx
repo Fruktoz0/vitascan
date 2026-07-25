@@ -11,6 +11,8 @@ import FoodLibraryPage from './pages/FoodLibraryPage';
 import ScannerPage from './pages/ScannerPage';
 import ProfilePage from './pages/ProfilePage';
 import PersonalDataPage from './pages/PersonalDataPage';
+import GoalsPage from './pages/GoalsPage';
+import AiRecognizePage from './pages/AiRecognizePage';
 import NotificationsPage from './pages/NotificationsPage';
 import DatePickerPage from './pages/DatePickerPage';
 import DataVaultPage from './pages/DataVaultPage';
@@ -49,6 +51,8 @@ export default function App() {
             <Route path="/data-vault" element={<DataVaultPage />} />
           </Route>
           <Route path="/personal-data" element={<PersonalDataPage />} />
+          <Route path="/goals" element={<GoalsPage />} />
+          <Route path="/ai-recognize" element={<AiRecognizePage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/admin" element={<AdminPage />} />
         </Route>
