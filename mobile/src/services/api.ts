@@ -195,11 +195,19 @@ export type DailyAnalysisResult = {
 
 export const analysisApi = {
   get: (date: string) => request<DailyAnalysisResult>(`/analysis?date=${date}`),
-  generate: (date: string, locale?: 'hu' | 'en') =>
-    request<DailyAnalysisResult>('/analysis', {
+  generate: (date: string, locale?: 'hu' | 'en') => {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const offMin = -d.getTimezoneOffset();
+    const sign = offMin >= 0 ? '+' : '-';
+    const oh = pad(Math.floor(Math.abs(offMin) / 60));
+    const om = pad(Math.abs(offMin) % 60);
+    const localTime = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${oh}:${om}`;
+    return request<DailyAnalysisResult>('/analysis', {
       method: 'POST',
-      body: JSON.stringify({ date, ...(locale ? { locale } : {}) }),
-    }),
+      body: JSON.stringify({ date, localTime, ...(locale ? { locale } : {}) }),
+    });
+  },
 };
 
 // ─── Water ────────────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  Pressable, ActivityIndicator, PanResponder, Platform, Alert,
+  Pressable, ActivityIndicator, PanResponder, Platform,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -11,6 +11,9 @@ import i18n from '../../src/i18n';
 
 import { Food, statsApi, analysisApi, ApiError, type DailyAnalysisResult } from '../../src/services/api';
 import { BentoCard } from '../../src/components/ui/BentoCard';
+import { ConfirmDialog } from '../../src/components/ui/ConfirmDialog';
+import { AnalysisResultView } from '../../src/components/food/AnalysisResult';
+import { parseAnalysisContent } from '../../src/utils/parseAnalysisContent';
 import AddFoodManualModal from '../../src/components/food/AddFoodManualModal';
 import FoodDetailModal from '../../src/components/food/FoodDetailModal';
 import EditLogModal, { type DailyLogItem } from '../../src/components/food/EditLogModal';
@@ -22,6 +25,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useProfileStore } from '../../src/stores/profileStore';
 import { useAuthStore } from '../../src/stores/authStore';
 import { UserAvatar } from '../../src/components/ui/AvatarPicker';
+
+type DialogState =
+  | null
+  | { mode: 'alert'; title: string; message: string }
+  | { mode: 'confirm'; title: string; message: string; onConfirm: () => void };
 
 // ─── MealItem ────────────────────────────────────────────────────────────────
 function fmtMacro(n: number) {
@@ -174,6 +182,7 @@ export default function FoodLibraryScreen() {
   const [selectedMealType, setSelectedMealType] = useState<'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK'>('SNACK');
   const [analysis, setAnalysis] = useState<DailyAnalysisResult | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [dialog, setDialog] = useState<DialogState>(null);
 
   const getHeaderDateText = () => {
     const today = new Date();
@@ -251,29 +260,59 @@ export default function FoodLibraryScreen() {
     setManualVisible(true);
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = () => {
     if (!hasLogs) {
-      Alert.alert(t('foodLibraryScreen.noFoodForAnalysis', 'Nincs rögzített étel erre a napra.'));
+      setDialog({
+        mode: 'alert',
+        title: t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés'),
+        message: t('foodLibraryScreen.noFoodForAnalysis', 'Nincs rögzített étel erre a napra.'),
+      });
       return;
     }
     if (remaining <= 0) {
-      Alert.alert(t('foodLibraryScreen.analysisLimit', 'Ma már 2 elemzést kértél.'));
+      setDialog({
+        mode: 'alert',
+        title: t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés'),
+        message: t('foodLibraryScreen.analysisLimit', 'Ma már 2 elemzést kértél.'),
+      });
       return;
     }
-    setAnalysisLoading(true);
-    try {
-      const locale = i18n.language?.startsWith('en') ? 'en' : 'hu';
-      setAnalysis(await analysisApi.generate(dateStr, locale));
-    } catch (e: any) {
-      Alert.alert(
-        t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés'),
-        e instanceof ApiError
-          ? e.message
-          : e?.message || t('foodLibraryScreen.analysisError', 'Az elemzés sikertelen.'),
-      );
-    } finally {
-      setAnalysisLoading(false);
+
+    const run = async () => {
+      setAnalysisLoading(true);
+      try {
+        const locale = i18n.language?.startsWith('en') ? 'en' : 'hu';
+        setAnalysis(await analysisApi.generate(dateStr, locale));
+      } catch (e: any) {
+        setDialog({
+          mode: 'alert',
+          title: t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés'),
+          message:
+            e instanceof ApiError
+              ? e.message
+              : e?.message || t('foodLibraryScreen.analysisError', 'Az elemzés sikertelen.'),
+        });
+      } finally {
+        setAnalysisLoading(false);
+      }
+    };
+
+    if (analysis?.content) {
+      setDialog({
+        mode: 'confirm',
+        title: t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés'),
+        message: t(
+          'foodLibraryScreen.analysisOverwriteConfirm',
+          'Figyelem: az új elemzés felülírja az előzőt. Folytatod?',
+        ),
+        onConfirm: () => {
+          void run();
+        },
+      });
+      return;
     }
+
+    void run();
   };
 
   return (
@@ -408,16 +447,35 @@ export default function FoodLibraryScreen() {
             </View>
           </View>
 
-          {analysis?.content ? (
-            <Text style={styles.analysisContent}>{analysis.content}</Text>
-          ) : (
-            <Text style={styles.analysisEmpty}>
-              {t(
-                'foodLibraryScreen.analysisEmpty',
-                'Indíts elemzést, hogy az AI értékelje az aznapi étkezésedet.',
-              )}
-            </Text>
-          )}
+          {(() => {
+            const parsed = parseAnalysisContent(analysis?.content);
+            if (!parsed) {
+              return (
+                <Text style={styles.analysisEmpty}>
+                  {t(
+                    'foodLibraryScreen.analysisEmpty',
+                    'Indíts elemzést, hogy az AI értékelje az aznapi étkezésedet.',
+                  )}
+                </Text>
+              );
+            }
+            if (parsed.kind === 'structured') {
+              return (
+                <View style={styles.analysisBox}>
+                  <ScrollView nestedScrollEnabled style={styles.analysisBoxScroll} showsVerticalScrollIndicator>
+                    <AnalysisResultView data={parsed.data} />
+                  </ScrollView>
+                </View>
+              );
+            }
+            return (
+              <View style={styles.analysisBox}>
+                <ScrollView nestedScrollEnabled style={styles.analysisBoxScroll} showsVerticalScrollIndicator>
+                  <Text style={styles.analysisContent}>{parsed.text}</Text>
+                </ScrollView>
+              </View>
+            );
+          })()}
 
           <Pressable
             style={[styles.analysisBtn, webPointer, !canGenerate && styles.analysisBtnDisabled]}
@@ -466,6 +524,20 @@ export default function FoodLibraryScreen() {
         visible={!!selectedLog}
         onClose={() => setSelectedLog(null)}
         onSaved={fetchData}
+      />
+      <ConfirmDialog
+        visible={!!dialog}
+        title={dialog?.title ?? ''}
+        message={dialog?.message ?? ''}
+        confirmLabel={
+          dialog?.mode === 'confirm'
+            ? t('common.continue', 'Folytatás')
+            : t('common.ok', 'OK')
+        }
+        cancelLabel={t('common.cancel', 'Mégse')}
+        onConfirm={dialog?.mode === 'confirm' ? dialog.onConfirm : undefined}
+        onClose={() => setDialog(null)}
+        destructive={dialog?.mode === 'confirm'}
       />
     </View>
     </ResponsiveLayout>
@@ -574,12 +646,25 @@ const styles = StyleSheet.create({
   emptyState: { paddingVertical: 24, alignItems: 'center', opacity: 0.7 },
   emptyText: { fontSize: 16, color: Colors.dashboard.tabInactive },
   actionRow: { flexDirection: 'row', gap: 12 },
+  analysisBox: {
+    marginBottom: 14,
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+    borderRadius: 16,
+    backgroundColor: Colors.dashboard.surfaceContainerLow,
+    maxHeight: 420,
+    overflow: 'hidden',
+  },
+  analysisBoxScroll: {
+    maxHeight: 420,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
   analysisContent: {
     fontSize: 14,
     fontWeight: '500',
     color: Colors.dashboard.stroke,
-    lineHeight: 20,
-    marginBottom: 14,
+    lineHeight: 21,
   },
   analysisEmpty: {
     fontSize: 13,

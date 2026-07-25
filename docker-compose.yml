@@ -10,7 +10,14 @@ services:
       - 1.1.1.1
     working_dir: /app
     restart: always
-    command: sh -c "apt-get update -y && apt-get install -y openssl && npm install && npx prisma generate && (npx prisma db execute --file prisma/sql/migrate_water_to_daily.sql --schema prisma/schema.prisma || true) && until npx prisma db push; do echo 'Prisma db push failed, retrying in 3s...'; sleep 3; done && npm run dev"
+    # Nincs until/done (CRLF törné), és nincs külső script (távoli mounton hiányozhat).
+    # Ha a db még nem kész, a konténer kilép és a restart: always újrapróbálja.
+    command:
+      [
+        "sh",
+        "-c",
+        "apt-get update -y && apt-get install -y openssl && npm install && npx prisma generate && (npx prisma db execute --file prisma/sql/migrate_water_to_daily.sql --schema prisma/schema.prisma || true) && npx prisma db push && npm run dev",
+      ]
     volumes:
       - ./backend:/app
     environment:

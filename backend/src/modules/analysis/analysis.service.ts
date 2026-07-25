@@ -1,6 +1,10 @@
 import { PrismaClient } from '@prisma/client';
 import { MAX_GENERATIONS_PER_DAY } from './analysis.schema';
-import { generateNutritionAnalysis, type GeminiUserPayload } from './analysis.gemini';
+import {
+  generateNutritionAnalysis,
+  MEAL_ORDER,
+  type GeminiUserPayload,
+} from './analysis.gemini';
 
 function parseDay(dateStr?: string): { day: Date; dateKey: string; rangeStart: Date; rangeEnd: Date } {
   const dateKey = dateStr || (() => {
@@ -11,16 +15,34 @@ function parseDay(dateStr?: string): { day: Date; dateKey: string; rangeStart: D
     return `${y}-${m}-${d}`;
   })();
 
-  // Prisma @db.Date: UTC midnight of the calendar day
   const day = new Date(dateKey + 'T00:00:00.000Z');
 
-  // DailyLog query: same local-day window as /stats/day
   const rangeStart = dateStr ? new Date(dateStr) : new Date();
   rangeStart.setHours(0, 0, 0, 0);
   const rangeEnd = new Date(rangeStart);
   rangeEnd.setDate(rangeEnd.getDate() + 1);
 
   return { day, dateKey, rangeStart, rangeEnd };
+}
+
+function resolveLocalClock(localTime?: string): { queryLocalTime: string; queryLocalHour: number; localDateKey: string } {
+  const now = localTime ? new Date(localTime) : new Date();
+  const valid = !Number.isNaN(now.getTime()) ? now : new Date();
+  const queryLocalTime = localTime && !Number.isNaN(new Date(localTime).getTime())
+    ? localTime
+    : valid.toISOString();
+  let queryLocalHour = valid.getHours();
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}):/.exec(queryLocalTime);
+  if (m) {
+    queryLocalHour = Number(m[2]);
+  }
+  const localDateKey = m?.[1] ?? (() => {
+    const y = valid.getFullYear();
+    const mo = String(valid.getMonth() + 1).padStart(2, '0');
+    const d = String(valid.getDate()).padStart(2, '0');
+    return `${y}-${mo}-${d}`;
+  })();
+  return { queryLocalTime, queryLocalHour, localDateKey };
 }
 
 export async function getDailyAnalysis(
@@ -45,10 +67,11 @@ export async function getDailyAnalysis(
 export async function createOrRefreshDailyAnalysis(
   prisma: PrismaClient,
   userId: string,
-  opts: { date?: string; locale?: 'hu' | 'en' },
+  opts: { date?: string; locale?: 'hu' | 'en'; localTime?: string },
 ) {
   const { day, dateKey, rangeStart, rangeEnd } = parseDay(opts.date);
   const locale = opts.locale ?? 'hu';
+  const { queryLocalTime, queryLocalHour, localDateKey } = resolveLocalClock(opts.localTime);
 
   const existing = await prisma.dailyAnalysis.findUnique({
     where: { userId_loggedDate: { userId, loggedDate: day } },
@@ -76,17 +99,13 @@ export async function createOrRefreshDailyAnalysis(
     );
   }
 
-  const totals = logs.reduce(
-    (acc, l) => ({
-      kcal: acc.kcal + l.kcal,
-      protein: acc.protein + l.protein,
-      carbs: acc.carbs + l.carbs,
-      fat: acc.fat + l.fat,
-    }),
-    { kcal: 0, protein: 0, carbs: 0, fat: 0 },
-  );
-
   const meals: GeminiUserPayload['meals'] = {};
+  const mealTotals: GeminiUserPayload['mealTotals'] = {};
+
+  for (const meal of MEAL_ORDER) {
+    mealTotals[meal] = { kcal: 0, protein: 0, carbs: 0, fat: 0, itemCount: 0 };
+  }
+
   for (const log of logs) {
     const key = log.mealType;
     if (!meals[key]) meals[key] = [];
@@ -98,11 +117,45 @@ export async function createOrRefreshDailyAnalysis(
       carbs: log.carbs,
       fat: log.fat,
     });
+    if (!mealTotals[key]) {
+      mealTotals[key] = { kcal: 0, protein: 0, carbs: 0, fat: 0, itemCount: 0 };
+    }
+    mealTotals[key].kcal += log.kcal;
+    mealTotals[key].protein += log.protein;
+    mealTotals[key].carbs += log.carbs;
+    mealTotals[key].fat += log.fat;
+    mealTotals[key].itemCount += 1;
   }
+
+  // Prefer sum of logged items (same as mealTotals rollup) for day totals
+  const totals = MEAL_ORDER.reduce(
+    (acc, m) => ({
+      kcal: acc.kcal + (mealTotals[m]?.kcal ?? 0),
+      protein: acc.protein + (mealTotals[m]?.protein ?? 0),
+      carbs: acc.carbs + (mealTotals[m]?.carbs ?? 0),
+      fat: acc.fat + (mealTotals[m]?.fat ?? 0),
+    }),
+    { kcal: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+
+  const filledMeals = MEAL_ORDER.filter((m) => (meals[m]?.length ?? 0) > 0);
+  const emptyMeals = MEAL_ORDER.filter((m) => (meals[m]?.length ?? 0) === 0);
+  const dayProgress: GeminiUserPayload['dayProgress'] =
+    localDateKey > dateKey || (localDateKey === dateKey && queryLocalHour >= 21)
+      ? 'complete_or_past'
+      : localDateKey === dateKey
+        ? 'ongoing'
+        : 'complete_or_past';
 
   const payload: GeminiUserPayload = {
     locale,
     date: dateKey,
+    queryLocalTime,
+    queryLocalHour,
+    dayProgress,
+    expectedMeals: MEAL_ORDER,
+    filledMeals: [...filledMeals],
+    emptyMeals: [...emptyMeals],
     profile: {
       gender: profile?.gender,
       birthYear: profile?.birthYear,
@@ -110,9 +163,12 @@ export async function createOrRefreshDailyAnalysis(
       weightKg: profile?.weightKg,
       activityLevel: profile?.activityLevel,
       goal: profile?.goal,
-      dailyKcalGoal: profile?.dailyKcalGoal,
+    },
+    goals: {
+      dailyKcalGoal: profile?.dailyKcalGoal ?? 2000,
     },
     totals,
+    mealTotals,
     meals,
   };
 
@@ -141,4 +197,3 @@ export async function createOrRefreshDailyAnalysis(
     updatedAt: saved.updatedAt,
   };
 }
-

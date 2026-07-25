@@ -283,11 +283,21 @@
   background: #fff;
 }
 
-.analysisContent {
+.analysisBox {
   margin: 4px 0 14px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--stroke);
+  border-radius: 16px;
+  background: var(--surface-container-low, #f7f7f4);
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.analysisContent {
+  margin: 0;
   font-size: 14px;
   font-weight: 500;
-  line-height: 1.45;
+  line-height: 1.5;
   color: var(--stroke);
   white-space: pre-wrap;
 }

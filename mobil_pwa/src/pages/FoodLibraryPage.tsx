@@ -20,10 +20,18 @@ import { analysisApi, statsApi, ApiError, type DailyAnalysisResult, type Food } 
 import { useDateStore } from '../stores/dateStore';
 import { useProfileStore } from '../stores/profileStore';
 import { UserAvatar } from '../components/ui/AvatarPicker';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { AnalysisResultView } from '../components/food/AnalysisResult';
+import { parseAnalysisContent } from '../utils/parseAnalysisContent';
 import { Colors } from '../design/tokens';
 import styles from './FoodLibraryPage.module.css';
 
 type MealType = 'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK';
+
+type DialogState =
+  | null
+  | { mode: 'alert'; title: string; message: string }
+  | { mode: 'confirm'; title: string; message: string; onConfirm: () => void };
 
 const MEAL_META: Record<MealType, { Icon: typeof IconBakeryDining; bg: string }> = {
   BREAKFAST: { Icon: IconBakeryDining, bg: Colors.dashboard.tertiaryFixed },
@@ -47,6 +55,7 @@ export default function FoodLibraryPage() {
   const [mealForAdd, setMealForAdd] = useState<MealType>('SNACK');
   const [analysis, setAnalysis] = useState<DailyAnalysisResult | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [dialog, setDialog] = useState<DialogState>(null);
 
   const dateStr = selectedDate.toISOString().split('T')[0];
 
@@ -87,15 +96,7 @@ export default function FoodLibraryPage() {
   const remaining = analysis?.remaining ?? 2;
   const canGenerate = hasLogs && remaining > 0 && !analysisLoading;
 
-  const handleGenerate = async () => {
-    if (!hasLogs) {
-      window.alert(t('foodLibraryScreen.noFoodForAnalysis', 'Nincs rögzített étel erre a napra.'));
-      return;
-    }
-    if (remaining <= 0) {
-      window.alert(t('foodLibraryScreen.analysisLimit', 'Ma már 2 elemzést kértél.'));
-      return;
-    }
+  const runGenerate = async () => {
     setAnalysisLoading(true);
     try {
       const locale = i18n.language?.startsWith('en') ? 'en' : 'hu';
@@ -105,10 +106,48 @@ export default function FoodLibraryPage() {
         e instanceof ApiError
           ? e.message
           : e?.message || t('foodLibraryScreen.analysisError', 'Az elemzés sikertelen.');
-      window.alert(msg);
+      setDialog({
+        mode: 'alert',
+        title: t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés'),
+        message: msg,
+      });
     } finally {
       setAnalysisLoading(false);
     }
+  };
+
+  const handleGenerate = () => {
+    if (!hasLogs) {
+      setDialog({
+        mode: 'alert',
+        title: t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés'),
+        message: t('foodLibraryScreen.noFoodForAnalysis', 'Nincs rögzített étel erre a napra.'),
+      });
+      return;
+    }
+    if (remaining <= 0) {
+      setDialog({
+        mode: 'alert',
+        title: t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés'),
+        message: t('foodLibraryScreen.analysisLimit', 'Ma már 2 elemzést kértél.'),
+      });
+      return;
+    }
+    if (analysis?.content) {
+      setDialog({
+        mode: 'confirm',
+        title: t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés'),
+        message: t(
+          'foodLibraryScreen.analysisOverwriteConfirm',
+          'Figyelem: az új elemzés felülírja az előzőt. Folytatod?',
+        ),
+        onConfirm: () => {
+          void runGenerate();
+        },
+      });
+      return;
+    }
+    void runGenerate();
   };
 
   return (
@@ -240,16 +279,39 @@ export default function FoodLibraryPage() {
               </div>
             </div>
 
-            {analysis?.content ? (
-              <p className={styles.analysisContent}>{analysis.content}</p>
-            ) : (
-              <p className={styles.analysisEmpty}>
-                {t(
-                  'foodLibraryScreen.analysisEmpty',
-                  'Indíts elemzést, hogy az AI értékelje az aznapi étkezésedet.',
-                )}
-              </p>
-            )}
+            {(() => {
+              const parsed = parseAnalysisContent(analysis?.content);
+              if (!parsed) {
+                return (
+                  <p className={styles.analysisEmpty}>
+                    {t(
+                      'foodLibraryScreen.analysisEmpty',
+                      'Indíts elemzést, hogy az AI értékelje az aznapi étkezésedet.',
+                    )}
+                  </p>
+                );
+              }
+              if (parsed.kind === 'structured') {
+                return (
+                  <div
+                    className={styles.analysisBox}
+                    role="region"
+                    aria-label={t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés')}
+                  >
+                    <AnalysisResultView data={parsed.data} />
+                  </div>
+                );
+              }
+              return (
+                <div
+                  className={styles.analysisBox}
+                  role="region"
+                  aria-label={t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés')}
+                >
+                  <p className={styles.analysisContent}>{parsed.text}</p>
+                </div>
+              );
+            })()}
 
             <button
               type="button"
@@ -288,6 +350,20 @@ export default function FoodLibraryPage() {
         visible={!!selectedLog}
         onClose={() => setSelectedLog(null)}
         onSaved={fetchData}
+      />
+      <ConfirmDialog
+        visible={!!dialog}
+        title={dialog?.title ?? ''}
+        message={dialog?.message ?? ''}
+        confirmLabel={
+          dialog?.mode === 'confirm'
+            ? t('common.continue', 'Folytatás')
+            : t('common.ok', 'OK')
+        }
+        cancelLabel={t('common.cancel', 'Mégse')}
+        onConfirm={dialog?.mode === 'confirm' ? dialog.onConfirm : undefined}
+        onClose={() => setDialog(null)}
+        destructive={dialog?.mode === 'confirm'}
       />
     </div>
   );

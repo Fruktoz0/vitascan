@@ -1,0 +1,109 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: rgba(28, 27, 27, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: fadeIn 0.16s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.card {
+  width: min(100%, 360px);
+  background: var(--page, #faf9f6);
+  border: 1.5px solid var(--stroke);
+  border-radius: 24px;
+  box-shadow: 4px 4px 0 var(--shadow-hard, #1c1b1b);
+  padding: 22px 20px 18px;
+  animation: popIn 0.18s ease-out;
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+.title {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--stroke);
+  text-align: center;
+}
+
+.message {
+  margin: 0 0 20px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--tab-inactive, #6b6b6b);
+  text-align: center;
+  white-space: pre-wrap;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.primary,
+.secondary,
+.danger {
+  position: relative;
+  flex: 1;
+  height: 48px;
+  padding-right: 2px;
+  padding-bottom: 2px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.btnShadow {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  right: -2px;
+  bottom: -2px;
+  background: var(--shadow-hard, #1c1b1b);
+  border-radius: 999px;
+}
+
+.btnFace {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--stroke);
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--stroke);
+}
+
+.primary .btnFace {
+  background: var(--soft-green, #e8f5e9);
+}
+
+.secondary .btnFace {
+  background: #fff;
+}
+
+.danger .btnFace {
+  background: var(--error-container, #ffdad6);
+}
+
+.primary:active .btnFace,
+.secondary:active .btnFace,
+.danger:active .btnFace {
+  transform: translate(2px, 2px);
+}

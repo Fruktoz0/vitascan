@@ -31,7 +31,9 @@
     "language": "Nyelv",
     "or": "VAGY",
     "add": "Hozzáadás",
-    "delete": "Törlés"
+    "delete": "Törlés",
+    "ok": "OK",
+    "continue": "Folytatás"
   },
   "language": {
     "hungarian": "Magyar",
@@ -489,5 +491,22 @@
       "Mester": "Mester",
       "Legenda": "Legenda"
     }
+  },
+  "foodLibraryScreen": {
+    "dailyAnalysis": "Napi elemzés",
+    "analysisRemaining": "{{count}} / 2 generálás maradt",
+    "analysisEmpty": "Indíts elemzést, hogy az AI értékelje az aznapi étkezésedet.",
+    "startAnalysis": "Elemzés indítása",
+    "analyzing": "Elemzés folyamatban...",
+    "analysisError": "Az elemzés sikertelen.",
+    "analysisLimit": "Ma már 2 elemzést kértél.",
+    "noFoodForAnalysis": "Nincs rögzített étel erre a napra.",
+    "analysisOverwriteConfirm": "Figyelem: az új elemzés felülírja az előzőt. Folytatod?",
+    "analysisPositives": "Pozitív",
+    "analysisNegatives": "Javítandó",
+    "analysisSummary": "Napi összegzés",
+    "analysisSuggestions": "Javaslatok",
+    "analysisEmptyOk": "Még nincs rögzítve",
+    "analysisEmptyMissed": "Nem került rögzítésre"
   }
 }

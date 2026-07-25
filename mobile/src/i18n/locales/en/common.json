@@ -23,7 +23,9 @@
     "search": "Search",
     "language": "Language",
     "or": "OR",
-    "delete": "Delete"
+    "delete": "Delete",
+    "ok": "OK",
+    "continue": "Continue"
   },
   "language": {
     "hungarian": "Hungarian",
@@ -473,5 +475,22 @@
       "Mester": "Master",
       "Legenda": "Legend"
     }
+  },
+  "foodLibraryScreen": {
+    "dailyAnalysis": "Daily analysis",
+    "analysisRemaining": "{{count}} / 2 generations left",
+    "analysisEmpty": "Start an analysis so AI can evaluate your meals for the day.",
+    "startAnalysis": "Start analysis",
+    "analyzing": "Analyzing...",
+    "analysisError": "Analysis failed.",
+    "analysisLimit": "You already requested 2 analyses today.",
+    "noFoodForAnalysis": "No food logged for this day.",
+    "analysisOverwriteConfirm": "Warning: a new analysis will overwrite the previous one. Continue?",
+    "analysisPositives": "Positive",
+    "analysisNegatives": "Needs work",
+    "analysisSummary": "Day summary",
+    "analysisSuggestions": "Suggestions",
+    "analysisEmptyOk": "Not logged yet",
+    "analysisEmptyMissed": "Was not logged"
   }
 }
