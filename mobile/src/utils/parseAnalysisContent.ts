@@ -1,6 +1,6 @@
 export type MealTypeKey = 'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK';
 
-export type AnalysisMealStatus = 'evaluated' | 'empty_ok' | 'empty_missed';
+export type AnalysisMealStatus = 'evaluated';
 
 export type StructuredDailyAnalysis = {
   meals: Array<{
@@ -32,36 +32,33 @@ function normalize(raw: unknown): StructuredDailyAnalysis | null {
   const obj = raw as Record<string, unknown>;
   if (!Array.isArray(obj.meals) || !obj.summary || typeof obj.summary !== 'object') return null;
 
-  const byType = new Map<string, StructuredDailyAnalysis['meals'][number]>();
+  const meals: StructuredDailyAnalysis['meals'] = [];
+  const seen = new Set<string>();
+
   for (const item of obj.meals) {
     if (!item || typeof item !== 'object') continue;
     const m = item as Record<string, unknown>;
     const mealType = String(m.mealType || '');
     if (!MEAL_ORDER.includes(mealType as MealTypeKey)) continue;
     const statusRaw = String(m.status || 'evaluated');
-    const status: AnalysisMealStatus =
-      statusRaw === 'empty_ok' || statusRaw === 'empty_missed' || statusRaw === 'evaluated'
-        ? statusRaw
-        : 'evaluated';
-    byType.set(mealType, {
+    if (statusRaw === 'empty_ok' || statusRaw === 'empty_missed') continue;
+    if (seen.has(mealType)) continue;
+    seen.add(mealType);
+    meals.push({
       mealType: mealType as MealTypeKey,
-      status,
+      status: 'evaluated',
       positives: asStringArray(m.positives, 2),
       negatives: asStringArray(m.negatives, 2),
     });
   }
 
+  meals.sort(
+    (a, b) => MEAL_ORDER.indexOf(a.mealType) - MEAL_ORDER.indexOf(b.mealType),
+  );
+
   const summary = obj.summary as Record<string, unknown>;
   return {
-    meals: MEAL_ORDER.map(
-      (mealType) =>
-        byType.get(mealType) ?? {
-          mealType,
-          status: 'empty_ok' as const,
-          positives: [],
-          negatives: [],
-        },
-    ),
+    meals,
     summary: {
       positives: asStringArray(summary.positives, 3),
       negatives: asStringArray(summary.negatives, 3),

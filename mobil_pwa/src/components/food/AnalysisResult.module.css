@@ -1,7 +1,13 @@
 .root {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+}
+
+.mealsBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 .mealSection {
@@ -11,7 +17,6 @@
 
 .mealSection:last-child {
   border-bottom: none;
-  padding-bottom: 0;
 }
 
 .mealTitle {
@@ -26,6 +31,35 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--tab-inactive);
+}
+
+.dayPanel {
+  margin-top: 4px;
+  padding: 14px 12px 12px;
+  border: 1.5px solid var(--stroke);
+  border-radius: 16px;
+  background: var(--soft-blue, #e1f5fe);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.daySection {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.daySection + .daySection {
+  padding-top: 12px;
+  border-top: 0.8px dashed var(--stroke);
+}
+
+.dayTitle {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--stroke);
 }
 
 .block {
@@ -53,10 +87,6 @@
 
 .negative {
   background: #ffe8cc;
-}
-
-.tip {
-  background: var(--soft-blue, #e3f2fd);
 }
 
 .list {

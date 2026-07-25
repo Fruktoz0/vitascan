@@ -252,7 +252,7 @@ export default function FoodLibraryScreen() {
   const hasLogs =
     (data?.logs?.length ?? 0) > 0 ||
     Object.values(meals).some((arr: any) => Array.isArray(arr) && arr.length > 0);
-  const remaining = analysis?.remaining ?? 2;
+  const remaining = analysis?.remaining ?? 5;
   const canGenerate = hasLogs && remaining > 0 && !analysisLoading;
 
   const openAddFlow = (mealType: 'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK') => {
@@ -273,7 +273,7 @@ export default function FoodLibraryScreen() {
       setDialog({
         mode: 'alert',
         title: t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés'),
-        message: t('foodLibraryScreen.analysisLimit', 'Ma már 2 elemzést kértél.'),
+        message: t('foodLibraryScreen.analysisLimit', 'Ma már 5 elemzést kértél.'),
       });
       return;
     }
@@ -439,7 +439,7 @@ export default function FoodLibraryScreen() {
               <View style={styles.mealTitleBlock}>
                 <Text style={styles.mealTitle}>{t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés')}</Text>
                 <Text style={styles.mealSummaryMacros}>
-                  {t('foodLibraryScreen.analysisRemaining', '{{count}} / 2 generálás maradt', {
+                  {t('foodLibraryScreen.analysisRemaining', '{{count}} / 5 generálás maradt', {
                     count: remaining,
                   })}
                 </Text>

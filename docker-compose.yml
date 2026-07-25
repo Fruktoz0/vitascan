@@ -30,6 +30,7 @@ services:
       DB_TOOLS_SECRET: ${DB_TOOLS_SECRET:-changeme-generate-strong-db-tools-secret}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
+      GEMINI_FALLBACK_MODEL: ${GEMINI_FALLBACK_MODEL:-gemini-3.5-flash-lite}
     ports:
       - "${PORT:-3005}:${PORT:-3005}"
     networks:

@@ -93,7 +93,7 @@ export default function FoodLibraryPage() {
   };
   const fmt = (n: number) => Math.round(n * 10) / 10;
   const hasLogs = (data?.logs?.length ?? 0) > 0 || meals.some((m) => (data?.byMealType?.[m]?.length ?? 0) > 0);
-  const remaining = analysis?.remaining ?? 2;
+  const remaining = analysis?.remaining ?? 5;
   const canGenerate = hasLogs && remaining > 0 && !analysisLoading;
 
   const runGenerate = async () => {
@@ -129,7 +129,7 @@ export default function FoodLibraryPage() {
       setDialog({
         mode: 'alert',
         title: t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés'),
-        message: t('foodLibraryScreen.analysisLimit', 'Ma már 2 elemzést kértél.'),
+        message: t('foodLibraryScreen.analysisLimit', 'Ma már 5 elemzést kértél.'),
       });
       return;
     }
@@ -271,7 +271,7 @@ export default function FoodLibraryPage() {
                 <div className={styles.mealTitleBlock}>
                   <h2 className={styles.mealTitle}>{t('foodLibraryScreen.dailyAnalysis', 'Napi elemzés')}</h2>
                   <div className={styles.mealSummaryMacros}>
-                    {t('foodLibraryScreen.analysisRemaining', '{{count}} / 2 generálás maradt', {
+                    {t('foodLibraryScreen.analysisRemaining', '{{count}} / 5 generálás maradt', {
                       count: remaining,
                     })}
                   </div>

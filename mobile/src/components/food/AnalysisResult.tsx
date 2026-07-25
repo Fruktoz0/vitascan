@@ -19,16 +19,11 @@ function BulletList({
   label,
 }: {
   items: string[];
-  variant: 'positive' | 'negative' | 'tip';
+  variant: 'positive' | 'negative';
   label: string;
 }) {
   if (items.length === 0) return null;
-  const chipStyle =
-    variant === 'positive'
-      ? styles.chipPositive
-      : variant === 'negative'
-        ? styles.chipNegative
-        : styles.chipTip;
+  const chipStyle = variant === 'positive' ? styles.chipPositive : styles.chipNegative;
   return (
     <View style={styles.block}>
       <View style={[styles.chip, chipStyle]}>
@@ -45,90 +40,74 @@ function BulletList({
 
 export function AnalysisResultView({ data }: { data: StructuredDailyAnalysis }) {
   const { t } = useTranslation();
+  const meals = data.meals.filter((m) => m.status === 'evaluated');
 
   return (
     <View style={styles.root}>
-      {data.meals.map((meal) => (
-        <View key={meal.mealType} style={styles.mealSection}>
-          <Text style={styles.mealTitle}>{t(MEAL_LABEL_KEY[meal.mealType])}</Text>
-          {meal.status === 'empty_ok' && (
-            <Text style={styles.skip}>
-              {t('foodLibraryScreen.analysisEmptyOk', 'Még nincs rögzítve')}
-            </Text>
-          )}
-          {meal.status === 'empty_missed' && (
-            <>
-              <Text style={styles.skip}>
-                {t('foodLibraryScreen.analysisEmptyMissed', 'Nem került rögzítésre')}
-              </Text>
-              <BulletList
-                items={meal.negatives}
-                variant="negative"
-                label={t('foodLibraryScreen.analysisNegatives', 'Javítandó')}
-              />
-            </>
-          )}
-          {meal.status === 'evaluated' && (
-            <>
-              <BulletList
-                items={meal.positives}
-                variant="positive"
-                label={t('foodLibraryScreen.analysisPositives', 'Pozitív')}
-              />
-              <BulletList
-                items={meal.negatives}
-                variant="negative"
-                label={t('foodLibraryScreen.analysisNegatives', 'Javítandó')}
-              />
-              {meal.positives.length === 0 && meal.negatives.length === 0 && (
-                <Text style={styles.skip}>—</Text>
-              )}
-            </>
-          )}
-        </View>
-      ))}
-
-      <View style={styles.mealSection}>
-        <Text style={styles.mealTitle}>
-          {t('foodLibraryScreen.analysisSummary', 'Napi összegzés')}
-        </Text>
-        <BulletList
-          items={data.summary.positives}
-          variant="positive"
-          label={t('foodLibraryScreen.analysisPositives', 'Pozitív')}
-        />
-        <BulletList
-          items={data.summary.negatives}
-          variant="negative"
-          label={t('foodLibraryScreen.analysisNegatives', 'Javítandó')}
-        />
+      <View style={styles.mealsBlock}>
+        {meals.map((meal) => (
+          <View key={meal.mealType} style={styles.mealSection}>
+            <Text style={styles.mealTitle}>{t(MEAL_LABEL_KEY[meal.mealType])}</Text>
+            <BulletList
+              items={meal.positives}
+              variant="positive"
+              label={t('foodLibraryScreen.analysisPositives', 'Pozitív')}
+            />
+            <BulletList
+              items={meal.negatives}
+              variant="negative"
+              label={t('foodLibraryScreen.analysisNegatives', 'Javítandó')}
+            />
+            {meal.positives.length === 0 && meal.negatives.length === 0 && (
+              <Text style={styles.skip}>—</Text>
+            )}
+          </View>
+        ))}
       </View>
 
-      {data.suggestions.length > 0 && (
-        <View style={[styles.mealSection, styles.lastSection]}>
-          <Text style={styles.mealTitle}>
-            {t('foodLibraryScreen.analysisSuggestions', 'Javaslatok')}
+      <View style={styles.dayPanel}>
+        <View style={styles.daySection}>
+          <Text style={styles.dayTitle}>
+            {t('foodLibraryScreen.analysisSummary', 'Napi összegzés')}
           </Text>
-          {data.suggestions.map((item, i) => (
-            <Text key={`tip-${i}`} style={styles.bullet}>
-              • {item}
-            </Text>
-          ))}
+          <BulletList
+            items={data.summary.positives}
+            variant="positive"
+            label={t('foodLibraryScreen.analysisPositives', 'Pozitív')}
+          />
+          <BulletList
+            items={data.summary.negatives}
+            variant="negative"
+            label={t('foodLibraryScreen.analysisNegatives', 'Javítandó')}
+          />
         </View>
-      )}
+
+        {data.suggestions.length > 0 && (
+          <View style={[styles.daySection, styles.daySectionBorder]}>
+            <Text style={styles.dayTitle}>
+              {t('foodLibraryScreen.analysisSuggestions', 'Javaslatok')}
+            </Text>
+            {data.suggestions.map((item, i) => (
+              <Text key={`tip-${i}`} style={styles.bullet}>
+                • {item}
+              </Text>
+            ))}
+          </View>
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { gap: 4 },
+  root: { gap: 14 },
+  mealsBlock: {},
   mealSection: {
     paddingVertical: 10,
     borderBottomWidth: 0.8,
     borderBottomColor: Colors.dashboard.outlineVariant,
     borderStyle: 'dashed',
   },
-  lastSection: { borderBottomWidth: 0, paddingBottom: 0 },
   mealTitle: {
     fontSize: 14,
     fontWeight: '800',
@@ -139,6 +118,33 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: Colors.dashboard.tabInactive,
+  },
+  dayPanel: {
+    marginTop: 4,
+    paddingHorizontal: 12,
+    paddingTop: 14,
+    paddingBottom: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.dashboard.stroke,
+    borderRadius: 16,
+    backgroundColor: Colors.dashboard.softBlue,
+    gap: 4,
+  },
+  daySection: {
+    gap: 4,
+  },
+  daySectionBorder: {
+    marginTop: 10,
+    paddingTop: 12,
+    borderTopWidth: 0.8,
+    borderTopColor: Colors.dashboard.stroke,
+    borderStyle: 'dashed',
+  },
+  dayTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: Colors.dashboard.stroke,
+    marginBottom: 6,
   },
   block: { marginBottom: 8 },
   chip: {
@@ -152,7 +158,6 @@ const styles = StyleSheet.create({
   },
   chipPositive: { backgroundColor: Colors.dashboard.softGreen },
   chipNegative: { backgroundColor: '#ffe8cc' },
-  chipTip: { backgroundColor: Colors.dashboard.softBlue },
   chipText: {
     fontSize: 11,
     fontWeight: '800',

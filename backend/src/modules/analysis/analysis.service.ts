@@ -79,7 +79,7 @@ export async function createOrRefreshDailyAnalysis(
   const generationCount = existing?.generationCount ?? 0;
   if (generationCount >= MAX_GENERATIONS_PER_DAY) {
     throw Object.assign(
-      new Error('Ma már elértéd a 2 elemzés limitet.'),
+      new Error(`Ma már elértéd a ${MAX_GENERATIONS_PER_DAY} elemzés limitet.`),
       { statusCode: 429 },
     );
   }
@@ -103,7 +103,7 @@ export async function createOrRefreshDailyAnalysis(
   const mealTotals: GeminiUserPayload['mealTotals'] = {};
 
   for (const meal of MEAL_ORDER) {
-    mealTotals[meal] = { kcal: 0, protein: 0, carbs: 0, fat: 0, itemCount: 0 };
+    mealTotals[meal] = { kcal: 0, protein: 0, carbs: 0, fat: 0, sugar: 0, fiber: 0, itemCount: 0 };
   }
 
   for (const log of logs) {
@@ -116,36 +116,53 @@ export async function createOrRefreshDailyAnalysis(
       protein: log.protein,
       carbs: log.carbs,
       fat: log.fat,
+      sugar: log.sugar ?? null,
+      fiber: log.fiber ?? null,
     });
     if (!mealTotals[key]) {
-      mealTotals[key] = { kcal: 0, protein: 0, carbs: 0, fat: 0, itemCount: 0 };
+      mealTotals[key] = { kcal: 0, protein: 0, carbs: 0, fat: 0, sugar: 0, fiber: 0, itemCount: 0 };
     }
     mealTotals[key].kcal += log.kcal;
     mealTotals[key].protein += log.protein;
     mealTotals[key].carbs += log.carbs;
     mealTotals[key].fat += log.fat;
+    mealTotals[key].sugar += log.sugar ?? 0;
+    mealTotals[key].fiber += log.fiber ?? 0;
     mealTotals[key].itemCount += 1;
   }
 
-  // Prefer sum of logged items (same as mealTotals rollup) for day totals
-  const totals = MEAL_ORDER.reduce(
+  // Only keep totals for filled meals in the payload mealTotals rollup for day
+  const filledMeals = MEAL_ORDER.filter((m) => (meals[m]?.length ?? 0) > 0);
+  const emptyMeals = MEAL_ORDER.filter((m) => (meals[m]?.length ?? 0) === 0);
+
+  const filledMealTotals: GeminiUserPayload['mealTotals'] = {};
+  for (const m of filledMeals) {
+    filledMealTotals[m] = mealTotals[m];
+  }
+
+  const totals = filledMeals.reduce(
     (acc, m) => ({
       kcal: acc.kcal + (mealTotals[m]?.kcal ?? 0),
       protein: acc.protein + (mealTotals[m]?.protein ?? 0),
       carbs: acc.carbs + (mealTotals[m]?.carbs ?? 0),
       fat: acc.fat + (mealTotals[m]?.fat ?? 0),
+      sugar: acc.sugar + (mealTotals[m]?.sugar ?? 0),
+      fiber: acc.fiber + (mealTotals[m]?.fiber ?? 0),
     }),
-    { kcal: 0, protein: 0, carbs: 0, fat: 0 },
+    { kcal: 0, protein: 0, carbs: 0, fat: 0, sugar: 0, fiber: 0 },
   );
 
-  const filledMeals = MEAL_ORDER.filter((m) => (meals[m]?.length ?? 0) > 0);
-  const emptyMeals = MEAL_ORDER.filter((m) => (meals[m]?.length ?? 0) === 0);
   const dayProgress: GeminiUserPayload['dayProgress'] =
     localDateKey > dateKey || (localDateKey === dateKey && queryLocalHour >= 21)
       ? 'complete_or_past'
       : localDateKey === dateKey
         ? 'ongoing'
         : 'complete_or_past';
+
+  const filledMealsMap: GeminiUserPayload['meals'] = {};
+  for (const m of filledMeals) {
+    filledMealsMap[m] = meals[m];
+  }
 
   const payload: GeminiUserPayload = {
     locale,
@@ -168,8 +185,8 @@ export async function createOrRefreshDailyAnalysis(
       dailyKcalGoal: profile?.dailyKcalGoal ?? 2000,
     },
     totals,
-    mealTotals,
-    meals,
+    mealTotals: filledMealTotals,
+    meals: filledMealsMap,
   };
 
   const content = await generateNutritionAnalysis(payload);
