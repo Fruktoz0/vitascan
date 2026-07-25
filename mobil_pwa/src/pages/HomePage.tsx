@@ -67,7 +67,7 @@ function MealSection({
         <div className={styles.mealRow}>
           <div className={styles.mealRowLeft}>
             <span className={styles.mealIconCircle} style={{ background: meta.bg }}>
-              <MealIcon size={18} color={Colors.dashboard.stroke} />
+              <MealIcon size={13} color={Colors.dashboard.stroke} />
             </span>
             <div className={styles.mealRowText}>
               <span className={styles.mealRowLabel}>{label}</span>

@@ -13,6 +13,9 @@ import ProfilePage from './pages/ProfilePage';
 import PersonalDataPage from './pages/PersonalDataPage';
 import GoalsPage from './pages/GoalsPage';
 import AiRecognizePage from './pages/AiRecognizePage';
+import BodyMeasurementsPage from './pages/BodyMeasurementsPage';
+import BodyPartLogPage from './pages/BodyPartLogPage';
+import BodyMeasurementNewPage from './pages/BodyMeasurementNewPage';
 import NotificationsPage from './pages/NotificationsPage';
 import DatePickerPage from './pages/DatePickerPage';
 import DataVaultPage from './pages/DataVaultPage';
@@ -45,6 +48,7 @@ export default function App() {
           <Route element={<AppShell />}>
             <Route path="/home" element={<HomePage />} />
             <Route path="/food-library" element={<FoodLibraryPage />} />
+            <Route path="/body" element={<BodyMeasurementsPage />} />
             <Route path="/scanner" element={<ScannerPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/date-picker" element={<DatePickerPage />} />
@@ -53,6 +57,8 @@ export default function App() {
           <Route path="/personal-data" element={<PersonalDataPage />} />
           <Route path="/goals" element={<GoalsPage />} />
           <Route path="/ai-recognize" element={<AiRecognizePage />} />
+          <Route path="/body/new" element={<BodyMeasurementNewPage />} />
+          <Route path="/body/:part" element={<BodyPartLogPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/admin" element={<AdminPage />} />
         </Route>

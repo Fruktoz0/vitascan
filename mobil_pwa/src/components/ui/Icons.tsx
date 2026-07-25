@@ -172,5 +172,6 @@ export const TAB_ICONS = {
   home: { outline: IconHomeOutline, filled: IconHome },
   diary: { outline: IconBookOutline, filled: IconBook },
   scan: { outline: IconQrCodeOutline, filled: IconQrCode },
+  body: { outline: IconScaleOutline, filled: IconScaleOutline },
   profile: { outline: IconPersonOutlineIo, filled: IconPersonFilled },
 } as const;

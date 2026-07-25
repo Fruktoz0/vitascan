@@ -31,6 +31,9 @@ model User {
   weightLogs    WeightLog[]
   dailyAnalyses DailyAnalysis[]
   aiFoodRecognitions AiFoodRecognition[]
+  bodyMeasurementLogs BodyMeasurementLog[]
+  bodyMeasurementGoals BodyMeasurementGoal[]
+  aiBodyAnalyses AiBodyAnalysis[]
 
   deletedAt DateTime? // Soft delete (GDPR - 30 napos türelmi idő)
   createdAt DateTime  @default(now())
@@ -212,6 +215,47 @@ model AiFoodRecognition {
   @@index([userId, loggedDate])
 }
 
+/// Testkörfogat mérés — egy érték / user / testrész / nap
+model BodyMeasurementLog {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bodyPart   BodyPart
+  valueCm    Float
+  loggedDate DateTime @db.Date
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, bodyPart, loggedDate])
+  @@index([userId, bodyPart, loggedDate])
+}
+
+model BodyMeasurementGoal {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bodyPart  BodyPart
+  goalCm    Float
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, bodyPart])
+}
+
+/** AI testelemzés — max 3 generálás / nap, új felülírja a régit. */
+model AiBodyAnalysis {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  loggedDate      DateTime @db.Date
+  content         String
+  generationCount Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, loggedDate])
+  @@index([userId, loggedDate])
+}
+
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
 enum Status {
@@ -264,4 +308,13 @@ enum FoodSource {
   INTERNAL
   USER_SCAN
   EXTERNAL_API
+}
+
+enum BodyPart {
+  ARM
+  THIGH
+  WAIST
+  FOREARM
+  HIP
+  CHEST
 }

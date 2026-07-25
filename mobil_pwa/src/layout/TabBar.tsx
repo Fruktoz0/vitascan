@@ -6,7 +6,7 @@ import styles from './TabBar.module.css';
 const TABS = [
   { to: '/home', iconKey: 'home' as const, labelKey: 'home' },
   { to: '/food-library', iconKey: 'diary' as const, labelKey: 'foodLibrary' },
-  { to: '/scanner', iconKey: 'scan' as const, labelKey: 'scanner' },
+  { to: '/body', iconKey: 'body' as const, labelKey: 'bodyTab' },
   { to: '/profile', iconKey: 'profile' as const, labelKey: 'profileTab' },
 ];
 

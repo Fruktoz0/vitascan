@@ -346,6 +346,73 @@ export const weightApi = {
     }>('/weight', { method: 'POST', body: JSON.stringify({ date, weightKg }) }),
 };
 
+export type BodyPart = 'ARM' | 'THIGH' | 'WAIST' | 'FOREARM' | 'HIP' | 'CHEST';
+
+export type BodyAnalysisContent = {
+  headline: string;
+  summary: string;
+  positives: string[];
+  concerns: string[];
+  suggestions: string[];
+};
+
+export const bodyApi = {
+  summary: () =>
+    request<{
+      parts: Array<{ bodyPart: BodyPart; valueCm: number | null; loggedDate: string | null }>;
+      goals: Array<{ bodyPart: BodyPart; goalCm: number }>;
+    }>('/body/summary'),
+  create: (data: { bodyPart: BodyPart; valueCm: number; date: string }) =>
+    request('/body', { method: 'POST', body: JSON.stringify(data) }),
+  history: (bodyPart: BodyPart) =>
+    request<{
+      bodyPart: BodyPart;
+      latest: {
+        id: string;
+        valueCm: number;
+        loggedDate: string;
+        updatedAt: string;
+        deltaCm: number | null;
+      } | null;
+      items: Array<{
+        id: string;
+        valueCm: number;
+        loggedDate: string;
+        updatedAt: string;
+        deltaCm: number | null;
+      }>;
+      monthlyChangeCm: number | null;
+      goalCm: number | null;
+    }>(`/body/history?bodyPart=${bodyPart}`),
+  getGoals: () =>
+    request<{ goals: Array<{ bodyPart: BodyPart; goalCm: number }> }>('/body/goals'),
+  setGoals: (goals: Array<{ bodyPart: BodyPart; goalCm: number }>) =>
+    request<{ goals: Array<{ bodyPart: BodyPart; goalCm: number }> }>('/body/goals', {
+      method: 'PUT',
+      body: JSON.stringify({ goals }),
+    }),
+  getAnalysis: () =>
+    request<{
+      content: string | null;
+      generationCount: number;
+      remaining: number;
+      limit: number;
+      updatedAt: string | null;
+    }>('/body/analysis'),
+  generateAnalysis: (locale?: 'hu' | 'en') =>
+    request<{
+      content: string;
+      analysis: BodyAnalysisContent;
+      generationCount: number;
+      remaining: number;
+      limit: number;
+      updatedAt: string;
+    }>('/body/analysis', {
+      method: 'POST',
+      body: JSON.stringify(locale ? { locale } : {}),
+    }),
+};
+
 export const profileApi = {
   getMe: () => request<any>('/profile/me'),
   update: (data: unknown) => request('/profile', { method: 'PUT', body: JSON.stringify(data) }),
