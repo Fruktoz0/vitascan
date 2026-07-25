@@ -27,7 +27,7 @@ interface TierState {
   scansRemaining: () => number;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL as string;
+const API_BASE = ((import.meta.env.VITE_API_URL as string | undefined) || '/api').replace(/\/$/, '');
 
 export const useTierStore = create<TierState>((set, get) => ({
   status: null,

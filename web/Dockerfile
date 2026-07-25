@@ -9,7 +9,7 @@ RUN npm ci
 COPY . .
 
 # Böngészőből elérhető API bazis URL (build-time)
-ARG VITE_API_URL=http://localhost:3005
+ARG VITE_API_URL=http://localhost:3005/api
 ENV VITE_API_URL=$VITE_API_URL
 
 RUN npm run build

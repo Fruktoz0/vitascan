@@ -43,7 +43,7 @@ services:
       args:
         # A böngésző (nem a konténer!) ezt az URL-t hívja. Port egyezzen a fenti api PORT-tal.
         # Ha ez eltér a compose defaulttól, állíts VITE_API_URL-t a gyökér .env-ben és: docker compose build web --no-cache
-        VITE_API_URL: ${VITE_API_URL:-http://192.168.1.115:3005}
+        VITE_API_URL: ${VITE_API_URL:-http://192.168.1.115:3005/api}
     container_name: vitascan_web
     restart: unless-stopped
     ports:

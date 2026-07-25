@@ -1,6 +1,7 @@
 import * as Storage from './storage';
 
-const API_BASE = import.meta.env.VITE_API_URL as string;
+/** Same-origin `/api` (Vite proxy) or absolute URL from env. */
+const API_BASE = ((import.meta.env.VITE_API_URL as string | undefined) || '/api').replace(/\/$/, '');
 
 const API_VERBOSE = import.meta.env.DEV && import.meta.env.VITE_API_DEBUG === '1';
 
@@ -14,6 +15,46 @@ export function setAccessToken(token: string | null) {
 }
 export function getAccessToken() {
   return accessToken;
+}
+
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+/** Human-readable message for UI (always returns something useful). */
+export function getErrorMessage(err: unknown, fallback = 'Váratlan hiba történt.'): string {
+  if (err instanceof ApiError) return err.message || fallback;
+  if (err instanceof Error && err.message.trim()) return err.message;
+  return fallback;
+}
+
+function toNetworkApiError(error: unknown): ApiError {
+  const raw = error instanceof Error ? error.message : String(error ?? '');
+  const lower = raw.toLowerCase();
+  if (
+    error instanceof TypeError ||
+    /failed to fetch|networkerror|load failed|network request failed/i.test(lower)
+  ) {
+    const isHttpsPage =
+      typeof window !== 'undefined' && window.location?.protocol === 'https:';
+    const apiLooksHttp = API_BASE.startsWith('http://');
+    if (isHttpsPage && apiLooksHttp) {
+      return new ApiError(
+        0,
+        'A böngésző blokkolta a kérést (HTTPS oldal → HTTP API). Használd a /api proxyt vagy HTTPS API-t.',
+      );
+    }
+    return new ApiError(
+      0,
+      'Nem érhető el a szerver. Ellenőrizd a hálózatot, az API futását, és a VITE_API_URL / proxy beállítást.',
+    );
+  }
+  return new ApiError(0, raw.trim() || 'Váratlan hiba történt a kérés közben.');
 }
 
 let refreshInFlight: Promise<boolean> | null = null;
@@ -64,7 +105,10 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
     const response = await fetch(url, { ...options, headers });
     apiDebug(`[API] status ${response.status}`);
 
-    if (response.status === 401 && retry) {
+    const isAuthForm =
+      path.startsWith('/auth/login') || path.startsWith('/auth/register');
+
+    if (response.status === 401 && retry && !isAuthForm) {
       apiDebug('[API] 401 → refresh');
       const refreshed = await refreshAccessTokenFromStorage();
       if (refreshed) return request<T>(path, options, false);
@@ -74,28 +118,41 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
     const responseText = await response.text();
     apiDebug('[API] body', responseText);
 
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch {
-      throw new ApiError(response.status, 'Szerver hiba (nem érvényes JSON).');
+    let data: any = null;
+    if (responseText.trim()) {
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        throw new ApiError(
+          response.status,
+          response.ok
+            ? 'Érvénytelen válasz a szervertől.'
+            : `Szerver hiba (HTTP ${response.status}, nem JSON).`,
+        );
+      }
     }
 
     if (!response.ok) {
-      throw new ApiError(response.status, data.error ?? 'Ismeretlen hiba.');
+      const msg =
+        (typeof data?.error === 'string' && data.error) ||
+        (typeof data?.message === 'string' && data.message) ||
+        (response.status === 401
+          ? 'Hibás email vagy jelszó.'
+          : response.status === 403
+            ? 'Nincs jogosultság ehhez a művelethez.'
+            : response.status === 404
+              ? 'A kért erőforrás nem található.'
+              : response.status === 429
+                ? 'Túl sok kérés. Várj egy percet, majd próbáld újra.'
+                : response.status >= 500
+                  ? `Szerverhiba (HTTP ${response.status}).`
+                  : `A kérés sikertelen (HTTP ${response.status}).`);
+      throw new ApiError(response.status, msg);
     }
     return data as T;
   } catch (error) {
-    throw error;
-  }
-}
-
-export class ApiError extends Error {
-  status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.name = 'ApiError';
-    this.status = status;
+    if (error instanceof ApiError) throw error;
+    throw toNetworkApiError(error);
   }
 }
 
@@ -275,7 +332,7 @@ export const exportApi = {
     }>(`/export/preview?${p}`);
   },
   getDownloadUrl: (from?: string, to?: string) => {
-    const base = (import.meta.env.VITE_API_URL as string) ?? 'http://localhost:3005';
+    const base = API_BASE;
     const p = new URLSearchParams();
     if (from) p.set('from', from);
     if (to) p.set('to', to);

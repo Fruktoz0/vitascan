@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { IconArrowForward, IconEmailOutline, IconLockOutline } from '../components/ui/Icons';
 import DoodleCharacter, { SparkleIcon } from '../components/ui/DoodleCharacter';
 import { GlassCardSimple } from '../components/ui/GlassCard';
-import { ApiError } from '../services/api';
+import { getErrorMessage } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { Colors, Spacing } from '../design/tokens';
 import styles from './Auth.module.css';
@@ -37,7 +37,12 @@ export default function LoginPage() {
       navigate('/home', { replace: true });
     } catch (err) {
       doShake();
-      setError(err instanceof ApiError ? err.message : t('unknownError'));
+      setError(
+        getErrorMessage(
+          err,
+          t('auth.loginFailedGeneric', 'Bejelentkezés sikertelen. Próbáld újra.'),
+        ),
+      );
     } finally {
       setLoading(false);
     }

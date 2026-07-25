@@ -276,7 +276,7 @@ export const exportApi = {
   },
   // A tényleges letöltés FileSystem.downloadAsync-kal történik az ExportEngine-ben
   getDownloadUrl: (from?: string, to?: string) => {
-    const base = process.env.EXPO_PUBLIC_API_URL ?? 'http://newhomeproject.ddns.net:3005';
+    const base = process.env.EXPO_PUBLIC_API_URL ?? 'http://newhomeproject.ddns.net:3005/api';
     const p = new URLSearchParams();
     if (from) p.set('from', from);
     if (to) p.set('to', to);

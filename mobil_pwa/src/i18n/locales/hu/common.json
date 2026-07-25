@@ -206,6 +206,8 @@
     "missingDataTitle": "Hiányzó adatok",
     "loginMissingData": "Add meg az email-t és a jelszót.",
     "loginFailedTitle": "Sikertelen bejelentkezés",
+    "loginFailedGeneric": "Bejelentkezés sikertelen. Próbáld újra.",
+    "registerFailedGeneric": "Regisztráció sikertelen. Próbáld újra.",
     "welcomeBack": "Üdv újra! 👋",
     "healthAndNutrition": "Health & Nutrition",
     "loginTitle": "Bejelentkezés",

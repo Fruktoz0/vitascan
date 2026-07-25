@@ -16,7 +16,7 @@ import { Colors, Gradients, Radius, Spacing, Typography } from '../../design/tok
 
 // ─── API hívás (belső, közvetlen fetch) ───────────────────────────────────────
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3005';
+const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3005/api';
 let _token: string | null = null;
 export function setExportToken(token: string | null) { _token = token; }
 

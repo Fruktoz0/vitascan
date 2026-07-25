@@ -12,7 +12,7 @@ import {
 } from '../components/ui/Icons';
 import { CharacterIcon, SparkleIcon } from '../components/ui/DoodleCharacter';
 import { GlassCardSimple } from '../components/ui/GlassCard';
-import { ApiError } from '../services/api';
+import { getErrorMessage } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { Colors, Spacing } from '../design/tokens';
 import styles from './Auth.module.css';
@@ -96,7 +96,12 @@ export default function RegisterPage() {
       navigate('/home', { replace: true });
     } catch (err) {
       doShake();
-      setError(err instanceof ApiError ? err.message : t('unknownError'));
+      setError(
+        getErrorMessage(
+          err,
+          t('auth.registerFailedGeneric', 'Regisztráció sikertelen. Próbáld újra.'),
+        ),
+      );
     } finally {
       setLoading(false);
     }

@@ -198,6 +198,8 @@
     "missingDataTitle": "Missing data",
     "loginMissingData": "Please provide email and password.",
     "loginFailedTitle": "Login failed",
+    "loginFailedGeneric": "Login failed. Please try again.",
+    "registerFailedGeneric": "Registration failed. Please try again.",
     "welcomeBack": "Welcome back! 👋",
     "healthAndNutrition": "Health & Nutrition",
     "loginTitle": "Login",

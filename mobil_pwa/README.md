@@ -12,7 +12,7 @@ npm install
 Create `.env` (already present locally if copied):
 
 ```
-VITE_API_URL=http://192.168.1.115:3005
+VITE_API_URL=http://192.168.1.115:3005/api
 ```
 
 ## Scripts

@@ -26,7 +26,7 @@ interface TierState {
   scansRemaining: () => number;
 }
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3005';
+const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3005/api';
 
 let _accessToken: string | null = null;
 export function setTierAccessToken(token: string | null) { _accessToken = token; }

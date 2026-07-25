@@ -53,10 +53,12 @@ async function bootstrap() {
   await fastify.register(prismaPlugin);
 
   // ─── Routes ──────────────────────────────────────────────────────────────
+  // Root health (Docker / local); business API under /api for Cloudflare path routing
   fastify.get('/', async () => ({
     status: 'VitaScan API fut! 🥗',
     version: '1.0.0',
     docs: 'https://github.com/vitascan/api',
+    apiBase: '/api',
   }));
 
   fastify.get('/health', async () => ({
@@ -64,45 +66,52 @@ async function bootstrap() {
     timestamp: new Date().toISOString(),
   }));
 
-  await fastify.register(authRoutes, { prefix: '/auth' });
-  await fastify.register(foodRoutes, { prefix: '/foods' });
-  await fastify.register(logRoutes, { prefix: '/logs' });
-  await fastify.register(waterRoutes, { prefix: '/water' });
-  await fastify.register(weightRoutes, { prefix: '/weight' });
-  await fastify.register(analysisRoutes, { prefix: '/analysis' });
-  await fastify.register(profileRoutes, { prefix: '/profile' });
-  await fastify.register(statsRoutes, { prefix: '/stats' });
-  await fastify.register(onboardingRoutes, { prefix: '/onboarding' });
-  await fastify.register(exportRoutes, { prefix: '/export' });
-  await fastify.register(premiumRoutes);
-  await fastify.register(adminRoutes, { prefix: '/admin' });
+  await fastify.register(async (api) => {
+    api.get('/health', async () => ({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+    }));
 
-  // ─── Scanner rate-limited endpoint ───────────────────────────────────────
-  await fastify.register(
-    async (instance) => {
-      await instance.register(rateLimit, {
-        max: 20,
-        timeWindow: '1 minute',
-        keyGenerator: (req) => {
-          const auth = req.headers.authorization;
-          if (auth?.startsWith('Bearer ')) return `scan_${auth.slice(7, 30)}`;
-          return `scan_ip_${req.ip}`;
-        },
-        errorResponseBuilder: () => ({
-          error: 'Vonalkód-szkennelési limit elérve (20/perc). Kérjük várjon.',
-        }),
-      });
-      instance.get('/scan/:barcode', async (req, reply) => {
-        const { barcode } = req.params as { barcode: string };
-        const food = await fastify.prisma.food.findUnique({ where: { barcode } });
-        if (!food || food.status === 'BANNED') {
-          return reply.status(404).send({ error: 'Nincs találat.' });
-        }
-        return reply.send(food);
-      });
-    },
-    { prefix: '/scanner' }
-  );
+    await api.register(authRoutes, { prefix: '/auth' });
+    await api.register(foodRoutes, { prefix: '/foods' });
+    await api.register(logRoutes, { prefix: '/logs' });
+    await api.register(waterRoutes, { prefix: '/water' });
+    await api.register(weightRoutes, { prefix: '/weight' });
+    await api.register(analysisRoutes, { prefix: '/analysis' });
+    await api.register(profileRoutes, { prefix: '/profile' });
+    await api.register(statsRoutes, { prefix: '/stats' });
+    await api.register(onboardingRoutes, { prefix: '/onboarding' });
+    await api.register(exportRoutes, { prefix: '/export' });
+    await api.register(premiumRoutes);
+    await api.register(adminRoutes, { prefix: '/admin' });
+
+    // Scanner rate-limited endpoint
+    await api.register(
+      async (instance) => {
+        await instance.register(rateLimit, {
+          max: 20,
+          timeWindow: '1 minute',
+          keyGenerator: (req) => {
+            const auth = req.headers.authorization;
+            if (auth?.startsWith('Bearer ')) return `scan_${auth.slice(7, 30)}`;
+            return `scan_ip_${req.ip}`;
+          },
+          errorResponseBuilder: () => ({
+            error: 'Vonalkód-szkennelési limit elérve (20/perc). Kérjük várjon.',
+          }),
+        });
+        instance.get('/scan/:barcode', async (req, reply) => {
+          const { barcode } = req.params as { barcode: string };
+          const food = await fastify.prisma.food.findUnique({ where: { barcode } });
+          if (!food || food.status === 'BANNED') {
+            return reply.status(404).send({ error: 'Nincs találat.' });
+          }
+          return reply.send(food);
+        });
+      },
+      { prefix: '/scanner' },
+    );
+  }, { prefix: '/api' });
 
   // ─── Start ───────────────────────────────────────────────────────────────
   try {
