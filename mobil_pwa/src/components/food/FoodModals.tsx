@@ -29,6 +29,7 @@ import { GlassCardSimple } from '../ui/GlassCard';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { foodApi, logApi, type Food, type FoodOrigin, type FoodStatus } from '../../services/api';
 import { Colors } from '../../design/tokens';
+import { toLocalDateStr, useDateStore } from '../../stores/dateStore';
 import styles from './FoodModals.module.css';
 
 type MealType = 'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK';
@@ -273,6 +274,7 @@ export function FoodDetailModal({
   initialMealType = 'SNACK',
 }: FoodDetailModalProps) {
   const { t } = useTranslation();
+  const selectedDate = useDateStore((s) => s.selectedDate);
   const [amount, setAmount] = useState('100');
   const [mealType, setMealType] = useState<MealType>(initialMealType);
   const [adding, setAdding] = useState(false);
@@ -357,6 +359,7 @@ export function FoodDetailModal({
         amount: g,
         mealType,
         source: logSource,
+        date: toLocalDateStr(selectedDate),
       });
       onLogAdded?.();
       onClose();
@@ -1097,29 +1100,6 @@ export function AddFoodManualModal({
             )}
           </GlassCardSimple>
 
-          {onOpenScanner && (
-            <button
-              type="button"
-              className={styles.scanCardWrap}
-              onClick={() => {
-                onClose();
-                onOpenScanner();
-              }}
-            >
-              <span className={styles.scanCardShadow} />
-              <span className={styles.scanCardInner}>
-                <span className={styles.scanIconWrap}>
-                  <IconQrCodeScanner size={22} color={Colors.dashboard.stroke} />
-                </span>
-                <span className={styles.resultInfo}>
-                  <span className={styles.scanTitle}>{t('food.scanBarcodeTitle')}</span>
-                  <span className={styles.scanSub}>{t('food.scanBarcodeSub')}</span>
-                </span>
-                <IconArrowForward size={14} color={Colors.dashboard.tabInactive} />
-              </span>
-            </button>
-          )}
-
           {onOpenAiRecognize && (
             <button
               type="button"
@@ -1137,6 +1117,29 @@ export function AddFoodManualModal({
                 <span className={styles.resultInfo}>
                   <span className={styles.scanTitle}>{t('aiRecognize.entryTitle')}</span>
                   <span className={styles.scanSub}>{t('aiRecognize.entrySub')}</span>
+                </span>
+                <IconArrowForward size={14} color={Colors.dashboard.tabInactive} />
+              </span>
+            </button>
+          )}
+
+          {onOpenScanner && (
+            <button
+              type="button"
+              className={styles.scanCardWrap}
+              onClick={() => {
+                onClose();
+                onOpenScanner();
+              }}
+            >
+              <span className={styles.scanCardShadow} />
+              <span className={styles.scanCardInner}>
+                <span className={styles.scanIconWrap}>
+                  <IconQrCodeScanner size={22} color={Colors.dashboard.stroke} />
+                </span>
+                <span className={styles.resultInfo}>
+                  <span className={styles.scanTitle}>{t('food.scanBarcodeTitle')}</span>
+                  <span className={styles.scanSub}>{t('food.scanBarcodeSub')}</span>
                 </span>
                 <IconArrowForward size={14} color={Colors.dashboard.tabInactive} />
               </span>

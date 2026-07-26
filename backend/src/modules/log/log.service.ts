@@ -59,11 +59,21 @@ export async function getLogs(
   return { logs: mapped, summary };
 }
 
+/** Local calendar day noon — stays inside the day window used by stats/logs filters. */
+function createdAtForDate(date?: string): Date | undefined {
+  if (!date) return undefined;
+  const [y, m, d] = date.split('-').map(Number);
+  if (!y || !m || !d) return undefined;
+  return new Date(y, m - 1, d, 12, 0, 0, 0);
+}
+
 export async function createLog(
   prisma: PrismaClient,
   userId: string,
   data: CreateLogInput
 ) {
+  const createdAt = createdAtForDate(data.date);
+
   // If foodId provided, fetch base nutrition and scale by amount/100
   if (data.foodId) {
     const food = await prisma.food.findUnique({ where: { id: data.foodId } });
@@ -83,6 +93,7 @@ export async function createLog(
           amount: data.amount,
           mealType: data.mealType,
           source: data.source,
+          ...(createdAt ? { createdAt } : {}),
         },
       });
     }
@@ -103,6 +114,7 @@ export async function createLog(
       amount: data.amount,
       mealType: data.mealType,
       source: data.source,
+      ...(createdAt ? { createdAt } : {}),
     },
   });
 }

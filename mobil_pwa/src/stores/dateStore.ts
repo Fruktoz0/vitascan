@@ -7,6 +7,14 @@ interface DateState {
   resetDate: () => void;
 }
 
+/** Local YYYY-MM-DD (avoids UTC shift from toISOString). */
+export function toLocalDateStr(date: Date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export const useDateStore = create<DateState>((set) => ({
   selectedDate: new Date(),
   changeDateBy: (days: number) =>

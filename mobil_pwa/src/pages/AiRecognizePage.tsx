@@ -11,6 +11,7 @@ import {
 } from '../components/ui/Icons';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { foodApi, getErrorMessage, logApi } from '../services/api';
+import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import type { MealType } from '../utils/mealMeta';
 import styles from './AiRecognizePage.module.css';
 
@@ -83,6 +84,7 @@ export default function AiRecognizePage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [params] = useSearchParams();
+  const selectedDate = useDateStore((s) => s.selectedDate);
   const mealParam = params.get('mealType') as MealType | null;
   const mealType: MealType = mealParam && MEALS.includes(mealParam) ? mealParam : 'SNACK';
 
@@ -235,6 +237,7 @@ export default function AiRecognizePage() {
           amount: p.amountG,
           mealType,
           source: 'AI',
+          date: toLocalDateStr(selectedDate),
         });
       }
 

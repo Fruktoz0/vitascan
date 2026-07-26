@@ -26,6 +26,7 @@ import {
   MdFavoriteBorder,
   MdFlashlightOff,
   MdFlashlightOn,
+  MdGrain,
   MdHeight,
   MdIcecream,
   MdLocalFireDepartment,
@@ -111,6 +112,7 @@ export const IconClose = wrap(MdClose);
 export const IconDownload = wrap(MdDownload);
 export const IconEdit = wrap(MdEdit);
 export const IconEggAlt = wrap(MdEggAlt);
+export const IconGrain = wrap(MdGrain);
 export const IconEmailOutline = wrap(MdOutlineEmail);
 export const IconEvent = wrap(MdEvent);
 export const IconFire = wrap(MdLocalFireDepartment);

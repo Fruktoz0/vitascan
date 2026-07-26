@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
@@ -10,7 +10,7 @@ import { AddFoodManualModal, FoodDetailModal, EditLogModal, distinctBrand, type 
 import { IconAdd, IconAddCircle, IconCalendarToday, IconRestaurant, IconWeight } from '../components/ui/Icons';
 import { Colors } from '../design/tokens';
 import { statsApi, waterApi, weightApi, type Food } from '../services/api';
-import { useDateStore } from '../stores/dateStore';
+import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import { useProfileStore } from '../stores/profileStore';
 import { UserAvatar } from '../components/ui/AvatarPicker';
 import { MEAL_META, type MealType } from '../utils/mealMeta';
@@ -116,7 +116,7 @@ function MealSection({
 export default function HomePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { selectedDate, changeDateBy } = useDateStore();
+  const { selectedDate } = useDateStore();
   const avatarKey = useProfileStore((s) => s.avatarKey);
   const [data, setData] = useState<any>(null);
   const [water, setWater] = useState<any>(null);
@@ -126,7 +126,6 @@ export default function HomePage() {
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [selectedLog, setSelectedLog] = useState<DailyLogItem | null>(null);
   const [mealForAdd, setMealForAdd] = useState<MealType>('SNACK');
-  const touchStartX = useRef<number | null>(null);
 
   const openAddFood = (meal: MealType) => {
     setMealForAdd(meal);
@@ -151,7 +150,7 @@ export default function HomePage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const dateStr = selectedDate.toISOString().split('T')[0];
+      const dateStr = toLocalDateStr(selectedDate);
       const [summary, waterData, weightData] = await Promise.all([
         statsApi.day(dateStr),
         waterApi.getByDate(dateStr),
@@ -170,14 +169,14 @@ export default function HomePage() {
 
   const handleAdjustWater = async (ml: number) => {
     try {
-      const dateStr = selectedDate.toISOString().split('T')[0];
+      const dateStr = toLocalDateStr(selectedDate);
       setWater(await waterApi.adjust(ml, dateStr));
     } catch {}
   };
 
   const handleAdjustWeight = async (delta: number) => {
     try {
-      const dateStr = selectedDate.toISOString().split('T')[0];
+      const dateStr = toLocalDateStr(selectedDate);
       const base =
         typeof weight?.weightKg === 'number'
           ? weight.weightKg
@@ -213,8 +212,8 @@ export default function HomePage() {
   const uzsonnaLogs = data?.byMealType?.UZSONNA ?? [];
   const dinnerLogs = data?.byMealType?.DINNER ?? [];
   const weightValue = typeof weight?.weightKg === 'number' ? weight.weightKg.toFixed(1) : '--';
-  const todayStr = new Date().toISOString().split('T')[0];
-  const selectedDateStr = selectedDate.toISOString().split('T')[0];
+  const todayStr = toLocalDateStr();
+  const selectedDateStr = toLocalDateStr(selectedDate);
   const hasDayWeight = typeof weight?.weightKg === 'number';
   const lastMeasuredText = !hasDayWeight
     ? t('homeScreen.weightNoMeasurement')
@@ -228,19 +227,7 @@ export default function HomePage() {
         });
 
   return (
-    <div
-      className={`${styles.screen} page-scroll`}
-      onTouchStart={(e) => {
-        touchStartX.current = e.touches[0].clientX;
-      }}
-      onTouchEnd={(e) => {
-        if (touchStartX.current == null) return;
-        const dx = e.changedTouches[0].clientX - touchStartX.current;
-        if (dx > 50) changeDateBy(-1);
-        else if (dx < -50) changeDateBy(1);
-        touchStartX.current = null;
-      }}
-    >
+    <div className={`${styles.screen} page-scroll`}>
       <div className={`${styles.blob} ${styles.blobMint}`} />
       <div className={`${styles.blob} ${styles.blobPeach}`} />
       <div className={`${styles.blob} ${styles.blobLavender}`} />

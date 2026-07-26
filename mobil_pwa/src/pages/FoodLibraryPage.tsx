@@ -12,7 +12,7 @@ import {
   IconPieChartOutline,
 } from '../components/ui/Icons';
 import { analysisApi, statsApi, ApiError, type DailyAnalysisResult, type Food } from '../services/api';
-import { useDateStore } from '../stores/dateStore';
+import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import { useProfileStore } from '../stores/profileStore';
 import { UserAvatar } from '../components/ui/AvatarPicker';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -43,7 +43,7 @@ export default function FoodLibraryPage() {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [dialog, setDialog] = useState<DialogState>(null);
 
-  const dateStr = selectedDate.toISOString().split('T')[0];
+  const dateStr = toLocalDateStr(selectedDate);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
