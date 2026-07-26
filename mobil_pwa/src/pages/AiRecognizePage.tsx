@@ -27,6 +27,8 @@ type IngredientDraft = {
   fat: string;
   fiber: string;
   sugar: string;
+  brand: string;
+  barcode: string;
 };
 
 const MEALS: MealType[] = ['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK'];
@@ -44,6 +46,8 @@ function toDraft(ing: {
   fat: number;
   fiber?: number;
   sugar?: number;
+  brand?: string;
+  barcode?: string;
 }): IngredientDraft {
   return {
     id: uid(),
@@ -55,6 +59,8 @@ function toDraft(ing: {
     fat: String(Math.round(ing.fat * 10) / 10),
     fiber: ing.fiber != null ? String(Math.round(ing.fiber * 10) / 10) : '',
     sugar: ing.sugar != null ? String(Math.round(ing.sugar * 10) / 10) : '',
+    brand: ing.brand?.trim() || '',
+    barcode: ing.barcode?.trim() || '',
   };
 }
 
@@ -190,6 +196,8 @@ export default function AiRecognizePage() {
       fat: parseNum(ing.fat),
       fiber: ing.fiber.trim() ? parseNum(ing.fiber) : undefined,
       sugar: ing.sugar.trim() ? parseNum(ing.sugar) : undefined,
+      brand: ing.brand.trim() || undefined,
+      barcode: ing.barcode.trim() || undefined,
     }));
 
     if (
@@ -212,6 +220,8 @@ export default function AiRecognizePage() {
           const per100 = (n: number) => Math.round((n / p.amountG) * 100 * 10) / 10;
           const food = await foodApi.create({
             name: p.name,
+            brand: p.brand,
+            barcode: p.barcode,
             kcal: per100(p.kcal),
             protein: per100(p.protein),
             carbs: per100(p.carbs),
@@ -413,6 +423,27 @@ export default function AiRecognizePage() {
                   >
                     <IconClose size={18} color="#B83B3B" />
                   </button>
+                </div>
+                <div className={styles.metaRow}>
+                  <label>
+                    {t('food.brandOptional')}
+                    <input
+                      className={styles.input}
+                      value={ing.brand}
+                      onChange={(e) => updateIng(ing.id, { brand: e.target.value })}
+                      placeholder={t('food.brandOptional')}
+                    />
+                  </label>
+                  <label>
+                    {t('food.barcodeOptional')}
+                    <input
+                      className={styles.input}
+                      value={ing.barcode}
+                      onChange={(e) => updateIng(ing.id, { barcode: e.target.value })}
+                      placeholder={t('food.barcodeOptional')}
+                      inputMode="numeric"
+                    />
+                  </label>
                 </div>
                 <div className={styles.grid}>
                   <label>

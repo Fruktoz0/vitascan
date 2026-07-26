@@ -104,20 +104,17 @@ export async function updateFood(
   prisma: PrismaClient,
   foodId: string,
   userId: string,
-  role: string,
+  _role: string,
   data: Partial<CreateFoodInput>
 ) {
   const food = await prisma.food.findUnique({ where: { id: foodId } });
   if (!food) throw new Error('Étel nem található.');
 
-  // Only creator or admin can update
-  if (food.creatorId !== userId && role !== 'ADMIN') {
-    throw new Error('Nincs jogosultsága módosítani ezt az ételt.');
-  }
-
   if (data.name) assertNoProfanity(data.name, 'Étel neve');
 
-  return prisma.food.update({ where: { id: foodId }, data });
+  const updated = await prisma.food.update({ where: { id: foodId }, data });
+  await prisma.foodEditLog.create({ data: { foodId, userId } });
+  return updated;
 }
 
 export async function voteOnFood(

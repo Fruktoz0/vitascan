@@ -22,14 +22,14 @@ const CreateFoodSchema = z.object({
   name: z.string().min(2).max(120),
   nameHu: z.string().min(2).max(120).optional(),
   nameEn: z.string().min(2).max(120).optional(),
-  brand: z.string().max(80).optional(),
-  barcode: z.string().max(30).optional(),
+  brand: z.string().max(80).nullable().optional(),
+  barcode: z.string().max(30).nullable().optional(),
   kcal: z.number().min(0).max(10000),
   protein: z.number().min(0).max(1000),
   carbs: z.number().min(0).max(1000),
   fat: z.number().min(0).max(1000),
-  fiber: z.number().min(0).max(1000).optional(),
-  sugar: z.number().min(0).max(1000).optional(),
+  fiber: z.number().min(0).max(1000).nullable().optional(),
+  sugar: z.number().min(0).max(1000).nullable().optional(),
   servingSize: z.number().min(0).optional(),
   servingUnit: z.string().max(20).optional(),
   source: z.enum(['INTERNAL', 'USER_SCAN', 'EXTERNAL_API']).default('USER_SCAN'),
@@ -622,7 +622,33 @@ export default async function foodRoutes(fastify: FastifyInstance) {
     return reply.send({ isFavorite: false });
   });
 
-  // PATCH /foods/:id
+  // GET /foods/:id/edits — közösségi szerkesztési előzmények
+  fastify.get('/:id/edits', {
+    preHandler: [authenticate],
+  }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const prisma = (fastify as any).prisma;
+
+    const food = await prisma.food.findUnique({ where: { id }, select: { id: true } });
+    if (!food) return reply.status(404).send({ error: 'Nem található.' });
+
+    const rows = await prisma.foodEditLog.findMany({
+      where: { foodId: id },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: { user: { select: { username: true } } },
+    });
+
+    return reply.send({
+      edits: rows.map((r: { id: string; createdAt: Date; user: { username: string } }) => ({
+        id: r.id,
+        username: r.user.username,
+        createdAt: r.createdAt.toISOString(),
+      })),
+    });
+  });
+
+  // PATCH /foods/:id — bármely bejelentkezett user szerkeszthet
   fastify.patch('/:id', {
     preHandler: [authenticate],
   }, async (req, reply) => {
@@ -634,11 +660,9 @@ export default async function foodRoutes(fastify: FastifyInstance) {
     const food = await prisma.food.findUnique({ where: { id } });
     if (!food) return reply.status(404).send({ error: 'Nem található.' });
     const editorId = user.userId ?? user.id;
-    if (food.creatorId !== editorId && user.role !== 'ADMIN') {
-      return reply.status(403).send({ error: 'Nincs jogosultságod.' });
-    }
 
     const updated = await prisma.food.update({ where: { id }, data: body });
+    await prisma.foodEditLog.create({ data: { foodId: id, userId: editorId } });
     return reply.send(updated);
   });
 

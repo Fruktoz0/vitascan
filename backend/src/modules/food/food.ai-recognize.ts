@@ -12,6 +12,8 @@ export type RecognizedIngredient = {
   fat: number;
   fiber?: number;
   sugar?: number;
+  brand?: string;
+  barcode?: string;
 };
 
 export type FoodRecognizeResult = {
@@ -46,6 +48,8 @@ const RESPONSE_SCHEMA = {
           fat: { type: 'NUMBER' },
           fiber: { type: 'NUMBER' },
           sugar: { type: 'NUMBER' },
+          brand: { type: 'STRING' },
+          barcode: { type: 'STRING' },
         },
         required: ['name', 'amountG', 'kcal', 'protein', 'carbs', 'fat'],
       },
@@ -79,6 +83,26 @@ function round1(n: number) {
   return Math.round(n * 10) / 10;
 }
 
+function cleanOptionalLabel(raw: unknown, maxLen: number): string | undefined {
+  if (raw == null) return undefined;
+  const s = String(raw).trim();
+  if (!s) return undefined;
+  const lower = s.toLowerCase();
+  if (
+    lower === 'unknown' ||
+    lower === 'n/a' ||
+    lower === 'na' ||
+    lower === 'none' ||
+    lower === 'null' ||
+    lower === 'undefined' ||
+    lower === 'ismeretlen' ||
+    lower === 'nincs'
+  ) {
+    return undefined;
+  }
+  return s.slice(0, maxLen);
+}
+
 function systemPrompt(locale: 'hu' | 'en') {
   if (locale === 'en') {
     return `You are VitaScan's nutrition estimator.
@@ -89,8 +113,8 @@ Rules:
 - amountG = estimated grams for that ingredient portion shown/described.
 - kcal, protein, carbs, fat are TOTAL for that amount (not per 100g).
 - fiber and sugar optional totals for that amount.
-- Do not invent branded products unless clearly visible/stated.
-- If uncertain, still give a best estimate with reasonable portions.
+- brand and barcode are optional per ingredient. Fill them ONLY when clearly visible on packaging / stated in the text. If not clearly identifiable, leave brand and barcode as empty strings — NEVER guess or invent them.
+- For macros: if uncertain, still give a best estimate with reasonable portions.
 - Max ${MAX_INGREDIENTS} ingredients.
 - dishName: short meal title.`;
   }
@@ -102,8 +126,8 @@ Szabályok:
 - amountG = becsült gramm az adott hozzávaló adagjára.
 - kcal, protein, carbs, fat: ÖSSZESEN az adott mennyiségre (nem 100g-ra).
 - fiber és sugar opcionális összesen az adott mennyiségre.
-- Ne inventálj márkát, hacsak nem látszik / nincs megadva.
-- Bizonytalanság esetén is adj reális becslést.
+- brand és barcode opcionális hozzávalónként. CSAK akkor töltsd ki, ha a csomagoláson egyértelműen látszik, vagy a szövegben szerepel. Ha nem azonosítható biztosan, hagyd üres stringnek — SOHA ne találgass / inventálj brandet vagy vonalkódot.
+- Makróknál: bizonytalanság esetén is adj reális becslést.
 - Max ${MAX_INGREDIENTS} hozzávaló.
 - dishName: rövid ételnév.`;
 }
@@ -128,6 +152,8 @@ function parseResult(raw: unknown): FoodRecognizeResult | null {
     if (![amountG, kcal, protein, carbs, fat].every((n) => Number.isFinite(n) && n >= 0)) continue;
     const fiber = r.fiber != null ? Number(r.fiber) : undefined;
     const sugar = r.sugar != null ? Number(r.sugar) : undefined;
+    const brand = cleanOptionalLabel(r.brand, 80);
+    const barcode = cleanOptionalLabel(r.barcode, 30);
     ingredients.push({
       name: name.slice(0, 120),
       amountG: round1(clamp(amountG, 1, 5000)),
@@ -141,6 +167,8 @@ function parseResult(raw: unknown): FoodRecognizeResult | null {
       ...(Number.isFinite(sugar) && (sugar as number) >= 0
         ? { sugar: round1(clamp(sugar as number, 0, 1000)) }
         : {}),
+      ...(brand ? { brand } : {}),
+      ...(barcode ? { barcode } : {}),
     });
   }
 
@@ -178,15 +206,16 @@ async function callGemini(
     userParts.push({
       text:
         input.locale === 'en'
-          ? 'Estimate ingredients and macros for this meal photo. Return JSON only.'
-          : 'Becslés: hozzávalók és makrók erről az ételfotóról. Csak JSON.',
+          ? 'Estimate ingredients and macros for this meal photo. Include brand/barcode only if clearly readable. Return JSON only.'
+          : 'Becslés: hozzávalók és makrók erről az ételfotóról. Brand/vonalkód csak ha egyértelműen olvasható. Csak JSON.',
     });
   } else {
     userParts.push({
       text:
         (input.locale === 'en'
-          ? 'Estimate ingredients and macros for this meal description:\n'
-          : 'Becslés: hozzávalók és makrók ehhez a leíráshoz:\n') + (input.text || ''),
+          ? 'Estimate ingredients and macros for this meal description. Include brand/barcode only if explicitly stated:\n'
+          : 'Becslés: hozzávalók és makrók ehhez a leíráshoz. Brand/vonalkód csak ha egyértelműen szerepel:\n') +
+        (input.text || ''),
     });
   }
 

@@ -34,7 +34,8 @@
     "add": "Hozzáadás",
     "delete": "Törlés",
     "ok": "OK",
-    "continue": "Folytatás"
+    "continue": "Folytatás",
+    "loading": "Betöltés..."
   },
   "language": {
     "hungarian": "Magyar",
@@ -126,7 +127,11 @@
     "emptyRecent": "Még nincs naplózott étel. Kereséssel vagy szkenneléssel adj hozzá.",
     "emptyFavorites": "Még nincs kedvenced. A szív ikonnal menthetsz ételeket.",
     "emptyFrequent": "Még nincs gyakori étel. Naplózz többször ugyanazt.",
-    "emptyMine": "Még nem hoztál létre saját ételt."
+    "emptyMine": "Még nem hoztál létre saját ételt.",
+    "editFood": "Termék szerkesztése",
+    "editFoodTitle": "Termék szerkesztése",
+    "editHistory": "Szerkesztési előzmények",
+    "editHistoryEmpty": "Még nem szerkesztették ezt a terméket."
   },
   "profile": {
     "title": "Profil adatok",

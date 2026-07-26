@@ -10,7 +10,9 @@ import {
   IconArrowForward,
   IconBolt,
   IconBrain,
+  IconChevronRight,
   IconEarth,
+  IconEdit,
   IconHeart,
   IconHeartOutline,
   IconLeaf,
@@ -35,6 +37,20 @@ import styles from './FoodModals.module.css';
 type MealType = 'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK';
 
 const MEAL_TYPES: MealType[] = ['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK'];
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isLocalFoodId(id: string | null | undefined): boolean {
+  return typeof id === 'string' && UUID_RE.test(id);
+}
+
+function foodNameSizeClass(name: string): string {
+  const len = name.trim().length;
+  if (len > 36) return `${styles.foodName} ${styles.foodNameLg}`;
+  if (len > 18) return `${styles.foodName} ${styles.foodNameMd}`;
+  return styles.foodName;
+}
 
 /** Márka csak ha van és nem egyezik a termék nevével. */
 export function distinctBrand(name: string | null | undefined, brand?: string | null): string | null {
@@ -265,6 +281,76 @@ function VoteButtons({
   );
 }
 
+type FoodEditEntry = { id: string; username: string; createdAt: string };
+
+function EditHistoryCard({ foodId }: { foodId: string }) {
+  const { t, i18n } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [edits, setEdits] = useState<FoodEditEntry[] | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await foodApi.editHistory(foodId);
+      setEdits(res.edits);
+    } catch {
+      setEdits([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    if (next && edits == null && !loading) void load();
+  };
+
+  const formatWhen = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleString(i18n.language === 'hu' ? 'hu-HU' : 'en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return iso;
+    }
+  };
+
+  return (
+    <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
+      <div className={styles.editHistoryCard}>
+        <button type="button" className={styles.editHistoryToggle} onClick={toggle} aria-expanded={open}>
+          <span className={styles.editHistoryTitle}>{t('food.editHistory')}</span>
+          <span className={`${styles.editHistoryChevron} ${open ? styles.editHistoryChevronOpen : ''}`}>
+            <IconChevronRight size={20} color={Colors.dashboard.stroke} />
+          </span>
+        </button>
+        {open && (
+          <div className={styles.editHistoryBody}>
+            {loading || edits == null ? (
+              <p className={styles.editHistoryLoading}>{t('common.loading', 'Betöltés...')}</p>
+            ) : edits.length === 0 ? (
+              <p className={styles.editHistoryEmpty}>{t('food.editHistoryEmpty')}</p>
+            ) : (
+              edits.map((e) => (
+                <div key={e.id} className={styles.editHistoryRow}>
+                  <span className={styles.editHistoryUser}>{e.username}</span>
+                  <span className={styles.editHistoryTime}>{formatWhen(e.createdAt)}</span>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    </GlassCardSimple>
+  );
+}
+
 export function FoodDetailModal({
   food,
   visible,
@@ -279,6 +365,8 @@ export function FoodDetailModal({
   const [mealType, setMealType] = useState<MealType>(initialMealType);
   const [adding, setAdding] = useState(false);
   const [currentFood, setCurrentFood] = useState<Food | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [historyKey, setHistoryKey] = useState(0);
 
   useEffect(() => {
     setCurrentFood(food);
@@ -289,11 +377,13 @@ export function FoodDetailModal({
       setMealType(initialMealType);
       const serving = food.servingSize != null && food.servingSize > 0 ? food.servingSize : 100;
       setAmount(String(Math.round(serving)));
+      setEditOpen(false);
     }
   }, [visible, initialMealType, food]);
 
   if (!visible || !currentFood) return null;
 
+  const canEditFood = isLocalFoodId(currentFood.id);
   const displayName =
     (i18n.language === 'en' ? currentFood.nameEn : currentFood.nameHu) ??
     currentFood.displayName ??
@@ -380,7 +470,21 @@ export function FoodDetailModal({
           </span>
         </button>
         <h2 className={styles.detailTitle}>{t('food.productDetailsTitle')}</h2>
-        <span className={styles.headerSpacer} />
+        {canEditFood ? (
+          <button
+            type="button"
+            className={styles.headerEditBtn}
+            aria-label={t('food.editFood')}
+            onClick={() => setEditOpen(true)}
+          >
+            <span className={styles.headerEditShadow} />
+            <span className={styles.headerEditInner}>
+              <IconEdit size={20} color={Colors.dashboard.stroke} />
+            </span>
+          </button>
+        ) : (
+          <span className={styles.headerSpacer} />
+        )}
       </header>
 
       <div className={styles.detailBody}>
@@ -393,7 +497,7 @@ export function FoodDetailModal({
             <span className={styles.productDecorRight}>
               <IconLeaf size={32} color={Colors.dashboard.nutritionIcon} style={{ opacity: 0.3 }} />
             </span>
-            <h3 className={styles.foodName}>{displayName}</h3>
+            <h3 className={foodNameSizeClass(displayName)}>{displayName}</h3>
             {brandLabel ? <p className={styles.foodBrand}>{brandLabel}</p> : null}
             <div className={styles.portionBadgeWrap}>
               <span className={styles.portionBadgeShadow} />
@@ -512,15 +616,18 @@ export function FoodDetailModal({
             </div>
           </GlassCardSimple>
 
-          {currentFood.id && !String(currentFood.id).startsWith('off_') && (
-            <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
-              <VoteButtons
-                food={currentFood}
-                onVoted={(score, myVote, status) =>
-                  setCurrentFood((f) => (f ? { ...f, score, myVote, ...(status ? { status } : {}) } : f))
-                }
-              />
-            </GlassCardSimple>
+          {canEditFood && (
+            <>
+              <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
+                <VoteButtons
+                  food={currentFood}
+                  onVoted={(score, myVote, status) =>
+                    setCurrentFood((f) => (f ? { ...f, score, myVote, ...(status ? { status } : {}) } : f))
+                  }
+                />
+              </GlassCardSimple>
+              <EditHistoryCard key={`${currentFood.id}-${historyKey}`} foodId={currentFood.id} />
+            </>
           )}
 
           <div className={styles.scrollSpacer} />
@@ -538,6 +645,25 @@ export function FoodDetailModal({
           </span>
         </button>
       </footer>
+
+      <EditFoodModal
+        visible={editOpen}
+        food={currentFood}
+        onClose={() => setEditOpen(false)}
+        onUpdated={(updated) => {
+          setCurrentFood((prev) => ({
+            ...(prev ?? {}),
+            ...updated,
+            displayName: updated.nameHu ?? updated.nameEn ?? updated.name,
+            origin: prev?.origin ?? updated.origin,
+            isFavorite: prev?.isFavorite ?? updated.isFavorite,
+            score: prev?.score,
+            myVote: prev?.myVote,
+          }));
+          setEditOpen(false);
+          setHistoryKey((k) => k + 1);
+        }}
+      />
     </div>,
     document.body,
   );
@@ -682,7 +808,7 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
             <span className={styles.productDecorRight}>
               <IconLeaf size={32} color={Colors.dashboard.nutritionIcon} style={{ opacity: 0.3 }} />
             </span>
-            <h3 className={styles.foodName}>{base.foodName}</h3>
+            <h3 className={foodNameSizeClass(base.foodName)}>{base.foodName}</h3>
             {brandLabel ? <p className={styles.foodBrand}>{brandLabel}</p> : null}
             <div className={styles.portionBadgeWrap}>
               <span className={styles.portionBadgeShadow} />
@@ -1167,7 +1293,26 @@ interface CreateFoodModalProps {
   onCreated?: (food: Food) => void;
 }
 
-export function CreateFoodModal({ visible, onClose, onCreated }: CreateFoodModalProps) {
+interface EditFoodModalProps {
+  visible: boolean;
+  food: Food;
+  onClose: () => void;
+  onUpdated?: (food: Food) => void;
+}
+
+function FoodDataFormModal({
+  visible,
+  mode,
+  initialFood,
+  onClose,
+  onSaved,
+}: {
+  visible: boolean;
+  mode: 'create' | 'edit';
+  initialFood?: Food | null;
+  onClose: () => void;
+  onSaved?: (food: Food) => void;
+}) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const [brand, setBrand] = useState('');
@@ -1183,17 +1328,33 @@ export function CreateFoodModal({ visible, onClose, onCreated }: CreateFoodModal
 
   useEffect(() => {
     if (!visible) return;
-    setName('');
-    setBrand('');
-    setBarcode('');
-    setKcal('');
-    setProtein('');
-    setCarbs('');
-    setFat('');
-    setFiber('');
-    setSugar('');
+    if (mode === 'edit' && initialFood) {
+      const display =
+        (i18n.language === 'en' ? initialFood.nameEn : initialFood.nameHu) ??
+        initialFood.displayName ??
+        initialFood.name;
+      setName(display);
+      setBrand(initialFood.brand ?? '');
+      setBarcode(initialFood.barcode ?? '');
+      setKcal(String(initialFood.kcal ?? ''));
+      setProtein(String(initialFood.protein ?? ''));
+      setCarbs(String(initialFood.carbs ?? ''));
+      setFat(String(initialFood.fat ?? ''));
+      setFiber(initialFood.fiber != null ? String(initialFood.fiber) : '');
+      setSugar(initialFood.sugar != null ? String(initialFood.sugar) : '');
+    } else {
+      setName('');
+      setBrand('');
+      setBarcode('');
+      setKcal('');
+      setProtein('');
+      setCarbs('');
+      setFat('');
+      setFiber('');
+      setSugar('');
+    }
     setDialog(null);
-  }, [visible]);
+  }, [visible, mode, initialFood]);
 
   if (!visible) return null;
 
@@ -1235,23 +1396,30 @@ export function CreateFoodModal({ visible, onClose, onCreated }: CreateFoodModal
     setSubmitting(true);
     try {
       const brandTrim = brand.trim();
-      const created = await foodApi.create({
+      const barcodeTrim = barcode.trim();
+      const payload = {
         name: trimmed,
         nameHu: trimmed,
         nameEn: trimmed,
-        brand: brandTrim || undefined,
-        barcode: barcode.trim() || undefined,
+        brand: brandTrim || null,
+        barcode: barcodeTrim || null,
         kcal: k,
         protein: p,
         carbs: c,
         fat: f,
-        fiber: fiberN,
-        sugar: sugarN,
-        servingSize: 100,
-        servingUnit: 'g',
-        source: 'USER_SCAN',
-      });
-      onCreated?.(created);
+        fiber: fiberN ?? null,
+        sugar: sugarN ?? null,
+        servingSize: initialFood?.servingSize ?? 100,
+        servingUnit: initialFood?.servingUnit ?? 'g',
+        source: 'USER_SCAN' as const,
+      };
+
+      const saved =
+        mode === 'edit' && initialFood
+          ? await foodApi.update(initialFood.id, payload as Partial<Food>)
+          : await foodApi.create({ ...payload, brand: brandTrim || undefined, barcode: barcodeTrim || undefined });
+
+      onSaved?.(saved);
     } catch (e: any) {
       showDialog(t('food.errorTitle'), e?.message || t('food.errorTitle'));
     } finally {
@@ -1261,149 +1429,174 @@ export function CreateFoodModal({ visible, onClose, onCreated }: CreateFoodModal
 
   return createPortal(
     <>
-    <div className={styles.detailScreen}>
-      <header className={styles.detailHeader}>
-        <button type="button" className={styles.backBtn} onClick={onClose}>
-          <span className={styles.backBtnShadow} />
-          <span className={styles.backBtnInner}>
-            <IconArrowBack size={24} color={Colors.dashboard.stroke} />
-          </span>
-        </button>
-        <h2 className={styles.detailTitle}>{t('food.createFoodTitle')}</h2>
-        <span className={styles.headerSpacer} />
-      </header>
-
-      <div className={styles.detailBody}>
-        <div className={styles.sections}>
-          <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
-            <div className={styles.sectionHeaderSmall}>
-              <IconLeaf size={24} color={Colors.dashboard.stroke} />
-              <span className={styles.sectionTitle}>{t('food.baseData')}</span>
-            </div>
-            <label className={styles.formLabel}>{t('food.foodName')}</label>
-            <input
-              className={styles.formInput}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t('food.foodName')}
-              autoFocus
-            />
-            <label className={styles.formLabel}>{t('food.brandOptional')}</label>
-            <input
-              className={styles.formInput}
-              value={brand}
-              onChange={(e) => setBrand(e.target.value)}
-              placeholder={t('food.brandOptional')}
-            />
-            <label className={styles.formLabel}>{t('food.barcodeOptional')}</label>
-            <input
-              className={styles.formInput}
-              value={barcode}
-              onChange={(e) => setBarcode(e.target.value)}
-              placeholder={t('food.barcodeOptional')}
-              inputMode="numeric"
-            />
-          </GlassCardSimple>
-
-          <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
-            <div className={styles.sectionHeaderSmall}>
-              <IconPieChartOutline size={24} color={Colors.dashboard.stroke} />
-              <span className={styles.sectionTitle}>{t('food.nutritionPer100g')}</span>
-            </div>
-            <div className={styles.formGrid}>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>{t('food.caloriesPer100g')}</label>
-                <input
-                  className={styles.formInput}
-                  value={kcal}
-                  onChange={(e) => setKcal(e.target.value.replace(/[^\d.,]/g, ''))}
-                  inputMode="decimal"
-                  placeholder="0"
-                />
-              </div>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>{t('food.proteinPer100g')}</label>
-                <input
-                  className={styles.formInput}
-                  value={protein}
-                  onChange={(e) => setProtein(e.target.value.replace(/[^\d.,]/g, ''))}
-                  inputMode="decimal"
-                  placeholder="0"
-                />
-              </div>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>{t('food.carbsPer100g')}</label>
-                <input
-                  className={styles.formInput}
-                  value={carbs}
-                  onChange={(e) => setCarbs(e.target.value.replace(/[^\d.,]/g, ''))}
-                  inputMode="decimal"
-                  placeholder="0"
-                />
-              </div>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>{t('food.fatPer100g')}</label>
-                <input
-                  className={styles.formInput}
-                  value={fat}
-                  onChange={(e) => setFat(e.target.value.replace(/[^\d.,]/g, ''))}
-                  inputMode="decimal"
-                  placeholder="0"
-                />
-              </div>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>{t('food.fiberPer100g')}</label>
-                <input
-                  className={styles.formInput}
-                  value={fiber}
-                  onChange={(e) => setFiber(e.target.value.replace(/[^\d.,]/g, ''))}
-                  inputMode="decimal"
-                  placeholder="0"
-                />
-              </div>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>{t('food.sugarPer100g')}</label>
-                <input
-                  className={styles.formInput}
-                  value={sugar}
-                  onChange={(e) => setSugar(e.target.value.replace(/[^\d.,]/g, ''))}
-                  inputMode="decimal"
-                  placeholder="0"
-                />
-              </div>
-            </div>
-            <p className={styles.formHint}>{t('food.infoPer100g')}</p>
-          </GlassCardSimple>
-
-          <div className={styles.scrollSpacer} />
-        </div>
-      </div>
-
-      <footer className={styles.detailFooter}>
-        <button
-          type="button"
-          className={styles.addBtnWrap}
-          onClick={handleSubmit}
-          disabled={submitting}
-        >
-          <span className={styles.addBtnShadow} />
-          <span className={styles.addBtnInner}>
-            <IconAddCircle size={24} color="#fff" />
-            <span className={styles.addBtnLabel}>
-              {submitting ? '...' : t('food.submit')}
+      <div className={styles.detailScreen}>
+        <header className={styles.detailHeader}>
+          <button type="button" className={styles.backBtn} onClick={onClose}>
+            <span className={styles.backBtnShadow} />
+            <span className={styles.backBtnInner}>
+              <IconArrowBack size={24} color={Colors.dashboard.stroke} />
             </span>
-          </span>
-        </button>
-      </footer>
-    </div>
-    <ConfirmDialog
-      visible={!!dialog}
-      title={dialog?.title ?? ''}
-      message={dialog?.message ?? ''}
-      confirmLabel={t('common.ok', 'OK')}
-      onClose={() => setDialog(null)}
-    />
+          </button>
+          <h2 className={styles.detailTitle}>
+            {mode === 'edit' ? t('food.editFoodTitle') : t('food.createFoodTitle')}
+          </h2>
+          <span className={styles.headerSpacer} />
+        </header>
+
+        <div className={styles.detailBody}>
+          <div className={styles.sections}>
+            <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
+              <div className={styles.sectionHeaderSmall}>
+                <IconLeaf size={24} color={Colors.dashboard.stroke} />
+                <span className={styles.sectionTitle}>{t('food.baseData')}</span>
+              </div>
+              <label className={styles.formLabel}>{t('food.foodName')}</label>
+              <input
+                className={styles.formInput}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={t('food.foodName')}
+                autoFocus
+              />
+              <label className={styles.formLabel}>{t('food.brandOptional')}</label>
+              <input
+                className={styles.formInput}
+                value={brand}
+                onChange={(e) => setBrand(e.target.value)}
+                placeholder={t('food.brandOptional')}
+              />
+              <label className={styles.formLabel}>{t('food.barcodeOptional')}</label>
+              <input
+                className={styles.formInput}
+                value={barcode}
+                onChange={(e) => setBarcode(e.target.value)}
+                placeholder={t('food.barcodeOptional')}
+                inputMode="numeric"
+              />
+            </GlassCardSimple>
+
+            <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
+              <div className={styles.sectionHeaderSmall}>
+                <IconPieChartOutline size={24} color={Colors.dashboard.stroke} />
+                <span className={styles.sectionTitle}>{t('food.nutritionPer100g')}</span>
+              </div>
+              <div className={styles.formGrid}>
+                <div className={styles.formField}>
+                  <label className={styles.formLabel}>{t('food.caloriesPer100g')}</label>
+                  <input
+                    className={styles.formInput}
+                    value={kcal}
+                    onChange={(e) => setKcal(e.target.value.replace(/[^\d.,]/g, ''))}
+                    inputMode="decimal"
+                    placeholder="0"
+                  />
+                </div>
+                <div className={styles.formField}>
+                  <label className={styles.formLabel}>{t('food.proteinPer100g')}</label>
+                  <input
+                    className={styles.formInput}
+                    value={protein}
+                    onChange={(e) => setProtein(e.target.value.replace(/[^\d.,]/g, ''))}
+                    inputMode="decimal"
+                    placeholder="0"
+                  />
+                </div>
+                <div className={styles.formField}>
+                  <label className={styles.formLabel}>{t('food.carbsPer100g')}</label>
+                  <input
+                    className={styles.formInput}
+                    value={carbs}
+                    onChange={(e) => setCarbs(e.target.value.replace(/[^\d.,]/g, ''))}
+                    inputMode="decimal"
+                    placeholder="0"
+                  />
+                </div>
+                <div className={styles.formField}>
+                  <label className={styles.formLabel}>{t('food.fatPer100g')}</label>
+                  <input
+                    className={styles.formInput}
+                    value={fat}
+                    onChange={(e) => setFat(e.target.value.replace(/[^\d.,]/g, ''))}
+                    inputMode="decimal"
+                    placeholder="0"
+                  />
+                </div>
+                <div className={styles.formField}>
+                  <label className={styles.formLabel}>{t('food.fiberPer100g')}</label>
+                  <input
+                    className={styles.formInput}
+                    value={fiber}
+                    onChange={(e) => setFiber(e.target.value.replace(/[^\d.,]/g, ''))}
+                    inputMode="decimal"
+                    placeholder="0"
+                  />
+                </div>
+                <div className={styles.formField}>
+                  <label className={styles.formLabel}>{t('food.sugarPer100g')}</label>
+                  <input
+                    className={styles.formInput}
+                    value={sugar}
+                    onChange={(e) => setSugar(e.target.value.replace(/[^\d.,]/g, ''))}
+                    inputMode="decimal"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+              <p className={styles.formHint}>{t('food.infoPer100g')}</p>
+            </GlassCardSimple>
+
+            <div className={styles.scrollSpacer} />
+          </div>
+        </div>
+
+        <footer className={styles.detailFooter}>
+          <button
+            type="button"
+            className={styles.addBtnWrap}
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            <span className={styles.addBtnShadow} />
+            <span className={styles.addBtnInner}>
+              <IconAddCircle size={24} color="#fff" />
+              <span className={styles.addBtnLabel}>
+                {submitting ? '...' : mode === 'edit' ? t('common.save', 'Mentés') : t('food.submit')}
+              </span>
+            </span>
+          </button>
+        </footer>
+      </div>
+      <ConfirmDialog
+        visible={!!dialog}
+        title={dialog?.title ?? ''}
+        message={dialog?.message ?? ''}
+        confirmLabel={t('common.ok', 'OK')}
+        onClose={() => setDialog(null)}
+      />
     </>,
     document.body,
+  );
+}
+
+export function CreateFoodModal({ visible, onClose, onCreated }: CreateFoodModalProps) {
+  return (
+    <FoodDataFormModal
+      visible={visible}
+      mode="create"
+      onClose={onClose}
+      onSaved={onCreated}
+    />
+  );
+}
+
+export function EditFoodModal({ visible, food, onClose, onUpdated }: EditFoodModalProps) {
+  return (
+    <FoodDataFormModal
+      visible={visible}
+      mode="edit"
+      initialFood={food}
+      onClose={onClose}
+      onSaved={onUpdated}
+    />
   );
 }

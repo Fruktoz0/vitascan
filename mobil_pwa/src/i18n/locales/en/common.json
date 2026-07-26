@@ -26,7 +26,8 @@
     "or": "OR",
     "delete": "Delete",
     "ok": "OK",
-    "continue": "Continue"
+    "continue": "Continue",
+    "loading": "Loading..."
   },
   "language": {
     "hungarian": "Hungarian",
@@ -118,7 +119,11 @@
     "emptyRecent": "No logged foods yet. Search or scan to add some.",
     "emptyFavorites": "No favorites yet. Tap the heart to save foods.",
     "emptyFrequent": "No frequent foods yet. Log the same food a few times.",
-    "emptyMine": "You haven't created any foods yet."
+    "emptyMine": "You haven't created any foods yet.",
+    "editFood": "Edit product",
+    "editFoodTitle": "Edit product",
+    "editHistory": "Edit history",
+    "editHistoryEmpty": "This product has not been edited yet."
   },
   "profile": {
     "title": "Profile details",

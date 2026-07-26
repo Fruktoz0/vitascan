@@ -23,6 +23,7 @@ model User {
 
   logs          DailyLog[]
   createdFoods  Food[]
+  foodEdits     FoodEditLog[]
   votes         Vote[]
   favorites     FoodFavorite[]
   profile       UserProfile?
@@ -89,8 +90,21 @@ model Food {
   votes     Vote[]
   favorites FoodFavorite[]
   logs      DailyLog[]
+  editLogs  FoodEditLog[]
 
   createdAt DateTime @default(now())
+}
+
+/** Közösségi termékadat-szerkesztés naplója (ki + mikor). */
+model FoodEditLog {
+  id        String   @id @default(uuid())
+  foodId    String
+  food      Food     @relation(fields: [foodId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([foodId, createdAt])
 }
 
 model FoodFavorite {

@@ -246,6 +246,21 @@
   flex-shrink: 0;
 }
 
+.metaRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.metaRow label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--tab-inactive);
+}
+
 .grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

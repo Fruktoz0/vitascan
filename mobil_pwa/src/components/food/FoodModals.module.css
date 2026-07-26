@@ -50,17 +50,127 @@
 
 .detailTitle {
   flex: 1;
-  margin: 0 40px 0 0;
+  margin: 0;
   text-align: center;
   font-size: 24px;
   font-weight: 900;
   color: var(--stroke);
+  padding: 0 8px;
 }
 
 .headerSpacer {
-  width: 0;
+  width: 40px;
+  flex-shrink: 0;
 }
 
+.headerEditBtn {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.headerEditShadow {
+  position: absolute;
+  inset: 0;
+  top: 2px;
+  left: 2px;
+  background: var(--shadow-hard);
+  border-radius: 20px;
+}
+
+.headerEditInner {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 0.8px solid var(--stroke);
+  border-radius: 20px;
+}
+
+.editHistoryCard {
+  width: 100%;
+}
+
+.editHistoryToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.editHistoryTitle {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--stroke);
+}
+
+.editHistoryChevron {
+  flex-shrink: 0;
+  display: inline-flex;
+  transition: transform 0.2s ease;
+}
+
+.editHistoryChevronOpen {
+  transform: rotate(90deg);
+}
+
+.editHistoryBody {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.editHistoryEmpty,
+.editHistoryLoading {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tab-inactive);
+}
+
+.editHistoryRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--stroke-soft, rgba(28, 27, 27, 0.1));
+}
+
+.editHistoryRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.editHistoryUser {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--stroke);
+}
+
+.editHistoryTime {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tab-inactive);
+}
 .detailBody {
   flex: 1;
   overflow-y: auto;
@@ -115,11 +225,21 @@
   margin: 0 0 8px;
   font-size: 48px;
   font-weight: 900;
-  line-height: 1.05;
+  line-height: 1.15;
   color: var(--stroke);
   text-align: center;
   text-shadow: 2px 2px 0 var(--shadow-hard);
-  word-break: break-word;
+  word-break: normal;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.foodNameMd {
+  font-size: 34px;
+}
+
+.foodNameLg {
+  font-size: 26px;
 }
 
 .foodBrand {

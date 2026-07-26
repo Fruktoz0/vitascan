@@ -263,12 +263,18 @@ export const foodApi = {
         fat: number;
         fiber?: number;
         sugar?: number;
+        brand?: string;
+        barcode?: string;
       }>;
       remaining: number;
       limit: number;
     }>('/foods/ai-recognize', { method: 'POST', body: JSON.stringify(data) }),
-  update: (id: string, data: Partial<Food>) =>
+  update: (id: string, data: Partial<Food> | Record<string, unknown>) =>
     request<Food>(`/foods/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  editHistory: (id: string) =>
+    request<{ edits: Array<{ id: string; username: string; createdAt: string }> }>(
+      `/foods/${id}/edits`,
+    ),
   vote: (foodId: string, value: 1 | -1) =>
     request<{
       action: 'added' | 'removed' | 'changed';
@@ -278,7 +284,6 @@ export const foodApi = {
       earnedExpertBadge?: boolean;
     }>(`/foods/${foodId}/vote`, { method: 'POST', body: JSON.stringify({ value }) }),
 };
-
 export const logApi = {
   getToday: () => {
     const today = new Date().toISOString().split('T')[0];
