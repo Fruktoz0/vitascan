@@ -1,7 +1,13 @@
 ﻿import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { IconArrowForward, IconEmailOutline, IconLockOutline } from '../components/ui/Icons';
+import {
+  IconArrowForward,
+  IconEmailOutline,
+  IconLockOutline,
+  IconVisibility,
+  IconVisibilityOff,
+} from '../components/ui/Icons';
 import DoodleCharacter, { SparkleIcon } from '../components/ui/DoodleCharacter';
 import { GlassCardSimple } from '../components/ui/GlassCard';
 import { getErrorMessage } from '../services/api';
@@ -15,6 +21,7 @@ export default function LoginPage() {
   const login = useAuthStore((s) => s.login);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [shake, setShake] = useState(false);
   const [error, setError] = useState('');
@@ -25,7 +32,7 @@ export default function LoginPage() {
   };
 
   const handleLogin = async () => {
-    if (!email.trim() || !password) {
+    if (!email.trim() || !password.trim()) {
       doShake();
       setError(t('auth.loginMissingData'));
       return;
@@ -33,7 +40,7 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      await login(email.trim().toLowerCase(), password);
+      await login(email.trim().toLowerCase(), password.trim());
       navigate('/home', { replace: true });
     } catch (err) {
       doShake();
@@ -85,8 +92,11 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 type="email"
+                name="email"
                 autoComplete="email"
                 autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
             </div>
 
@@ -94,12 +104,29 @@ export default function LoginPage() {
               <div className={styles.field}>
                 <IconLockOutline size={18} className={styles.fieldIcon} color="#4f5d77" />
                 <input
-                  className={styles.input}
+                  className={`${styles.input} ${styles.inputWithToggle}`}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
                   autoComplete="current-password"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
+                <button
+                  type="button"
+                  className={styles.passwordToggle}
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <IconVisibilityOff size={22} color="#4f5d77" />
+                  ) : (
+                    <IconVisibility size={22} color="#4f5d77" />
+                  )}
+                </button>
               </div>
               <button type="button" className={styles.forgot}>
                 {t('auth.forgotPassword')}

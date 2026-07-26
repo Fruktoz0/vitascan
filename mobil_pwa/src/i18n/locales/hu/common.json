@@ -406,6 +406,8 @@
     "passwordMin": "Jelszó (min. 8 karakter)",
     "confirmPassword": "Jelszó megerősítése",
     "passwordMismatchInline": "A jelszavak nem egyeznek",
+    "showPassword": "Jelszó megjelenítése",
+    "hidePassword": "Jelszó elrejtése",
     "acceptPrefix": "Elfogadom az",
     "privacyPolicy": "adatkezelési tájékoztatót",
     "registerArrow": "Regisztráció →",

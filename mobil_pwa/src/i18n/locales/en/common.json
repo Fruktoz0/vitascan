@@ -395,6 +395,8 @@
     "passwordMin": "Password (min. 8 chars)",
     "confirmPassword": "Confirm password",
     "passwordMismatchInline": "Passwords do not match",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
     "acceptPrefix": "I accept the",
     "privacyPolicy": "privacy policy",
     "registerArrow": "Register →",

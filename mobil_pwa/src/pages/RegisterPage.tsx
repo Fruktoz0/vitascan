@@ -8,6 +8,8 @@ import {
   IconEmailOutline,
   IconLockOutline,
   IconPersonOutline,
+  IconVisibility,
+  IconVisibilityOff,
   type AppIconProps,
 } from '../components/ui/Icons';
 import { CharacterIcon, SparkleIcon } from '../components/ui/DoodleCharacter';
@@ -24,6 +26,12 @@ function Field({
   placeholder,
   icon: Icon,
   type = 'text',
+  autoComplete,
+  name,
+  showPasswordToggle = false,
+  passwordVisible = false,
+  onTogglePassword,
+  toggleLabel,
 }: {
   label: string;
   value: string;
@@ -31,20 +39,48 @@ function Field({
   placeholder: string;
   icon: ComponentType<AppIconProps>;
   type?: string;
+  autoComplete?: string;
+  name?: string;
+  showPasswordToggle?: boolean;
+  passwordVisible?: boolean;
+  onTogglePassword?: () => void;
+  toggleLabel?: string;
 }) {
+  const inputType =
+    showPasswordToggle ? (passwordVisible ? 'text' : 'password') : type;
+
   return (
     <div className={styles.fieldWrap}>
       <label className={styles.fieldLabel}>{label}</label>
       <div className={styles.field}>
         <Icon size={18} className={styles.fieldIcon} color="#4f5d77" />
         <input
-          className={styles.input}
+          className={`${styles.input}${showPasswordToggle ? ` ${styles.inputWithToggle}` : ''}`}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          type={type}
+          type={inputType}
+          name={name}
+          autoComplete={autoComplete}
           autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
         />
+        {showPasswordToggle && onTogglePassword && (
+          <button
+            type="button"
+            className={styles.passwordToggle}
+            onClick={onTogglePassword}
+            aria-label={toggleLabel}
+            tabIndex={-1}
+          >
+            {passwordVisible ? (
+              <IconVisibilityOff size={22} color="#4f5d77" />
+            ) : (
+              <IconVisibility size={22} color="#4f5d77" />
+            )}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -58,6 +94,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [shake, setShake] = useState(false);
@@ -69,17 +106,22 @@ export default function RegisterPage() {
   };
 
   const handleRegister = async () => {
-    if (!username.trim() || !email.trim() || !password) {
+    const usernameValue = username.trim();
+    const emailValue = email.trim().toLowerCase();
+    const passwordValue = password.trim();
+    const password2Value = password2.trim();
+
+    if (!usernameValue || !emailValue || !passwordValue) {
       doShake();
       setError(t('auth.registerMissingData'));
       return;
     }
-    if (password !== password2) {
+    if (passwordValue !== password2Value) {
       doShake();
       setError(t('auth.passwordMismatch'));
       return;
     }
-    if (password.length < 8) {
+    if (passwordValue.length < 8) {
       doShake();
       setError(t('auth.weakPasswordMessage'));
       return;
@@ -92,7 +134,7 @@ export default function RegisterPage() {
     setLoading(true);
     setError('');
     try {
-      await register(username.trim(), email.trim().toLowerCase(), password);
+      await register(usernameValue, emailValue, passwordValue);
       navigate('/home', { replace: true });
     } catch (err) {
       doShake();
@@ -106,6 +148,8 @@ export default function RegisterPage() {
       setLoading(false);
     }
   };
+
+  const toggleLabel = showPassword ? t('auth.hidePassword') : t('auth.showPassword');
 
   return (
     <div className={`${styles.screen} page-scroll no-tab`}>
@@ -143,6 +187,8 @@ export default function RegisterPage() {
                 onChange={setUsername}
                 placeholder={t('auth.usernamePlaceholder')}
                 icon={IconPersonOutline}
+                name="username"
+                autoComplete="username"
               />
               <Field
                 label={t('email')}
@@ -151,6 +197,8 @@ export default function RegisterPage() {
                 placeholder={t('auth.emailPlaceholder')}
                 icon={IconEmailOutline}
                 type="email"
+                name="email"
+                autoComplete="email"
               />
               <Field
                 label={t('auth.passwordMin')}
@@ -159,6 +207,12 @@ export default function RegisterPage() {
                 placeholder="••••••••"
                 icon={IconLockOutline}
                 type="password"
+                name="new-password"
+                autoComplete="new-password"
+                showPasswordToggle
+                passwordVisible={showPassword}
+                onTogglePassword={() => setShowPassword((v) => !v)}
+                toggleLabel={toggleLabel}
               />
               <Field
                 label={t('auth.confirmPassword')}
@@ -167,8 +221,14 @@ export default function RegisterPage() {
                 placeholder="••••••••"
                 icon={IconLockOutline}
                 type="password"
+                name="confirm-password"
+                autoComplete="new-password"
+                showPasswordToggle
+                passwordVisible={showPassword}
+                onTogglePassword={() => setShowPassword((v) => !v)}
+                toggleLabel={toggleLabel}
               />
-              {password2 !== '' && password !== password2 && (
+              {password2.trim() !== '' && password.trim() !== password2.trim() && (
                 <p className={styles.mismatch}>⚠️ {t('auth.passwordMismatchInline')}</p>
               )}
             </div>

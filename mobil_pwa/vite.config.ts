@@ -22,7 +22,14 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.png', 'icon.png', 'app-icon-192.png', 'app-icon-512.png'],
+        includeAssets: [
+          'assets/favicon.png',
+          'assets/favicon.svg',
+          'assets/icon.png',
+          'assets/icons.svg',
+          'assets/app-icon-192.png',
+          'assets/app-icon-512.png',
+        ],
         manifest: {
           name: 'VitaScan',
           short_name: 'VitaScan',
@@ -34,22 +41,22 @@ export default defineConfig(({ mode }) => {
           background_color: '#fcf8f8',
           theme_color: '#FF9A6C',
           lang: 'hu',
-          // Új fájlnevek = cache-bust (OS / SW nem ragad a régi /icon.png-re)
+          // Új path = cache-bust (OS / SW nem ragad a régi gyökér /icon.png-re)
           icons: [
             {
-              src: '/app-icon-192.png',
+              src: '/assets/app-icon-192.png',
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: '/app-icon-512.png',
+              src: '/assets/app-icon-512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: '/app-icon-512.png',
+              src: '/assets/app-icon-512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable',

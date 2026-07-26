@@ -59,6 +59,8 @@ import {
   MdThumbDownOffAlt,
   MdThumbUpOffAlt,
   MdVerified,
+  MdVisibility,
+  MdVisibilityOff,
   MdWaterDrop,
   MdWhatshot,
 } from 'react-icons/md';
@@ -155,6 +157,8 @@ export const IconHeart = wrap(MdFavorite);
 export const IconHeartOutline = wrap(MdFavoriteBorder);
 export const IconScience = wrap(MdScience);
 export const IconVerified = wrap(MdVerified);
+export const IconVisibility = wrap(MdVisibility);
+export const IconVisibilityOff = wrap(MdVisibilityOff);
 export const IconPeopleOutline = wrap(MdPeopleOutline);
 export const IconRestaurantOutline = wrap(IoRestaurantOutline);
 export const IconHome = wrap(IoHome);

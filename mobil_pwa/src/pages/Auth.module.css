@@ -119,6 +119,32 @@
   padding: 11px 12px 11px 42px;
 }
 
+.inputWithToggle {
+  padding-right: 48px;
+}
+
+.passwordToggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: #4f5d77;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.passwordToggle:active {
+  background: rgba(18, 18, 18, 0.06);
+}
+
 .passwordBlock {
   margin-top: 24px;
 }
