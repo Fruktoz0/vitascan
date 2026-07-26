@@ -4,7 +4,10 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const apiProxyTarget = env.VITE_PROXY_TARGET || 'http://192.168.1.115:3005';
+  const apiProxyTarget =
+    env.VITE_PROXY_TARGET ||
+    process.env.VITE_PROXY_TARGET ||
+    'http://192.168.1.115:3005';
 
   const apiProxy = {
     // Backend serves under /api — keep the prefix when proxying

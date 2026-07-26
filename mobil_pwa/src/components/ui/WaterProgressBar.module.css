@@ -1,8 +1,24 @@
-.header {
+.header,
+.headerBtn {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 20px;
+  width: 100%;
+}
+
+.headerBtn {
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.headerBtn:disabled {
+  cursor: default;
 }
 
 .titleRow {

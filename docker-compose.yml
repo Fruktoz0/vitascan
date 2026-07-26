@@ -55,6 +55,26 @@ services:
     networks:
       - global-net
 
+  mobil_pwa:
+    build:
+      context: ./mobil_pwa
+      dockerfile: Dockerfile
+      args:
+        # Same-origin /api — a vite preview proxizza az api szolgáltatásra
+        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_PROXY_TARGET: ${PWA_PROXY_TARGET:-http://api:3005}
+    container_name: vitascan_mobil_pwa
+    restart: unless-stopped
+    environment:
+      VITE_PROXY_TARGET: ${PWA_PROXY_TARGET:-http://api:3005}
+    ports:
+      # Alap 4173 – ha foglalt: PWA_PORT a gyökér .env-ben
+      - "${PWA_PORT:-4173}:4173"
+    depends_on:
+      - api
+    networks:
+      - global-net
+
   db-tools:
     build:
       context: ./web/db-admin-stack/server

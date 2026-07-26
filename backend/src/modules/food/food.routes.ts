@@ -205,7 +205,12 @@ export default async function foodRoutes(fastify: FastifyInstance) {
     const where: any = {
       status: status ?? { not: 'BANNED' },
     };
-    if (onlyMine) where.creatorId = userId;
+    if (onlyMine) {
+      where.creatorId = userId;
+      // Csak kézi / AI által mentett ételek — keresésből betöltött EXTERNAL_API ne jelenjen meg
+      where.source = 'USER_SCAN';
+      where.externalId = null;
+    }
     if (query) {
       where.OR = [
         { name: { contains: query, mode: 'insensitive' } },

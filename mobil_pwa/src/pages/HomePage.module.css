@@ -181,6 +181,20 @@
   justify-content: space-between;
 }
 
+.weightTopBtn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
 .weightTitleRow {
   display: flex;
   align-items: center;

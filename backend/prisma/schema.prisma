@@ -50,6 +50,8 @@ model UserProfile {
   gender           Gender?
   activityLevel    ActivityLevel @default(SEDENTARY)
   goal             Goal          @default(MAINTAIN)
+  targetWeightKg   Float? // cél testsúly (kg)
+  goalWeeks        Int? // opcionális: hány hét alatt szeretné elérni (null = nincs megadva)
   dailyKcalGoal    Float? // Kiszámított TDEE, felülírható
   dailyWaterGoalMl Int? // ml/nap, default: testsúly * 30
   dailyProteinGoal Float? // g / nap
@@ -317,4 +319,5 @@ enum BodyPart {
   FOREARM
   HIP
   CHEST
+  CALF
 }

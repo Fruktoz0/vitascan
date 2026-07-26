@@ -11,6 +11,8 @@ const UpsertProfileSchema = z.object({
   gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
   activityLevel: z.enum(['SEDENTARY', 'LIGHT', 'MODERATE', 'ACTIVE', 'VERY_ACTIVE']).optional(),
   goal: z.enum(['LOSE', 'MAINTAIN', 'GAIN']).optional(),
+  targetWeightKg: z.number().min(20).max(500).nullable().optional(),
+  goalWeeks: z.number().int().min(1).max(52).nullable().optional(),
   dailyKcalGoal: z.number().min(500).max(10000).optional(),
   dailyWaterGoalMl: z.number().min(500).max(5000).optional(),
   dailyProteinGoal: z.number().min(20).max(400).optional(),
@@ -130,6 +132,8 @@ const profileRoutes: FastifyPluginAsync = async (fastify) => {
     const bodySchema = z.object({
       locale: z.enum(['hu', 'en']).optional(),
       goal: z.enum(['LOSE', 'MAINTAIN', 'GAIN']).optional(),
+      targetWeightKg: z.number().min(20).max(500).nullable().optional(),
+      goalWeeks: z.number().int().min(1).max(52).nullable().optional(),
     });
     const parsed = bodySchema.safeParse(request.body ?? {});
     if (!parsed.success) {
@@ -155,6 +159,12 @@ const profileRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const goal = parsed.data.goal ?? profile.goal ?? 'MAINTAIN';
+    const targetWeightKg =
+      parsed.data.targetWeightKg !== undefined
+        ? parsed.data.targetWeightKg
+        : profile.targetWeightKg;
+    const goalWeeks =
+      parsed.data.goalWeeks !== undefined ? parsed.data.goalWeeks : profile.goalWeeks;
 
     const goals = await calculateMacroGoalsWithGemini({
       locale: parsed.data.locale ?? 'hu',
@@ -164,12 +174,18 @@ const profileRoutes: FastifyPluginAsync = async (fastify) => {
       gender,
       activityLevel,
       goal,
+      targetWeightKg,
+      goalWeeks,
     });
 
     const updated = await fastify.prisma.userProfile.update({
       where: { userId },
       data: {
         goal,
+        ...(parsed.data.targetWeightKg !== undefined
+          ? { targetWeightKg: parsed.data.targetWeightKg }
+          : {}),
+        ...(parsed.data.goalWeeks !== undefined ? { goalWeeks: parsed.data.goalWeeks } : {}),
         dailyKcalGoal: goals.dailyKcalGoal,
         dailyProteinGoal: goals.dailyProteinGoal,
         dailyCarbsGoal: goals.dailyCarbsGoal,

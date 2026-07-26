@@ -1,6 +1,7 @@
 import {
   IconBicycleOutline,
   IconBolt,
+  IconDirectionsWalk,
   IconMaleFemaleOutline,
   IconOpacity,
   IconPersonOutline,
@@ -8,7 +9,7 @@ import {
 } from '../components/ui/Icons';
 import type { BodyPart } from '../services/api';
 
-export const BODY_PARTS: BodyPart[] = ['ARM', 'THIGH', 'WAIST', 'FOREARM', 'HIP', 'CHEST'];
+export const BODY_PARTS: BodyPart[] = ['ARM', 'THIGH', 'WAIST', 'FOREARM', 'HIP', 'CHEST', 'CALF'];
 
 export const BODY_PART_META: Record<
   BodyPart,
@@ -20,6 +21,7 @@ export const BODY_PART_META: Record<
   FOREARM: { labelKey: 'bodyData.forearm', bg: '#D8DDD6', Icon: IconOpacity },
   HIP: { labelKey: 'bodyData.hip', bg: '#F5D6DE', Icon: IconMaleFemaleOutline },
   CHEST: { labelKey: 'bodyData.chest', bg: '#EDE4D4', Icon: IconRestaurant },
+  CALF: { labelKey: 'bodyData.calf', bg: '#E4EFE8', Icon: IconDirectionsWalk },
 };
 
 export function isBodyPart(v: string | null | undefined): v is BodyPart {

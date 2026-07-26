@@ -37,7 +37,7 @@ export default function DatePickerPage() {
   useEffect(() => {
     statsApi.streak().then((r) => setStreak(r.streak)).catch(() => setStreak(0));
     const todayStr = new Date().toISOString().split('T')[0];
-    weightApi.getByDate(todayStr).then((res) => setWeightDelta(res.deltaKg ?? 0)).catch(() => setWeightDelta(null));
+    weightApi.getByDate(todayStr).then((res) => setWeightDelta(res.deltaKg)).catch(() => setWeightDelta(null));
   }, []);
 
   const today = new Date();

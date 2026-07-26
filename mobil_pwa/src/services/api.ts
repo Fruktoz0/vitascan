@@ -326,27 +326,85 @@ export const waterApi = {
       method: 'POST',
       body: JSON.stringify({ amountMl, ...(date ? { date } : {}) }),
     }),
+  setForDate: (date: string, totalMl: number) =>
+    request<{ logs: any[]; log: any | null; totalMl: number; goalMl: number }>('/water', {
+      method: 'POST',
+      body: JSON.stringify({ date, totalMl }),
+    }),
+  history: () =>
+    request<{
+      latest: {
+        id: string;
+        totalMl: number;
+        loggedDate: string;
+        updatedAt: string;
+        deltaMl: number | null;
+      } | null;
+      items: Array<{
+        id: string;
+        totalMl: number;
+        loggedDate: string;
+        updatedAt: string;
+        deltaMl: number | null;
+      }>;
+      goalMl: number;
+    }>('/water/history'),
+  update: (id: string, data: { totalMl?: number; date?: string }) =>
+    request(`/water/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: (id: string) => request(`/water/${id}`, { method: 'DELETE' }),
 };
 
 export const weightApi = {
   getByDate: (date: string) =>
     request<{
-      log: any | null;
+      log: {
+        id: string;
+        weightKg: number;
+        loggedDate: string;
+        updatedAt: string;
+      } | null;
       weightKg: number | null;
-      deltaKg: number;
+      suggestedWeightKg: number | null;
+      deltaKg: number | null;
       lastMeasuredAt: string | null;
     }>(`/weight?date=${date}`),
   setForDate: (date: string, weightKg: number) =>
     request<{
-      log: any;
+      log: {
+        id: string;
+        weightKg: number;
+        loggedDate: string;
+        updatedAt: string;
+      } | null;
       weightKg: number | null;
-      deltaKg: number;
+      suggestedWeightKg: number | null;
+      deltaKg: number | null;
       lastMeasuredAt: string | null;
     }>('/weight', { method: 'POST', body: JSON.stringify({ date, weightKg }) }),
+  history: () =>
+    request<{
+      latest: {
+        id: string;
+        weightKg: number;
+        loggedDate: string;
+        updatedAt: string;
+        deltaKg: number | null;
+      } | null;
+      items: Array<{
+        id: string;
+        weightKg: number;
+        loggedDate: string;
+        updatedAt: string;
+        deltaKg: number | null;
+      }>;
+      monthlyChangeKg: number | null;
+    }>('/weight/history'),
+  update: (id: string, data: { weightKg?: number; date?: string }) =>
+    request(`/weight/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: string) => request(`/weight/${id}`, { method: 'DELETE' }),
 };
 
-export type BodyPart = 'ARM' | 'THIGH' | 'WAIST' | 'FOREARM' | 'HIP' | 'CHEST';
+export type BodyPart = 'ARM' | 'THIGH' | 'WAIST' | 'FOREARM' | 'HIP' | 'CHEST' | 'CALF';
 
 export type BodyAnalysisContent = {
   headline: string;
@@ -419,7 +477,12 @@ export const bodyApi = {
 export const profileApi = {
   getMe: () => request<any>('/profile/me'),
   update: (data: unknown) => request('/profile', { method: 'PUT', body: JSON.stringify(data) }),
-  aiCalculateGoals: (data?: { goal?: 'LOSE' | 'MAINTAIN' | 'GAIN'; locale?: 'hu' | 'en' }) =>
+  aiCalculateGoals: (data?: {
+    goal?: 'LOSE' | 'MAINTAIN' | 'GAIN';
+    targetWeightKg?: number | null;
+    goalWeeks?: number | null;
+    locale?: 'hu' | 'en';
+  }) =>
     request<{ profile: any; goals: any }>('/profile/ai-calculate-goals', {
       method: 'POST',
       body: JSON.stringify(data ?? {}),

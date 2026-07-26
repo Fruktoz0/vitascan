@@ -178,8 +178,14 @@ export default function HomePage() {
   const handleAdjustWeight = async (delta: number) => {
     try {
       const dateStr = selectedDate.toISOString().split('T')[0];
-      if (typeof weight?.weightKg !== 'number') return;
-      const nextWeight = Math.max(20, Math.min(500, Math.round((weight.weightKg + delta) * 10) / 10));
+      const base =
+        typeof weight?.weightKg === 'number'
+          ? weight.weightKg
+          : typeof weight?.suggestedWeightKg === 'number'
+            ? weight.suggestedWeightKg
+            : null;
+      if (base == null) return;
+      const nextWeight = Math.max(20, Math.min(500, Math.round((base + delta) * 10) / 10));
       setWeight(await weightApi.setForDate(dateStr, nextWeight));
     } catch {}
   };
@@ -207,21 +213,19 @@ export default function HomePage() {
   const uzsonnaLogs = data?.byMealType?.UZSONNA ?? [];
   const dinnerLogs = data?.byMealType?.DINNER ?? [];
   const weightValue = typeof weight?.weightKg === 'number' ? weight.weightKg.toFixed(1) : '--';
-  const measuredDate =
-    weight?.lastMeasuredAt != null
-      ? new Date(weight.lastMeasuredAt).toISOString().split('T')[0]
-      : null;
+  const todayStr = new Date().toISOString().split('T')[0];
   const selectedDateStr = selectedDate.toISOString().split('T')[0];
-  const lastMeasuredText = measuredDate
-    ? measuredDate === selectedDateStr
+  const hasDayWeight = typeof weight?.weightKg === 'number';
+  const lastMeasuredText = !hasDayWeight
+    ? t('homeScreen.weightNoMeasurement')
+    : selectedDateStr === todayStr
       ? t('homeScreen.weightLastMeasuredToday')
-      : t('homeScreen.weightLastMeasuredOn', {
-          date: new Date(weight.lastMeasuredAt).toLocaleDateString(
+      : t('homeScreen.weightMeasuredOnDay', {
+          date: selectedDate.toLocaleDateString(
             i18n.language === 'hu' ? 'hu-HU' : 'en-US',
             { month: 'short', day: 'numeric' },
           ),
-        })
-    : t('homeScreen.weightNoMeasurement');
+        });
 
   return (
     <div
@@ -386,18 +390,27 @@ export default function HomePage() {
           </div>
         </GlassCardSimple>
 
-        <WaterProgressBar totalMl={water?.totalMl ?? 0} goalMl={water?.goalMl ?? 2500} onAdjust={handleAdjustWater} />
+        <WaterProgressBar
+          totalMl={water?.totalMl ?? 0}
+          goalMl={water?.goalMl ?? 2500}
+          onAdjust={handleAdjustWater}
+          onOpenLog={() => navigate('/water')}
+        />
 
         <div className={styles.weightWrap}>
           <span className={styles.weightShadow} />
           <div className={styles.weightCard}>
-            <div className={styles.weightTop}>
+            <button
+              type="button"
+              className={styles.weightTopBtn}
+              onClick={() => navigate('/weight')}
+            >
               <div className={styles.weightTitleRow}>
                 <span className={styles.weightIcon}>
                   <IconWeight size={16} color={Colors.dashboard.stroke} />
                 </span>
                 <div>
-                  <div className={styles.weightTitle}>Súly</div>
+                  <div className={styles.weightTitle}>{t('homeScreen.weight')}</div>
                   <div className={styles.weightSub}>{lastMeasuredText}</div>
                 </div>
               </div>
@@ -405,7 +418,7 @@ export default function HomePage() {
                 <span className={styles.weightNum}>{weightValue}</span>
                 <span className={styles.weightUnit}> kg</span>
               </div>
-            </div>
+            </button>
             <div className={styles.weightActions}>
               <button type="button" className={styles.weightBtn} onClick={() => handleAdjustWeight(-0.1)}>
                 −

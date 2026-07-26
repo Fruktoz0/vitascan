@@ -8,9 +8,15 @@ interface WaterProgressBarProps {
   totalMl: number;
   goalMl: number;
   onAdjust: (ml: number) => void;
+  onOpenLog?: () => void;
 }
 
-export default function WaterProgressBar({ totalMl, goalMl, onAdjust }: WaterProgressBarProps) {
+export default function WaterProgressBar({
+  totalMl,
+  goalMl,
+  onAdjust,
+  onOpenLog,
+}: WaterProgressBarProps) {
   const { t } = useTranslation();
   const pct = goalMl > 0 ? Math.min(totalMl / goalMl, 1) : 0;
   const canSubtract = totalMl > 0;
@@ -27,7 +33,12 @@ export default function WaterProgressBar({ totalMl, goalMl, onAdjust }: WaterPro
         borderBottomLeftRadius: 32,
       }}
     >
-      <div className={styles.header}>
+      <button
+        type="button"
+        className={styles.headerBtn}
+        onClick={onOpenLog}
+        disabled={!onOpenLog}
+      >
         <div className={styles.titleRow}>
           <div className={styles.iconCircle}>
             <span className={styles.iconShadow} />
@@ -37,11 +48,13 @@ export default function WaterProgressBar({ totalMl, goalMl, onAdjust }: WaterPro
           </div>
           <div>
             <div className={styles.title}>{t('waterScreen.title')}</div>
-            <div className={styles.goal}>{`Napi cél: ${(goalMl / 1000).toFixed(1)}L`}</div>
+            <div className={styles.goal}>
+              {t('waterScreen.dailyGoal', { liters: (goalMl / 1000).toFixed(1) })}
+            </div>
           </div>
         </div>
         <div className={styles.current}>{(totalMl / 1000).toFixed(1)}L</div>
-      </div>
+      </button>
 
       <div className={styles.track}>
         <div className={styles.fillWrapper} style={{ width: `${pct * 100}%` }}>

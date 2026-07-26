@@ -42,6 +42,7 @@
   --tab-bar-h: 56px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
+  --tab-clearance: calc(var(--tab-bar-h) + var(--safe-bottom) + 16px);
   font-family: 'Nunito', 'Segoe UI', system-ui, -apple-system, sans-serif;
   color: var(--stroke);
   background: var(--page);

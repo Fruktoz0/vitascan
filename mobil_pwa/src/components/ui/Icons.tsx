@@ -15,6 +15,7 @@ import {
   MdClose,
   MdCrisisAlert,
   MdDinnerDining,
+  MdDirectionsWalk,
   MdDownload,
   MdEdit,
   MdEggAlt,
@@ -121,6 +122,7 @@ export const IconOpacity = wrap(MdOpacity);
 export const IconPersonOutline = wrap(MdPersonOutline);
 export const IconQrCodeScanner = wrap(MdQrCodeScanner);
 export const IconRestaurant = wrap(MdRestaurant);
+export const IconDirectionsWalk = wrap(MdDirectionsWalk);
 export const IconSearch = wrap(MdSearch);
 export const IconShield = wrap(MdShield);
 export const IconWaterDrop = wrap(MdWaterDrop);

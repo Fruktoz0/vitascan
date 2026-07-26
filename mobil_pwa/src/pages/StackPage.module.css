@@ -136,6 +136,30 @@
   line-height: 1.4;
 }
 
+.fieldHint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tab-inactive);
+  line-height: 1.35;
+}
+
+.inlineToggle {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1.2px solid var(--stroke);
+  background: #f7f4f1;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+}
+
 .toggleRow {
   display: flex;
   align-items: center;

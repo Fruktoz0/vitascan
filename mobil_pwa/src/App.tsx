@@ -16,6 +16,10 @@ import AiRecognizePage from './pages/AiRecognizePage';
 import BodyMeasurementsPage from './pages/BodyMeasurementsPage';
 import BodyPartLogPage from './pages/BodyPartLogPage';
 import BodyMeasurementNewPage from './pages/BodyMeasurementNewPage';
+import WeightLogPage from './pages/WeightLogPage';
+import WeightNewPage from './pages/WeightNewPage';
+import WaterLogPage from './pages/WaterLogPage';
+import WaterNewPage from './pages/WaterNewPage';
 import NotificationsPage from './pages/NotificationsPage';
 import DatePickerPage from './pages/DatePickerPage';
 import DataVaultPage from './pages/DataVaultPage';
@@ -59,6 +63,10 @@ export default function App() {
           <Route path="/ai-recognize" element={<AiRecognizePage />} />
           <Route path="/body/new" element={<BodyMeasurementNewPage />} />
           <Route path="/body/:part" element={<BodyPartLogPage />} />
+          <Route path="/weight" element={<WeightLogPage />} />
+          <Route path="/weight/new" element={<WeightNewPage />} />
+          <Route path="/water" element={<WaterLogPage />} />
+          <Route path="/water/new" element={<WaterNewPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/admin" element={<AdminPage />} />
         </Route>

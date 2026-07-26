@@ -2,13 +2,23 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../design/tokens';
-import { IconArrowBack, IconBolt, IconBrain, IconFire, IconOpacity, IconWaterDrop } from '../components/ui/Icons';
+import {
+  IconArrowBack,
+  IconBolt,
+  IconBrain,
+  IconFire,
+  IconOpacity,
+  IconScaleOutline,
+  IconWaterDrop,
+} from '../components/ui/Icons';
 import { IconBakeryDining, IconEggAlt } from '../components/ui/Icons';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { getErrorMessage, profileApi } from '../services/api';
 import styles from './StackPage.module.css';
 
 type GoalType = 'LOSE' | 'MAINTAIN' | 'GAIN';
+
+const WEEK_OPTIONS = [2, 3, 4, 6, 8, 12] as const;
 
 export default function GoalsPage() {
   const { t, i18n } = useTranslation();
@@ -19,6 +29,9 @@ export default function GoalsPage() {
   const [saving, setSaving] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [goal, setGoal] = useState<GoalType>('MAINTAIN');
+  const [targetWeight, setTargetWeight] = useState('');
+  const [timelineEnabled, setTimelineEnabled] = useState(false);
+  const [goalWeeks, setGoalWeeks] = useState<number>(4);
   const [kcal, setKcal] = useState('2000');
   const [protein, setProtein] = useState('140');
   const [carbs, setCarbs] = useState('250');
@@ -32,7 +45,14 @@ export default function GoalsPage() {
       .getMe()
       .then((p: any) => {
         const prof = p?.profile;
-        if (prof?.goal === 'LOSE' || prof?.goal === 'GAIN' || prof?.goal === 'MAINTAIN') setGoal(prof.goal);
+        if (prof?.goal === 'LOSE' || prof?.goal === 'GAIN' || prof?.goal === 'MAINTAIN') {
+          setGoal(prof.goal);
+        }
+        if (prof?.targetWeightKg != null) setTargetWeight(String(prof.targetWeightKg));
+        if (prof?.goalWeeks != null && Number.isFinite(prof.goalWeeks)) {
+          setTimelineEnabled(true);
+          setGoalWeeks(prof.goalWeeks);
+        }
         if (prof?.dailyKcalGoal != null) setKcal(String(Math.round(prof.dailyKcalGoal)));
         if (prof?.dailyProteinGoal != null) setProtein(String(Math.round(prof.dailyProteinGoal)));
         if (prof?.dailyCarbsGoal != null) setCarbs(String(Math.round(prof.dailyCarbsGoal)));
@@ -63,12 +83,25 @@ export default function GoalsPage() {
     return Number.isFinite(n) && n > 0 ? n : NaN;
   };
 
+  const parseTargetWeight = (): number | null | undefined => {
+    const trimmed = targetWeight.trim();
+    if (!trimmed) return null;
+    const n = Number(String(trimmed).replace(',', '.'));
+    if (!Number.isFinite(n) || n < 20 || n > 500) return undefined; // invalid
+    return Math.round(n * 10) / 10;
+  };
+
   const handleSave = async () => {
     const k = parsePositive(kcal);
     const p = parsePositive(protein);
     const c = parsePositive(carbs);
     const f = parsePositive(fat);
     const w = parsePositive(water);
+    const tw = parseTargetWeight();
+    if (tw === undefined) {
+      setDialog({ title: t('food.missingDataTitle'), message: t('goals.invalidTargetWeight') });
+      return;
+    }
     if (![k, p, c, f, w].every((n) => Number.isFinite(n))) {
       setDialog({ title: t('food.missingDataTitle'), message: t('goals.invalidValues') });
       return;
@@ -77,6 +110,8 @@ export default function GoalsPage() {
     try {
       await profileApi.update({
         goal,
+        targetWeightKg: tw,
+        goalWeeks: timelineEnabled ? goalWeeks : null,
         dailyKcalGoal: k,
         dailyProteinGoal: p,
         dailyCarbsGoal: c,
@@ -92,10 +127,17 @@ export default function GoalsPage() {
   };
 
   const handleAiCalculate = async () => {
+    const tw = parseTargetWeight();
+    if (tw === undefined) {
+      setDialog({ title: t('food.missingDataTitle'), message: t('goals.invalidTargetWeight') });
+      return;
+    }
     setAiBusy(true);
     try {
       const res = await profileApi.aiCalculateGoals({
         goal,
+        targetWeightKg: tw,
+        goalWeeks: timelineEnabled ? goalWeeks : null,
         locale: i18n.language?.startsWith('en') ? 'en' : 'hu',
       });
       const g = res.goals ?? res.profile;
@@ -105,6 +147,15 @@ export default function GoalsPage() {
       if (g?.dailyFatGoal != null) setFat(String(Math.round(g.dailyFatGoal)));
       if (g?.dailyWaterGoalMl != null) setWater(String(Math.round(g.dailyWaterGoalMl)));
       if (res.profile?.goal) setGoal(res.profile.goal);
+      if (res.profile?.targetWeightKg != null) {
+        setTargetWeight(String(res.profile.targetWeightKg));
+      }
+      if (res.profile?.goalWeeks != null) {
+        setTimelineEnabled(true);
+        setGoalWeeks(res.profile.goalWeeks);
+      } else if (res.profile && 'goalWeeks' in res.profile && res.profile.goalWeeks == null) {
+        setTimelineEnabled(false);
+      }
       setDialog({ title: t('goals.aiDoneTitle'), message: t('goals.aiDone') });
     } catch (e: any) {
       setDialog({ title: t('food.errorTitle'), message: getErrorMessage(e, t('goals.aiFailed')) });
@@ -148,6 +199,50 @@ export default function GoalsPage() {
               </button>
             ))}
           </div>
+
+          <div className={styles.fieldLabel} style={{ marginTop: 14 }}>
+            <IconScaleOutline size={16} color={Colors.dashboard.stroke} /> {t('goals.targetWeight')}
+          </div>
+          <input
+            className={styles.input}
+            value={targetWeight}
+            onChange={(e) => setTargetWeight(e.target.value)}
+            inputMode="decimal"
+            placeholder={t('goals.targetWeightPlaceholder')}
+          />
+          <p className={styles.fieldHint}>{t('goals.targetWeightHint')}</p>
+
+          <button
+            type="button"
+            className={styles.inlineToggle}
+            onClick={() => setTimelineEnabled((v) => !v)}
+          >
+            <span>{t('goals.timelineToggle')}</span>
+            <span className={`${styles.toggle} ${timelineEnabled ? styles.toggleOn : ''}`}>
+              <span className={styles.knob} />
+            </span>
+          </button>
+
+          {timelineEnabled && (
+            <>
+              <div className={styles.fieldLabel} style={{ marginTop: 12 }}>
+                {t('goals.timelineLabel')}
+              </div>
+              <div className={styles.chips}>
+                {WEEK_OPTIONS.map((w) => (
+                  <button
+                    key={w}
+                    type="button"
+                    className={`${styles.chip} ${goalWeeks === w ? styles.chipActive : ''}`}
+                    onClick={() => setGoalWeeks(w)}
+                  >
+                    {t('goals.weeksOption', { count: w })}
+                  </button>
+                ))}
+              </div>
+              <p className={styles.fieldHint}>{t('goals.timelineHint')}</p>
+            </>
+          )}
         </div>
 
         <div className={styles.fieldCard}>

@@ -4,9 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { Colors } from '../design/tokens';
 import {
   IconAdd,
-  IconArrowForward,
   IconBrain,
   IconBolt,
+  IconChevronRight,
   IconMoreHoriz,
 } from '../components/ui/Icons';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -140,8 +140,8 @@ export default function BodyMeasurementsPage() {
                   <span className={styles.partName}>{t(meta.labelKey)}</span>
                   <span className={styles.partLast}>{val}</span>
                 </span>
-                <IconArrowForward
-                  size={18}
+                <IconChevronRight
+                  size={22}
                   color={Colors.dashboard.stroke}
                   className={styles.partChevron}
                 />

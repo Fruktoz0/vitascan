@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../design/tokens';
-import { IconArrowBack, IconHeight, IconPersonOutlineIo, IconWeight } from '../components/ui/Icons';
+import { IconArrowBack, IconBicycleOutline, IconCalendarToday, IconHeight, IconMaleFemaleOutline, IconPersonOutlineIo, IconScaleOutline } from '../components/ui/Icons';
 import { profileApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import styles from './StackPage.module.css';
@@ -112,18 +112,22 @@ export default function PersonalDataPage() {
 
         <div className={styles.fieldCard}>
           <div className={styles.fieldLabel}>
-            <IconWeight size={16} color={Colors.dashboard.stroke} /> {t('personalData.weight')}
+            <IconScaleOutline size={16} color={Colors.dashboard.stroke} /> {t('personalData.weight')}
           </div>
           <input className={styles.input} value={weightKg} onChange={(e) => setWeightKg(e.target.value)} inputMode="decimal" />
         </div>
 
         <div className={styles.fieldCard}>
-          <div className={styles.fieldLabel}>{t('personalData.birthDate')}</div>
+          <div className={styles.fieldLabel}>
+            <IconCalendarToday size={16} color={Colors.dashboard.stroke} /> {t('personalData.birthDate')}
+          </div>
           <input className={styles.input} value={birthYear} onChange={(e) => setBirthYear(e.target.value)} inputMode="numeric" />
         </div>
 
         <div className={styles.fieldCard}>
-          <div className={styles.fieldLabel}>{t('personalData.gender')}</div>
+          <div className={styles.fieldLabel}>
+            <IconMaleFemaleOutline size={16} color={Colors.dashboard.stroke} /> {t('personalData.gender')}
+          </div>
           <div className={styles.chips}>
             {(['MALE', 'FEMALE'] as Gender[]).map((g) => (
               <button
@@ -139,7 +143,9 @@ export default function PersonalDataPage() {
         </div>
 
         <div className={styles.fieldCard}>
-          <div className={styles.fieldLabel}>{t('personalData.activityLevel')}</div>
+          <div className={styles.fieldLabel}>
+            <IconBicycleOutline size={16} color={Colors.dashboard.stroke} /> {t('personalData.activityLevel')}
+          </div>
           <div className={styles.chips}>
             {activityOptions.map((o) => (
               <button
