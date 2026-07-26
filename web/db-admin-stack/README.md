@@ -1,6 +1,6 @@
 # VitaScan – adatbázis mentés / visszaállítás (db-tools)
 
-Ez a mappa a **`db-tools`** Docker image forráskódját és adatkönyvtárait tartalmazza (`backups/`, `config/`). A szolgáltatás a gyökér **`docker-compose.yml`** része – nincs külön compose fájl, és **nincs saját `.env`** sem: minden kulcs a repository gyökér **`.env`** / **[`.env.example`](../../.env.example)** fájlban van.
+Ez a mappa a **`db-tools`** Docker image forráskódját és adatkönyvtárait tartalmazza (`backups/`, `config/`, `rclone/`). A szolgáltatás a gyökér **`docker-compose.yml`** része – nincs külön compose fájl, és **nincs saját `.env`** sem: minden kulcs a repository gyökér **`.env`** / **[`.env.example`](../../.env.example)** fájlban van.
 
 ## Előfeltételek
 
@@ -33,6 +33,43 @@ Ha csak a db-tools logokat nézed lokálisan: `http://127.0.0.1:3010` (compose-b
 |---------|--------|
 | `web/db-admin-stack/backups/` | Mentések (`*.dump`) |
 | `web/db-admin-stack/config/schedule.json` | Cron ütemezés |
+| `web/db-admin-stack/rclone/` | rclone config (Google Drive OAuth) — ne commitold |
+
+## Google Drive feltöltés (rclone)
+
+Kézi és ütemezett mentés után a db-tools `rclone copy`-val feltölti a `.dump` fájlt a megadott remote mappába. Alapból **ki van kapcsolva**.
+
+### Setup (My Drive, OAuth)
+
+1. Telepítsd az [rclone](https://rclone.org/install/)-t a host gépre.
+2. Futtasd: `rclone config` → új remote neve pl. `gdrive`, típus: **Google Drive** (böngészős OAuth).
+3. Másold a keletkező configot a volume alá:
+
+   ```text
+   Windows: %APPDATA%\rclone\rclone.conf  →  web/db-admin-stack/rclone/rclone.conf
+   Linux/macOS: ~/.config/rclone/rclone.conf  →  web/db-admin-stack/rclone/rclone.conf
+   ```
+
+4. A Drive-on hozd létre a célmappát (pl. `VitaScan/backups`).
+5. A gyökér `.env`-ben:
+
+   ```env
+   RCLONE_UPLOAD_ENABLED=true
+   RCLONE_REMOTE=gdrive:VitaScan/backups
+   # RCLONE_CONFIG=/rclone/rclone.conf   # alapértelmezés, ritkán kell
+   ```
+
+6. Rebuild + restart:
+
+   ```bash
+   docker compose up -d --build db-tools
+   ```
+
+7. Admin → Adatbázis → **Mentés most**, majd ellenőrizd a Drive mappát. Az Overview kártyán megjelenik a „Google Drive” státusz.
+
+Feltöltési hiba esetén a **lokális dump megmarad**; a kézi mentés válaszában `driveUpload: failed` + hibaüzenet. A Drive-on nincs külön retention — csak a lokális `retentionDays` töröl.
+
+Service account / Shared Drive nem az alapút; személyes My Drive-hoz az OAuth config a javasolt.
 
 ## Funkciók és biztonság
 
@@ -57,3 +94,4 @@ Részletek és curl példa a korábbi szekciókban maradtak – a **szolgáltat�
 
 - Élesben állíts erős `DB_TOOLS_SECRET` értéket (ne hagyd a példa defaultot).
 - A db-tools portja alapból csak localhost felől van publisholva (`127.0.0.1:3010`).
+- Az `rclone.conf` / tokenek **ne kerüljenek** a gitbe (`rclone/.gitignore`).

@@ -3,7 +3,9 @@
 FROM node:20-alpine
 
 ARG PG_MAJOR=17
-RUN apk add --no-cache bash postgresql${PG_MAJOR}-client
+# rclone a community repo-ból (Google Drive feltöltés mentés után).
+RUN apk add --no-cache bash postgresql${PG_MAJOR}-client \
+  && apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/community rclone
 
 WORKDIR /app
 

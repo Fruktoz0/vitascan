@@ -89,9 +89,13 @@ services:
       BACKUP_DIR: ${DB_TOOLS_BACKUP_DIR:-/backups}
       SCHEDULE_FILE: ${DB_TOOLS_SCHEDULE_FILE:-/config/schedule.json}
       PORT: "3010"
+      RCLONE_UPLOAD_ENABLED: ${RCLONE_UPLOAD_ENABLED:-false}
+      RCLONE_REMOTE: ${RCLONE_REMOTE:-}
+      RCLONE_CONFIG: ${RCLONE_CONFIG:-/rclone/rclone.conf}
     volumes:
       - ./web/db-admin-stack/backups:/backups
       - ./web/db-admin-stack/config:/config
+      - ./web/db-admin-stack/rclone:/rclone:ro
     ports:
       - "127.0.0.1:3010:3010"
     networks:

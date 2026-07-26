@@ -24,6 +24,12 @@ const PG_CLI_URL = postgresCliConnectionUri(DATABASE_URL);
 const BACKUP_DIR = resolve(process.env.BACKUP_DIR ?? '/backups');
 const SCHEDULE_FILE = resolve(process.env.SCHEDULE_FILE ?? '/config/schedule.json');
 
+const RCLONE_UPLOAD_ENABLED = /^(1|true|yes|on)$/i.test(
+  String(process.env.RCLONE_UPLOAD_ENABLED ?? '').trim(),
+);
+const RCLONE_REMOTE = String(process.env.RCLONE_REMOTE ?? '').trim();
+const RCLONE_CONFIG = resolve(process.env.RCLONE_CONFIG ?? '/rclone/rclone.conf');
+
 const ConfigSchema = z.object({
   cron: z.string().min(9).max(64),
   enabled: z.boolean(),
@@ -597,6 +603,42 @@ async function runBackup(source = 'manual') {
   return { filename, path: outPath, size: st.size, mtime: st.mtime.toISOString(), source };
 }
 
+/**
+ * Mentés feltöltése rclone-nal (Google Drive stb.).
+ * Hibánál nem dob — a lokális dump megmarad; a visszatérés státuszt jelez.
+ * @returns {{ driveUpload: 'ok' | 'skipped' | 'failed', driveUploadError?: string }}
+ */
+async function uploadBackupToRemote(absPath) {
+  if (!RCLONE_UPLOAD_ENABLED) {
+    return { driveUpload: 'skipped' };
+  }
+  if (!RCLONE_REMOTE) {
+    console.warn('[db-tools] rclone: RCLONE_UPLOAD_ENABLED=true, de RCLONE_REMOTE üres — feltöltés kihagyva.');
+    return { driveUpload: 'skipped', driveUploadError: 'RCLONE_REMOTE nincs beállítva.' };
+  }
+  try {
+    await fs.access(RCLONE_CONFIG);
+  } catch {
+    const msg = `rclone config nem található: ${RCLONE_CONFIG}`;
+    console.error(`[db-tools] ${msg}`);
+    return { driveUpload: 'failed', driveUploadError: msg };
+  }
+  try {
+    await execFileAsync(
+      'rclone',
+      ['copy', absPath, RCLONE_REMOTE, '--config', RCLONE_CONFIG, '--retries', '3'],
+      { maxBuffer: 16 * 1024 * 1024 },
+    );
+    console.log(`[db-tools] rclone feltöltés OK → ${RCLONE_REMOTE} (${absPath})`);
+    return { driveUpload: 'ok' };
+  } catch (e) {
+    const stderr = e?.stderr?.toString?.()?.trim() || '';
+    const msg = stderr || e?.message || 'rclone hiba';
+    console.error('[db-tools] rclone feltöltés sikertelen:', msg);
+    return { driveUpload: 'failed', driveUploadError: msg };
+  }
+}
+
 async function cleanupOldBackups() {
   const config = await readConfig();
   const retentionDays = config.retentionDays || 7;
@@ -631,7 +673,10 @@ function applyCronFromDisk() {
       config.cron,
       () => {
         runBackup('auto')
-          .then(() => cleanupOldBackups())
+          .then(async (result) => {
+            await uploadBackupToRemote(result.path);
+            await cleanupOldBackups();
+          })
           .catch((e) => console.error('[db-tools] ütemezett mentés hiba:', e));
       },
       { timezone: config.timezone || 'Europe/Budapest' },
@@ -731,6 +776,8 @@ app.get('/health', async (req, reply) => {
     manualBackupDir: config.manualBackupDir || BACKUP_DIR,
     scheduledBackupDir: config.scheduledBackupDir || BACKUP_DIR,
     databaseConfigured: !!DATABASE_URL,
+    rcloneUploadEnabled: RCLONE_UPLOAD_ENABLED,
+    rcloneRemote: RCLONE_UPLOAD_ENABLED ? RCLONE_REMOTE || null : null,
   });
 });
 
@@ -739,7 +786,8 @@ app.post('/backup', async (req, reply) => {
   if (!DATABASE_URL) return reply.code(500).send({ error: 'DATABASE_URL hiányzik.' });
   try {
     const result = await runBackup('manual');
-    reply.send({ message: 'Mentés kész.', ...result });
+    const upload = await uploadBackupToRemote(result.path);
+    reply.send({ message: 'Mentés kész.', ...result, ...upload });
   } catch (e) {
     req.log.error(e);
     reply.code(500).send({ error: e?.message ?? 'pg_dump sikertelen.' });

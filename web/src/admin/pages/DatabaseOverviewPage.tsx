@@ -158,7 +158,13 @@ export function DatabaseOverviewPage() {
     setMessage(null);
     try {
       const r = await adminApi.runDatabaseBackup();
-      setMessage(`Mentés kész: ${r.filename} (${formatBytes(r.size)})`);
+      let msg = `Mentés kész: ${r.filename} (${formatBytes(r.size)})`;
+      if (r.driveUpload === 'ok') {
+        msg += ' — Google Drive feltöltés OK.';
+      } else if (r.driveUpload === 'failed') {
+        msg += ` — Drive feltöltés sikertelen${r.driveUploadError ? `: ${r.driveUploadError}` : '.'}`;
+      }
+      setMessage(msg);
       await refresh();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Mentés sikertelen.');
@@ -327,6 +333,31 @@ export function DatabaseOverviewPage() {
                 </span>
               </div>
             </div>
+
+            <div className="db-status-card">
+              <div
+                className={`db-status-icon ${
+                  status?.rcloneUploadEnabled ? 'db-status-icon-active' : 'db-status-icon-inactive'
+                }`}
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <path
+                    d="M4 14a4 4 0 014-4h.5A3.5 3.5 0 0112 6.5 3.5 3.5 0 0115.5 10H16a3 3 0 010 6H8a4 4 0 01-4-2z"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    fill="none"
+                  />
+                </svg>
+              </div>
+              <div className="db-status-info">
+                <span className="db-status-label">Google Drive</span>
+                <span className="db-status-value db-status-value-sm">
+                  {status?.rcloneUploadEnabled
+                    ? status.rcloneRemote || 'bekapcsolva'
+                    : 'ki'}
+                </span>
+              </div>
+            </div>
           </div>
 
           {/* Instant backup */}
@@ -335,7 +366,10 @@ export function DatabaseOverviewPage() {
               <div>
                 <h2 className="admin-panel-title">Pillanatnyi mentés</h2>
                 <p className="admin-muted">
-                  PostgreSQL custom formátum (<code>.dump</code>) — azonnali kézi mentés.
+                  PostgreSQL custom formátum (<code>.dump</code>) — azonnali kézi mentés
+                  {status?.rcloneUploadEnabled
+                    ? '; sikeres mentés után feltöltés Google Drive-ra is.'
+                    : '.'}
                 </p>
               </div>
               <button

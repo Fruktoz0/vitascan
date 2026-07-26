@@ -266,6 +266,8 @@ export type DatabaseStatusResponse = {
   manualBackupDir?: string;
   scheduledBackupDir?: string;
   databaseConfigured?: boolean;
+  rcloneUploadEnabled?: boolean;
+  rcloneRemote?: string | null;
   error?: string;
 };
 
@@ -273,11 +275,17 @@ export function getDatabaseStatus() {
   return request<DatabaseStatusResponse>('/admin/database/status');
 }
 
+export type DriveUploadStatus = 'ok' | 'skipped' | 'failed';
+
 export function runDatabaseBackup() {
-  return request<{ message: string; filename: string; size: number; mtime: string }>(
-    '/admin/database/backup',
-    { method: 'POST' },
-  );
+  return request<{
+    message: string;
+    filename: string;
+    size: number;
+    mtime: string;
+    driveUpload?: DriveUploadStatus;
+    driveUploadError?: string;
+  }>('/admin/database/backup', { method: 'POST' });
 }
 
 export type BackupSource = 'manual' | 'auto' | 'legacy';
