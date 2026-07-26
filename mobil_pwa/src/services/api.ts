@@ -93,9 +93,17 @@ export async function refreshAccessTokenFromStorage(): Promise<boolean> {
 
 async function request<T>(path: string, options: RequestInit = {}, retry = true): Promise<T> {
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
+  // Fastify rejects empty bodies when Content-Type is application/json (DELETE/GET → 400 Bad Request).
+  const hasBody = options.body != null && options.body !== '';
+  if (
+    hasBody &&
+    headers['Content-Type'] == null &&
+    headers['content-type'] == null
+  ) {
+    headers['Content-Type'] = 'application/json';
+  }
   if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
 
   const url = `${API_BASE}${path}`;
