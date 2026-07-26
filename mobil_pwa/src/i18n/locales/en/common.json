@@ -97,6 +97,19 @@
     "missingDataTitle": "Missing data",
     "fillFields": "Please fill: {{fields}}",
     "infoPer100g": "Enter all values per 100 grams. The community marks foods as verified at +2 votes or above.",
+    "aiFill": {
+      "button": "AI+",
+      "aria": "AI label fill",
+      "cameraLead": "Photograph the product label or nutrition panel.",
+      "photoNotStored": "The photo is not stored — it is only used for recognition.",
+      "takePhoto": "Take photo",
+      "retake": "Retake",
+      "run": "Fill with AI",
+      "back": "Back to form",
+      "approxFallback": "Values are estimates — exact amount or brand is not clear on the label.",
+      "failed": "Could not read the label. Try a clearer photo.",
+      "needPhoto": "Take or pick a photo first."
+    },
     "breakfast": "Breakfast",
     "tizorai": "Morning snack",
     "lunch": "Lunch",
@@ -597,15 +610,14 @@
     "dailyLimitReached": "You reached your daily limit. Upgrade to Premium for unlimited access!"
   },
   "scannerScreen": {
-    "title": "Scan",
-    "cameraRequired": "Camera required",
-    "cameraDesc": "Enable camera to scan barcodes.",
-    "allow": "Allow",
-    "analyzing": "Analyzing...",
-    "aimBarcode": "Place the barcode in\nthe frame",
-    "inProgress": "Searching...",
-    "newFood": "New food",
-    "manualSearch": "Enter code\nmanually"
+    "cameraDenied": "Camera permission required",
+    "cameraDeniedHint": "Allow camera access in your browser settings.",
+    "lookingUp": "Searching...",
+    "pointAtBarcode": "Point at the barcode",
+    "notFound": "Not found",
+    "notFoundTitle": "Product not found",
+    "notFoundMessage": "This product is not in the database yet{{barcode}}.",
+    "notFoundBarcodeSuffix": " ({{code}})"
   },
   "mealCard": {
     "items": "items",

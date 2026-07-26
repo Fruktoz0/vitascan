@@ -269,6 +269,26 @@ export const foodApi = {
       remaining: number;
       limit: number;
     }>('/foods/ai-recognize', { method: 'POST', body: JSON.stringify(data) }),
+  aiLabelFill: (data: {
+    imageBase64: string;
+    mimeType?: string;
+    locale?: 'hu' | 'en';
+  }) =>
+    request<{
+      name: string;
+      brand?: string;
+      barcode?: string;
+      kcal: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+      fiber?: number;
+      sugar?: number;
+      isApproximate: boolean;
+      approximateNote?: string;
+      remaining: number;
+      limit: number;
+    }>('/foods/ai-label-fill', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: Partial<Food> | Record<string, unknown>) =>
     request<Food>(`/foods/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   editHistory: (id: string) =>

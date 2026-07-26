@@ -117,17 +117,42 @@ async function filterPgRestoreSqlFile(srcPath, destPath) {
 }
 
 /**
+ * Preferált merge sorrend (FK-barát). A cél séma egyéb public táblái
+ * (kivéve _prisma_migrations) a lista végére kerülnek, ha a dumpban is megvannak.
+ */
+const MERGE_TABLE_ORDER = [
+  'User',
+  'UserProfile',
+  'SystemSetting',
+  'RefreshToken',
+  'Food',
+  'Vote',
+  'FoodFavorite',
+  'FoodEditLog',
+  'DailyLog',
+  'WaterLog',
+  'WeightLog',
+  'DailyAnalysis',
+  'AiFoodRecognition',
+  'BodyMeasurementLog',
+  'BodyMeasurementGoal',
+  'AiBodyAnalysis',
+];
+
+/**
  * Szelektív adatbetöltés: üres ideiglenes DB-be restore, majd FDW-n keresztül
- * INSERT ... ON CONFLICT DO NOTHING a cél DB-be (létező sorok megmaradnak).
+ * oszlop-metszetes INSERT ... ON CONFLICT DO NOTHING (létező sorok megmaradnak).
+ * FK-hiányos sorok kimaradnak; séma-drift (eltérő oszlopok) nem bontja el a merge-t.
  */
 async function mergeDataFromCustomFormat(dumpPath, log) {
   const p = parsePgUrl(DATABASE_URL);
   const env = buildPsqlEnv();
   const mergeDb = `vitascan_merge_${Date.now()}`;
   const maintenanceDb = 'postgres';
-  const sqlRaw = join(BACKUP_DIR, `_merge_raw_${Date.now()}.sql`);
-  const sqlFiltered = join(BACKUP_DIR, `_merge_flt_${Date.now()}.sql`);
-  const mergeSql = join(BACKUP_DIR, `_merge_ins_${Date.now()}.sql`);
+  const stamp = Date.now();
+  const sqlRaw = join(BACKUP_DIR, `_merge_raw_${stamp}.sql`);
+  const sqlFiltered = join(BACKUP_DIR, `_merge_flt_${stamp}.sql`);
+  const mergeSql = join(BACKUP_DIR, `_merge_ins_${stamp}.sql`);
 
   const psql = (database, args) =>
     execFileAsync('psql', ['-h', p.host, '-p', p.port, '-U', p.user, '-d', database, ...args], {
@@ -153,7 +178,7 @@ async function mergeDataFromCustomFormat(dumpPath, log) {
         '-v',
         'ON_ERROR_STOP=0',
         '-c',
-        'DROP SERVER IF EXISTS vitascan_merge_srv CASCADE; DROP SCHEMA IF EXISTS vitascan_merge_fdw CASCADE;',
+        'DROP SERVER IF EXISTS vitascan_merge_srv CASCADE; DROP SCHEMA IF EXISTS vitascan_merge_fdw CASCADE; DROP TABLE IF EXISTS public._vitascan_merge_stats;',
       ]);
     } catch {
       /* ignore */
@@ -203,6 +228,7 @@ async function mergeDataFromCustomFormat(dumpPath, log) {
     }
 
     const esc = (s) => String(s).replace(/'/g, "''");
+    const orderSql = MERGE_TABLE_ORDER.map((t) => `'${esc(t)}'`).join(',');
     const fdwSql = `
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS postgres_fdw;
@@ -215,23 +241,203 @@ DROP USER MAPPING IF EXISTS FOR CURRENT_USER SERVER vitascan_merge_srv;
 CREATE USER MAPPING FOR CURRENT_USER SERVER vitascan_merge_srv
   OPTIONS (user '${esc(p.user)}', password '${esc(p.password)}');
 IMPORT FOREIGN SCHEMA public EXCEPT (_prisma_migrations) FROM SERVER vitascan_merge_srv INTO vitascan_merge_fdw;
+
+DROP TABLE IF EXISTS public._vitascan_merge_stats;
+CREATE TABLE public._vitascan_merge_stats (
+  tbl text PRIMARY KEY,
+  source_rows bigint NOT NULL DEFAULT 0,
+  inserted_rows bigint NOT NULL DEFAULT 0,
+  note text
+);
+
 SET session_replication_role = replica;
 DO $merge$
-DECLARE tbl text;
+DECLARE
+  preferred text[] := ARRAY[${orderSql}];
+  tbl text;
+  ordered text[];
+  extra text[];
+  col_list text;
+  missing_required boolean;
+  where_parts text[];
+  where_sql text;
+  fk_rec record;
+  src_cols text[];
+  ref_cols text[];
+  i int;
+  pair_parts text[];
+  nullable_fk boolean;
+  before_c bigint;
+  after_c bigint;
+  src_c bigint;
+  sql text;
 BEGIN
-  FOREACH tbl IN ARRAY ARRAY[
-    'User','UserProfile','Food','Vote','DailyLog','WaterLog','WeightLog','RefreshToken','SystemSetting'
-  ]
+  SELECT coalesce(array_agg(t.tbl ORDER BY t.ord, t.tbl), ARRAY[]::text[])
+  INTO ordered
+  FROM (
+    SELECT p.tbl, p.ord
+    FROM unnest(preferred) WITH ORDINALITY AS p(tbl, ord)
+    WHERE EXISTS (
+      SELECT 1 FROM information_schema.tables pt
+      WHERE pt.table_schema = 'public' AND pt.table_type = 'BASE TABLE' AND pt.table_name = p.tbl
+    )
+    AND EXISTS (
+      SELECT 1 FROM information_schema.foreign_tables ft
+      WHERE ft.foreign_table_schema = 'vitascan_merge_fdw' AND ft.foreign_table_name = p.tbl
+    )
+  ) t;
+
+  SELECT coalesce(array_agg(pt.table_name ORDER BY pt.table_name), ARRAY[]::text[])
+  INTO extra
+  FROM information_schema.tables pt
+  WHERE pt.table_schema = 'public'
+    AND pt.table_type = 'BASE TABLE'
+    AND pt.table_name <> '_prisma_migrations'
+    AND pt.table_name <> '_vitascan_merge_stats'
+    AND NOT (pt.table_name = ANY (preferred))
+    AND EXISTS (
+      SELECT 1 FROM information_schema.foreign_tables ft
+      WHERE ft.foreign_table_schema = 'vitascan_merge_fdw' AND ft.foreign_table_name = pt.table_name
+    );
+
+  ordered := ordered || extra;
+
+  FOREACH tbl IN ARRAY ordered
   LOOP
-    IF EXISTS (
-      SELECT 1 FROM information_schema.foreign_tables
-      WHERE foreign_table_schema = 'vitascan_merge_fdw' AND foreign_table_name = tbl
-    ) THEN
-      EXECUTE format(
-        'INSERT INTO public.%I SELECT * FROM vitascan_merge_fdw.%I ON CONFLICT DO NOTHING',
-        tbl, tbl
+    SELECT string_agg(quote_ident(c.column_name), ', ' ORDER BY c.ordinal_position)
+    INTO col_list
+    FROM information_schema.columns c
+    WHERE c.table_schema = 'public'
+      AND c.table_name = tbl
+      AND c.is_generated = 'NEVER'
+      AND EXISTS (
+        SELECT 1 FROM information_schema.columns f
+        WHERE f.table_schema = 'vitascan_merge_fdw'
+          AND f.table_name = tbl
+          AND f.column_name = c.column_name
       );
+
+    IF col_list IS NULL OR col_list = '' THEN
+      INSERT INTO public._vitascan_merge_stats(tbl, source_rows, inserted_rows, note)
+      VALUES (tbl, 0, 0, 'kihagyva: nincs közös oszlop')
+      ON CONFLICT (tbl) DO UPDATE SET note = EXCLUDED.note;
+      CONTINUE;
     END IF;
+
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns c
+      WHERE c.table_schema = 'public'
+        AND c.table_name = tbl
+        AND c.is_nullable = 'NO'
+        AND c.column_default IS NULL
+        AND c.is_generated = 'NEVER'
+        AND c.is_identity = 'NO'
+        AND NOT EXISTS (
+          SELECT 1 FROM information_schema.columns f
+          WHERE f.table_schema = 'vitascan_merge_fdw'
+            AND f.table_name = tbl
+            AND f.column_name = c.column_name
+        )
+    ) INTO missing_required;
+
+    IF missing_required THEN
+      INSERT INTO public._vitascan_merge_stats(tbl, source_rows, inserted_rows, note)
+      VALUES (tbl, 0, 0, 'kihagyva: kötelező oszlop hiányzik a mentésből')
+      ON CONFLICT (tbl) DO UPDATE SET note = EXCLUDED.note;
+      CONTINUE;
+    END IF;
+
+    where_parts := ARRAY[]::text[];
+    FOR fk_rec IN
+      SELECT
+        c.conname,
+        confrelid::regclass::text AS ref_reg,
+        (
+          SELECT array_agg(a.attname ORDER BY u.ord)
+          FROM unnest(c.conkey) WITH ORDINALITY AS u(attnum, ord)
+          JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = u.attnum
+        ) AS src_atts,
+        (
+          SELECT array_agg(a.attname ORDER BY u.ord)
+          FROM unnest(c.confkey) WITH ORDINALITY AS u(attnum, ord)
+          JOIN pg_attribute a ON a.attrelid = c.confrelid AND a.attnum = u.attnum
+        ) AS ref_atts
+      FROM pg_constraint c
+      WHERE c.contype = 'f'
+        AND c.conrelid = format('public.%I', tbl)::regclass
+        AND c.confrelid <> format('public.%I', tbl)::regclass
+    LOOP
+      src_cols := fk_rec.src_atts;
+      ref_cols := fk_rec.ref_atts;
+      IF src_cols IS NULL OR ref_cols IS NULL OR array_length(src_cols, 1) IS NULL THEN
+        CONTINUE;
+      END IF;
+
+      -- csak közös forrás-oszlopokra építünk FK szűrőt
+      IF EXISTS (
+        SELECT 1 FROM unnest(src_cols) s(col)
+        WHERE NOT EXISTS (
+          SELECT 1 FROM information_schema.columns f
+          WHERE f.table_schema = 'vitascan_merge_fdw'
+            AND f.table_name = tbl
+            AND f.column_name = s.col
+        )
+      ) THEN
+        CONTINUE;
+      END IF;
+
+      pair_parts := ARRAY[]::text[];
+      FOR i IN 1 .. array_length(src_cols, 1) LOOP
+        pair_parts := pair_parts || format('r.%I = src.%I', ref_cols[i], src_cols[i]);
+      END LOOP;
+
+      SELECT bool_or(c.is_nullable = 'YES')
+      INTO nullable_fk
+      FROM information_schema.columns c
+      WHERE c.table_schema = 'public'
+        AND c.table_name = tbl
+        AND c.column_name = ANY (src_cols);
+
+      IF coalesce(nullable_fk, false) THEN
+        where_parts := where_parts || format(
+          '((%s) OR EXISTS (SELECT 1 FROM %s r WHERE %s))',
+          (SELECT string_agg(format('src.%I IS NULL', s.col), ' AND ') FROM unnest(src_cols) AS s(col)),
+          fk_rec.ref_reg,
+          array_to_string(pair_parts, ' AND ')
+        );
+      ELSE
+        where_parts := where_parts || format(
+          'EXISTS (SELECT 1 FROM %s r WHERE %s)',
+          fk_rec.ref_reg,
+          array_to_string(pair_parts, ' AND ')
+        );
+      END IF;
+    END LOOP;
+
+    IF array_length(where_parts, 1) IS NULL THEN
+      where_sql := 'TRUE';
+    ELSE
+      where_sql := array_to_string(where_parts, ' AND ');
+    END IF;
+
+    EXECUTE format('SELECT count(*) FROM vitascan_merge_fdw.%I', tbl) INTO src_c;
+    EXECUTE format('SELECT count(*) FROM public.%I', tbl) INTO before_c;
+
+    sql := format(
+      'INSERT INTO public.%I (%s) SELECT %s FROM vitascan_merge_fdw.%I src WHERE %s ON CONFLICT DO NOTHING',
+      tbl, col_list, col_list, tbl, where_sql
+    );
+    EXECUTE sql;
+
+    EXECUTE format('SELECT count(*) FROM public.%I', tbl) INTO after_c;
+
+    INSERT INTO public._vitascan_merge_stats(tbl, source_rows, inserted_rows, note)
+    VALUES (tbl, src_c, greatest(after_c - before_c, 0), NULL)
+    ON CONFLICT (tbl) DO UPDATE
+      SET source_rows = EXCLUDED.source_rows,
+          inserted_rows = EXCLUDED.inserted_rows,
+          note = EXCLUDED.note;
   END LOOP;
 END $merge$;
 SET session_replication_role = DEFAULT;
@@ -255,10 +461,65 @@ COMMIT;
       throw e;
     }
 
-    return {
-      message:
-        'Szelektív adatfrissítés kész: a mentésben lévő sorok közül a már létező elsődleges kulcsok (és a SystemSetting kulcs) kimaradtak; az újak bekerültek. A _prisma_migrations táblát nem módosítjuk.',
-    };
+    let statsLines = [];
+    try {
+      const { stdout } = await psql(p.database, [
+        '-v',
+        'ON_ERROR_STOP=1',
+        '-t',
+        '-A',
+        '-F',
+        '|',
+        '-c',
+        `SELECT tbl, source_rows, inserted_rows, coalesce(note, '') FROM public._vitascan_merge_stats ORDER BY tbl;`,
+      ]);
+      statsLines = String(stdout || '')
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+    } catch (e) {
+      log.warn(e);
+    } finally {
+      try {
+        await psql(p.database, [
+          '-v',
+          'ON_ERROR_STOP=0',
+          '-c',
+          'DROP TABLE IF EXISTS public._vitascan_merge_stats;',
+        ]);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const parts = [];
+    let foodInserted = null;
+    let foodSource = null;
+    for (const line of statsLines) {
+      const [tbl, src, ins, note] = line.split('|');
+      if (!tbl) continue;
+      if (tbl === 'Food') {
+        foodSource = Number(src) || 0;
+        foodInserted = Number(ins) || 0;
+      }
+      if (note) {
+        parts.push(`${tbl}: ${note}`);
+      } else {
+        parts.push(`${tbl}: +${ins}/${src}`);
+      }
+    }
+
+    let message =
+      'Szelektív adatfrissítés kész: csak új sorok (ON CONFLICT DO NOTHING); meglévő PK/unique értékek érintetlenek. ' +
+      'Közös oszlopok kerültek át; hiányzó FK-jú sorok kimaradtak. A _prisma_migrations táblát nem módosítjuk.';
+    if (foodInserted != null) {
+      message += ` Ételek: ${foodInserted} új / ${foodSource} a mentésben.`;
+    }
+    if (parts.length) {
+      message += ` Részletek: ${parts.join('; ')}.`;
+    }
+
+    return { message };
   } catch (e) {
     await cleanupFdwOnMain();
     throw e;

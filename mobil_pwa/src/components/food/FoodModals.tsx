@@ -17,6 +17,7 @@ import {
   IconHeartOutline,
   IconLeaf,
   IconPeopleOutline,
+  IconPhotoCamera,
   IconPieChartOutline,
   IconQrCodeScanner,
   IconRemove,
@@ -29,7 +30,7 @@ import {
 } from '../ui/Icons';
 import { GlassCardSimple } from '../ui/GlassCard';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
-import { foodApi, logApi, type Food, type FoodOrigin, type FoodStatus } from '../../services/api';
+import { foodApi, getErrorMessage, logApi, type Food, type FoodOrigin, type FoodStatus } from '../../services/api';
 import { Colors } from '../../design/tokens';
 import { toLocalDateStr, useDateStore } from '../../stores/dateStore';
 import styles from './FoodModals.module.css';
@@ -1325,6 +1326,19 @@ function FoodDataFormModal({
   const [sugar, setSugar] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [dialog, setDialog] = useState<{ title: string; message: string } | null>(null);
+  const [aiView, setAiView] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiPreviewUrl, setAiPreviewUrl] = useState<string | null>(null);
+  const [aiImageFile, setAiImageFile] = useState<File | null>(null);
+  const [approxNote, setApproxNote] = useState<string | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  const resetAiCapture = () => {
+    if (aiPreviewUrl) URL.revokeObjectURL(aiPreviewUrl);
+    setAiPreviewUrl(null);
+    setAiImageFile(null);
+    setAiBusy(false);
+  };
 
   useEffect(() => {
     if (!visible) return;
@@ -1354,7 +1368,17 @@ function FoodDataFormModal({
       setSugar('');
     }
     setDialog(null);
+    setApproxNote(null);
+    setAiView(false);
+    resetAiCapture();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, mode, initialFood]);
+
+  useEffect(() => {
+    return () => {
+      if (aiPreviewUrl) URL.revokeObjectURL(aiPreviewUrl);
+    };
+  }, [aiPreviewUrl]);
 
   if (!visible) return null;
 
@@ -1363,6 +1387,59 @@ function FoodDataFormModal({
   const num = (v: string) => {
     const n = parseFloat(v.replace(',', '.'));
     return Number.isFinite(n) ? n : NaN;
+  };
+
+  const fmtNum = (n: number) => String(Math.round(n * 10) / 10);
+
+  const onPickAiPhoto = (file: File | null) => {
+    if (!file) return;
+    if (aiPreviewUrl) URL.revokeObjectURL(aiPreviewUrl);
+    setAiImageFile(file);
+    setAiPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const runAiLabelFill = async () => {
+    if (!aiImageFile) {
+      showDialog(t('food.errorTitle'), t('food.aiFill.needPhoto'));
+      return;
+    }
+    setAiBusy(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(reader.error ?? new Error('Read failed'));
+        reader.readAsDataURL(aiImageFile);
+      });
+      const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (!match) throw new Error('Invalid image');
+      const locale = i18n.language?.startsWith('en') ? 'en' : 'hu';
+      const res = await foodApi.aiLabelFill({
+        imageBase64: match[2],
+        mimeType: match[1],
+        locale,
+      });
+      setName(res.name || '');
+      setBrand(res.brand?.trim() || '');
+      setBarcode(res.barcode?.trim() || '');
+      setKcal(fmtNum(res.kcal));
+      setProtein(fmtNum(res.protein));
+      setCarbs(fmtNum(res.carbs));
+      setFat(fmtNum(res.fat));
+      setFiber(res.fiber != null ? fmtNum(res.fiber) : '');
+      setSugar(res.sugar != null ? fmtNum(res.sugar) : '');
+      setApproxNote(
+        res.isApproximate
+          ? (res.approximateNote?.trim() || t('food.aiFill.approxFallback'))
+          : null,
+      );
+      resetAiCapture();
+      setAiView(false);
+    } catch (e: unknown) {
+      showDialog(t('food.errorTitle'), getErrorMessage(e, t('food.aiFill.failed')));
+    } finally {
+      setAiBusy(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -1427,144 +1504,219 @@ function FoodDataFormModal({
     }
   };
 
+  const headerBack = () => {
+    if (aiView) {
+      resetAiCapture();
+      setAiView(false);
+      return;
+    }
+    onClose();
+  };
+
   return createPortal(
     <>
       <div className={styles.detailScreen}>
         <header className={styles.detailHeader}>
-          <button type="button" className={styles.backBtn} onClick={onClose}>
+          <button type="button" className={styles.backBtn} onClick={headerBack}>
             <span className={styles.backBtnShadow} />
             <span className={styles.backBtnInner}>
               <IconArrowBack size={24} color={Colors.dashboard.stroke} />
             </span>
           </button>
           <h2 className={styles.detailTitle}>
-            {mode === 'edit' ? t('food.editFoodTitle') : t('food.createFoodTitle')}
+            {aiView
+              ? t('food.aiFill.button')
+              : mode === 'edit'
+                ? t('food.editFoodTitle')
+                : t('food.createFoodTitle')}
           </h2>
-          <span className={styles.headerSpacer} />
+          {mode === 'create' && !aiView ? (
+            <button
+              type="button"
+              className={styles.headerAiBtn}
+              aria-label={t('food.aiFill.aria')}
+              onClick={() => setAiView(true)}
+            >
+              <span className={styles.headerAiShadow} />
+              <span className={styles.headerAiInner}>
+                <IconBrain size={18} color={Colors.dashboard.stroke} />
+                <IconAdd size={12} color={Colors.dashboard.stroke} />
+              </span>
+            </button>
+          ) : (
+            <span className={styles.headerSpacer} />
+          )}
         </header>
 
         <div className={styles.detailBody}>
-          <div className={styles.sections}>
-            <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
-              <div className={styles.sectionHeaderSmall}>
-                <IconLeaf size={24} color={Colors.dashboard.stroke} />
-                <span className={styles.sectionTitle}>{t('food.baseData')}</span>
-              </div>
-              <label className={styles.formLabel}>{t('food.foodName')}</label>
-              <input
-                className={styles.formInput}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t('food.foodName')}
-                autoFocus
-              />
-              <label className={styles.formLabel}>{t('food.brandOptional')}</label>
-              <input
-                className={styles.formInput}
-                value={brand}
-                onChange={(e) => setBrand(e.target.value)}
-                placeholder={t('food.brandOptional')}
-              />
-              <label className={styles.formLabel}>{t('food.barcodeOptional')}</label>
-              <input
-                className={styles.formInput}
-                value={barcode}
-                onChange={(e) => setBarcode(e.target.value)}
-                placeholder={t('food.barcodeOptional')}
-                inputMode="numeric"
-              />
-            </GlassCardSimple>
+          {aiView ? (
+            <div className={styles.sections}>
+              <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
+                <p className={styles.aiFillLead}>{t('food.aiFill.cameraLead')}</p>
+                <p className={styles.aiFillHint}>{t('food.aiFill.photoNotStored')}</p>
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className={styles.hiddenFile}
+                  onChange={(e) => {
+                    onPickAiPhoto(e.target.files?.[0] ?? null);
+                    e.target.value = '';
+                  }}
+                />
+                {aiPreviewUrl ? (
+                  <img src={aiPreviewUrl} alt="" className={styles.aiFillPreview} />
+                ) : null}
+                <div className={styles.aiFillActions}>
+                  <button
+                    type="button"
+                    className={styles.aiFillSecondary}
+                    disabled={aiBusy}
+                    onClick={() => cameraInputRef.current?.click()}
+                  >
+                    <IconPhotoCamera size={22} color={Colors.dashboard.stroke} />
+                    {aiPreviewUrl ? t('food.aiFill.retake') : t('food.aiFill.takePhoto')}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.aiFillPrimary}
+                    disabled={aiBusy || !aiImageFile}
+                    onClick={runAiLabelFill}
+                  >
+                    {aiBusy ? '...' : t('food.aiFill.run')}
+                  </button>
+                </div>
+              </GlassCardSimple>
+              <div className={styles.scrollSpacer} />
+            </div>
+          ) : (
+            <div className={styles.sections}>
+              <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
+                <div className={styles.sectionHeaderSmall}>
+                  <IconLeaf size={24} color={Colors.dashboard.stroke} />
+                  <span className={styles.sectionTitle}>{t('food.baseData')}</span>
+                </div>
+                <label className={styles.formLabel}>{t('food.foodName')}</label>
+                <input
+                  className={styles.formInput}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t('food.foodName')}
+                  autoFocus
+                />
+                <label className={styles.formLabel}>{t('food.brandOptional')}</label>
+                <input
+                  className={styles.formInput}
+                  value={brand}
+                  onChange={(e) => setBrand(e.target.value)}
+                  placeholder={t('food.brandOptional')}
+                />
+                <label className={styles.formLabel}>{t('food.barcodeOptional')}</label>
+                <input
+                  className={styles.formInput}
+                  value={barcode}
+                  onChange={(e) => setBarcode(e.target.value)}
+                  placeholder={t('food.barcodeOptional')}
+                  inputMode="numeric"
+                />
+              </GlassCardSimple>
 
-            <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
-              <div className={styles.sectionHeaderSmall}>
-                <IconPieChartOutline size={24} color={Colors.dashboard.stroke} />
-                <span className={styles.sectionTitle}>{t('food.nutritionPer100g')}</span>
-              </div>
-              <div className={styles.formGrid}>
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>{t('food.caloriesPer100g')}</label>
-                  <input
-                    className={styles.formInput}
-                    value={kcal}
-                    onChange={(e) => setKcal(e.target.value.replace(/[^\d.,]/g, ''))}
-                    inputMode="decimal"
-                    placeholder="0"
-                  />
+              <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
+                <div className={styles.sectionHeaderSmall}>
+                  <IconPieChartOutline size={24} color={Colors.dashboard.stroke} />
+                  <span className={styles.sectionTitle}>{t('food.nutritionPer100g')}</span>
                 </div>
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>{t('food.proteinPer100g')}</label>
-                  <input
-                    className={styles.formInput}
-                    value={protein}
-                    onChange={(e) => setProtein(e.target.value.replace(/[^\d.,]/g, ''))}
-                    inputMode="decimal"
-                    placeholder="0"
-                  />
+                <div className={styles.formGrid}>
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>{t('food.caloriesPer100g')}</label>
+                    <input
+                      className={styles.formInput}
+                      value={kcal}
+                      onChange={(e) => setKcal(e.target.value.replace(/[^\d.,]/g, ''))}
+                      inputMode="decimal"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>{t('food.proteinPer100g')}</label>
+                    <input
+                      className={styles.formInput}
+                      value={protein}
+                      onChange={(e) => setProtein(e.target.value.replace(/[^\d.,]/g, ''))}
+                      inputMode="decimal"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>{t('food.carbsPer100g')}</label>
+                    <input
+                      className={styles.formInput}
+                      value={carbs}
+                      onChange={(e) => setCarbs(e.target.value.replace(/[^\d.,]/g, ''))}
+                      inputMode="decimal"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>{t('food.fatPer100g')}</label>
+                    <input
+                      className={styles.formInput}
+                      value={fat}
+                      onChange={(e) => setFat(e.target.value.replace(/[^\d.,]/g, ''))}
+                      inputMode="decimal"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>{t('food.fiberPer100g')}</label>
+                    <input
+                      className={styles.formInput}
+                      value={fiber}
+                      onChange={(e) => setFiber(e.target.value.replace(/[^\d.,]/g, ''))}
+                      inputMode="decimal"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>{t('food.sugarPer100g')}</label>
+                    <input
+                      className={styles.formInput}
+                      value={sugar}
+                      onChange={(e) => setSugar(e.target.value.replace(/[^\d.,]/g, ''))}
+                      inputMode="decimal"
+                      placeholder="0"
+                    />
+                  </div>
                 </div>
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>{t('food.carbsPer100g')}</label>
-                  <input
-                    className={styles.formInput}
-                    value={carbs}
-                    onChange={(e) => setCarbs(e.target.value.replace(/[^\d.,]/g, ''))}
-                    inputMode="decimal"
-                    placeholder="0"
-                  />
-                </div>
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>{t('food.fatPer100g')}</label>
-                  <input
-                    className={styles.formInput}
-                    value={fat}
-                    onChange={(e) => setFat(e.target.value.replace(/[^\d.,]/g, ''))}
-                    inputMode="decimal"
-                    placeholder="0"
-                  />
-                </div>
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>{t('food.fiberPer100g')}</label>
-                  <input
-                    className={styles.formInput}
-                    value={fiber}
-                    onChange={(e) => setFiber(e.target.value.replace(/[^\d.,]/g, ''))}
-                    inputMode="decimal"
-                    placeholder="0"
-                  />
-                </div>
-                <div className={styles.formField}>
-                  <label className={styles.formLabel}>{t('food.sugarPer100g')}</label>
-                  <input
-                    className={styles.formInput}
-                    value={sugar}
-                    onChange={(e) => setSugar(e.target.value.replace(/[^\d.,]/g, ''))}
-                    inputMode="decimal"
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-              <p className={styles.formHint}>{t('food.infoPer100g')}</p>
-            </GlassCardSimple>
+                <p className={styles.formHint}>{t('food.infoPer100g')}</p>
+              </GlassCardSimple>
 
-            <div className={styles.scrollSpacer} />
-          </div>
+              {approxNote ? <p className={styles.aiApproxNote}>{approxNote}</p> : null}
+
+              <div className={styles.scrollSpacer} />
+            </div>
+          )}
         </div>
 
-        <footer className={styles.detailFooter}>
-          <button
-            type="button"
-            className={styles.addBtnWrap}
-            onClick={handleSubmit}
-            disabled={submitting}
-          >
-            <span className={styles.addBtnShadow} />
-            <span className={styles.addBtnInner}>
-              <IconAddCircle size={24} color="#fff" />
-              <span className={styles.addBtnLabel}>
-                {submitting ? '...' : mode === 'edit' ? t('common.save', 'Mentés') : t('food.submit')}
+        {!aiView ? (
+          <footer className={styles.detailFooter}>
+            <button
+              type="button"
+              className={styles.addBtnWrap}
+              onClick={handleSubmit}
+              disabled={submitting}
+            >
+              <span className={styles.addBtnShadow} />
+              <span className={styles.addBtnInner}>
+                <IconAddCircle size={24} color="#fff" />
+                <span className={styles.addBtnLabel}>
+                  {submitting ? '...' : mode === 'edit' ? t('common.save', 'Mentés') : t('food.submit')}
+                </span>
               </span>
-            </span>
-          </button>
-        </footer>
+            </button>
+          </footer>
+        ) : null}
       </div>
       <ConfirmDialog
         visible={!!dialog}

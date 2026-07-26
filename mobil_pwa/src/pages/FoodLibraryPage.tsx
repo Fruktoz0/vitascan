@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { BentoCard } from '../components/ui/BentoCard';
@@ -31,17 +31,20 @@ type DialogState =
 export default function FoodLibraryPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const { selectedDate } = useDateStore();
   const avatarKey = useProfileStore((s) => s.avatarKey);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [manualOpen, setManualOpen] = useState(false);
+  const [prefillBarcode, setPrefillBarcode] = useState<string | undefined>();
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [selectedLog, setSelectedLog] = useState<DailyLogItem | null>(null);
   const [mealForAdd, setMealForAdd] = useState<MealType>('SNACK');
   const [analysis, setAnalysis] = useState<DailyAnalysisResult | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [dialog, setDialog] = useState<DialogState>(null);
+  const [notFoundDialog, setNotFoundDialog] = useState<{ barcode?: string } | null>(null);
 
   const dateStr = toLocalDateStr(selectedDate);
 
@@ -61,6 +64,22 @@ export default function FoodLibraryPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    const st = location.state as {
+      openAddFood?: boolean;
+      prefillBarcode?: string;
+      productNotFound?: boolean;
+    } | null;
+    if (!st?.openAddFood) return;
+    setMealForAdd('SNACK');
+    setPrefillBarcode(st.prefillBarcode);
+    setManualOpen(true);
+    if (st.productNotFound) {
+      setNotFoundDialog({ barcode: st.prefillBarcode });
+    }
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state, location.pathname, navigate]);
 
   const dateTitle = selectedDate.toLocaleDateString(i18n.language === 'hu' ? 'hu-HU' : 'en-US', {
     weekday: 'long',
@@ -329,9 +348,13 @@ export default function FoodLibraryPage() {
 
       <AddFoodManualModal
         visible={manualOpen}
-        onClose={() => setManualOpen(false)}
+        prefillBarcode={prefillBarcode}
+        onClose={() => {
+          setManualOpen(false);
+          setPrefillBarcode(undefined);
+        }}
         onCreated={(food) => setSelectedFood(food)}
-        onOpenScanner={() => navigate('/scanner')}
+        onOpenScanner={() => navigate('/scanner', { state: { returnPath: '/food-library' } })}
         onOpenAiRecognize={() =>
           navigate(`/ai-recognize?mealType=${mealForAdd}`)
         }
@@ -367,6 +390,17 @@ export default function FoodLibraryPage() {
         onConfirm={dialog?.mode === 'confirm' ? dialog.onConfirm : undefined}
         onClose={() => setDialog(null)}
         destructive={dialog?.mode === 'confirm'}
+      />
+      <ConfirmDialog
+        visible={!!notFoundDialog}
+        title={t('scannerScreen.notFoundTitle')}
+        message={t('scannerScreen.notFoundMessage', {
+          barcode: notFoundDialog?.barcode
+            ? t('scannerScreen.notFoundBarcodeSuffix', { code: notFoundDialog.barcode })
+            : '',
+        })}
+        confirmLabel={t('common.ok', 'OK')}
+        onClose={() => setNotFoundDialog(null)}
       />
     </div>
   );

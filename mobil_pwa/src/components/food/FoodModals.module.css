@@ -63,6 +63,122 @@
   flex-shrink: 0;
 }
 
+.headerAiBtn {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.headerAiShadow {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  right: -2px;
+  bottom: -2px;
+  background: var(--shadow-hard);
+  border-radius: 20px;
+}
+
+.headerAiInner {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  background: #efe8ff;
+  border: 0.8px solid var(--stroke);
+  border-radius: 20px;
+}
+
+.hiddenFile {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.aiFillLead {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--stroke);
+  line-height: 1.35;
+}
+
+.aiFillHint {
+  margin: 0 0 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tab-inactive);
+  line-height: 1.4;
+}
+
+.aiFillPreview {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  object-fit: cover;
+  border-radius: 16px;
+  border: 1px solid var(--stroke);
+  margin-bottom: 16px;
+}
+
+.aiFillActions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.aiFillSecondary,
+.aiFillPrimary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.aiFillSecondary {
+  background: var(--surface-low);
+  border: 1.5px solid var(--stroke);
+  color: var(--stroke);
+}
+
+.aiFillPrimary {
+  background: var(--stroke);
+  border: 1.5px solid var(--stroke);
+  color: #fff;
+}
+
+.aiFillPrimary:disabled,
+.aiFillSecondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.aiApproxNote {
+  margin: 0 4px;
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--tab-inactive);
+  text-align: center;
+}
+
 .headerEditBtn {
   position: relative;
   width: 40px;

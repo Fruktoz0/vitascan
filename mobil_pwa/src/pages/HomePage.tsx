@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { GlassCardSimple } from '../components/ui/GlassCard';
@@ -7,6 +7,7 @@ import KcalRing from '../components/ui/KcalRing';
 import { MacroChip } from '../components/ui/MacroBar';
 import WaterProgressBar from '../components/ui/WaterProgressBar';
 import { AddFoodManualModal, FoodDetailModal, EditLogModal, distinctBrand, type DailyLogItem } from '../components/food/FoodModals';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { IconAdd, IconAddCircle, IconCalendarToday, IconRestaurant, IconWeight } from '../components/ui/Icons';
 import { Colors } from '../design/tokens';
 import { statsApi, waterApi, weightApi, type Food } from '../services/api';
@@ -116,6 +117,7 @@ function MealSection({
 export default function HomePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const { selectedDate } = useDateStore();
   const avatarKey = useProfileStore((s) => s.avatarKey);
   const [data, setData] = useState<any>(null);
@@ -123,14 +125,33 @@ export default function HomePage() {
   const [weight, setWeight] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [manualOpen, setManualOpen] = useState(false);
+  const [prefillBarcode, setPrefillBarcode] = useState<string | undefined>();
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [selectedLog, setSelectedLog] = useState<DailyLogItem | null>(null);
   const [mealForAdd, setMealForAdd] = useState<MealType>('SNACK');
+  const [notFoundDialog, setNotFoundDialog] = useState<{ barcode?: string } | null>(null);
 
   const openAddFood = (meal: MealType) => {
     setMealForAdd(meal);
+    setPrefillBarcode(undefined);
     setManualOpen(true);
   };
+
+  useEffect(() => {
+    const st = location.state as {
+      openAddFood?: boolean;
+      prefillBarcode?: string;
+      productNotFound?: boolean;
+    } | null;
+    if (!st?.openAddFood) return;
+    setMealForAdd('SNACK');
+    setPrefillBarcode(st.prefillBarcode);
+    setManualOpen(true);
+    if (st.productNotFound) {
+      setNotFoundDialog({ barcode: st.prefillBarcode });
+    }
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state, location.pathname, navigate]);
 
   const getHeaderDateText = () => {
     const today = new Date();
@@ -428,11 +449,15 @@ export default function HomePage() {
 
       <AddFoodManualModal
         visible={manualOpen}
-        onClose={() => setManualOpen(false)}
+        prefillBarcode={prefillBarcode}
+        onClose={() => {
+          setManualOpen(false);
+          setPrefillBarcode(undefined);
+        }}
         onCreated={(food) => {
           setSelectedFood(food);
         }}
-        onOpenScanner={() => navigate('/scanner')}
+        onOpenScanner={() => navigate('/scanner', { state: { returnPath: '/home' } })}
         onOpenAiRecognize={() =>
           navigate(`/ai-recognize?mealType=${mealForAdd}`)
         }
@@ -454,6 +479,17 @@ export default function HomePage() {
         visible={!!selectedLog}
         onClose={() => setSelectedLog(null)}
         onSaved={fetchData}
+      />
+      <ConfirmDialog
+        visible={!!notFoundDialog}
+        title={t('scannerScreen.notFoundTitle')}
+        message={t('scannerScreen.notFoundMessage', {
+          barcode: notFoundDialog?.barcode
+            ? t('scannerScreen.notFoundBarcodeSuffix', { code: notFoundDialog.barcode })
+            : '',
+        })}
+        confirmLabel={t('common.ok', 'OK')}
+        onClose={() => setNotFoundDialog(null)}
       />
     </div>
   );

@@ -27,14 +27,9 @@
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
+  min-height: 44px;
   margin-bottom: auto;
-}
-
-.title {
-  color: #fff;
-  font-size: 24px;
-  font-weight: 900;
 }
 
 .torchBtn {

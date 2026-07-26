@@ -7,7 +7,10 @@
     "cameraDeniedHint": "Engedélyezd a kamerát a böngésző beállításaiban.",
     "lookingUp": "Keresés...",
     "pointAtBarcode": "Irányítsd a vonalkódra",
-    "notFound": "Nem található"
+    "notFound": "Nem található",
+    "notFoundTitle": "Termék nem található",
+    "notFoundMessage": "Ez a termék még nincs az adatbázisban{{barcode}}.",
+    "notFoundBarcodeSuffix": " ({{code}})"
   },
   "foodLibrary": "Napló",
   "dataVaultTab": "Adatok",
@@ -105,6 +108,19 @@
     "missingDataTitle": "Hiányzó adatok",
     "fillFields": "Töltsd ki: {{fields}}",
     "infoPer100g": "Az adatokat 100 grammra vonatkoztatva add meg. A közösség +2 szavazat felett ellenőrzöttnek minősíti.",
+    "aiFill": {
+      "button": "AI+",
+      "aria": "AI címke kitöltés",
+      "cameraLead": "Fényképezd le a termék adatlapját vagy tápértéktábláját.",
+      "photoNotStored": "A kép nem kerül mentésre — csak a felismeréshez használjuk.",
+      "takePhoto": "Fényképezés",
+      "retake": "Új fotó",
+      "run": "Kitöltés AI-val",
+      "back": "Vissza az űrlaphoz",
+      "approxFallback": "Az adatok becsültek — a címkén nincs pontos mennyiség vagy márka.",
+      "failed": "Nem sikerült leolvasni a címkét. Próbálj élesebb fotót.",
+      "needPhoto": "Először készíts vagy válassz egy fotót."
+    },
     "breakfast": "Reggeli",
     "tizorai": "Tízórai",
     "lunch": "Ebéd",
@@ -603,17 +619,6 @@
     "dailyScansRemaining": "Napi szkennelések: {{count}} maradt",
     "expand": "Bővítés",
     "dailyLimitReached": "Elérted a napi limitet. Válts Premiumra a korlátlan hozzáférésért!"
-  },
-  "scannerScreen": {
-    "title": "Szkennelés",
-    "cameraRequired": "Kamera szükséges",
-    "cameraDesc": "Engedélyezd a kamerát a vonalkódok beolvasásához.",
-    "allow": "Engedélyezés",
-    "analyzing": "Elemzés...",
-    "aimBarcode": "Helyezd a vonalkódot a\nkeretbe",
-    "inProgress": "Keresés...",
-    "newFood": "Új étel",
-    "manualSearch": "Kód beírása\nmanuálisan"
   },
   "mealCard": {
     "items": "tétel",

@@ -13,6 +13,7 @@ import {
   type FoodOrigin,
 } from '../../utils/foodSearch';
 import { recognizeFoodWithGemini } from './food.ai-recognize';
+import { fillFoodLabelWithGemini } from './food.ai-label-fill';
 
 export const AI_FOOD_RECOGNIZE_DAILY_LIMIT = 10;
 
@@ -548,6 +549,71 @@ export default async function foodRoutes(fastify: FastifyInstance) {
       const status = err?.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 502;
       return reply.status(status).send({
         error: err?.message || 'A felismerés sikertelen.',
+        remaining: Math.max(0, AI_FOOD_RECOGNIZE_DAILY_LIMIT - usage.count),
+        limit: AI_FOOD_RECOGNIZE_DAILY_LIMIT,
+      });
+    }
+  });
+
+  // POST /foods/ai-label-fill — termékcímke → űrlap (kép NEM tárolódik), közös napi AI kvóta
+  fastify.post('/ai-label-fill', {
+    preHandler: [authenticate],
+  }, async (req, reply) => {
+    const bodySchema = z.object({
+      imageBase64: z.string().max(12_000_000),
+      mimeType: z.string().max(64).optional(),
+      locale: z.enum(['hu', 'en']).optional(),
+    });
+    const parsed = bodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.errors[0].message });
+    }
+
+    const { imageBase64, mimeType, locale } = parsed.data;
+    if (!imageBase64) {
+      return reply.status(400).send({ error: 'Hiányzik a kép.' });
+    }
+
+    const prisma = (fastify as any).prisma;
+    const userId = (req as any).user.userId ?? (req as any).user.id;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const usage = await prisma.aiFoodRecognition.upsert({
+      where: { userId_loggedDate: { userId, loggedDate: today } },
+      create: { userId, loggedDate: today, count: 0 },
+      update: {},
+    });
+
+    if (usage.count >= AI_FOOD_RECOGNIZE_DAILY_LIMIT) {
+      return reply.status(429).send({
+        error: 'Elérted a napi AI felismerési limitet (10). Próbáld holnap.',
+        remaining: 0,
+        limit: AI_FOOD_RECOGNIZE_DAILY_LIMIT,
+      });
+    }
+
+    try {
+      const result = await fillFoodLabelWithGemini({
+        locale: locale ?? 'hu',
+        imageBase64,
+        mimeType,
+      });
+
+      const updated = await prisma.aiFoodRecognition.update({
+        where: { userId_loggedDate: { userId, loggedDate: today } },
+        data: { count: { increment: 1 } },
+      });
+
+      return reply.send({
+        ...result,
+        remaining: Math.max(0, AI_FOOD_RECOGNIZE_DAILY_LIMIT - updated.count),
+        limit: AI_FOOD_RECOGNIZE_DAILY_LIMIT,
+      });
+    } catch (err: any) {
+      const status = err?.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 502;
+      return reply.status(status).send({
+        error: err?.message || 'A címke leolvasása sikertelen.',
         remaining: Math.max(0, AI_FOOD_RECOGNIZE_DAILY_LIMIT - usage.count),
         limit: AI_FOOD_RECOGNIZE_DAILY_LIMIT,
       });

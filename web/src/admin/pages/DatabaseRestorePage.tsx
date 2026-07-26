@@ -168,6 +168,10 @@ export function DatabaseRestorePage() {
             <h2 className="admin-panel-title">Mentések a szerveren</h2>
             <p className="admin-muted">
               Teljes adatbázis-visszaállítás (felülírás). Csak megbízható <code>.dump</code> / <code>.sql</code> fájl.
+              Régi mentés felülírhatja / eltüntetheti az újabb táblákat és oszlopokat (pl. <code>FoodEditLog</code>,
+              étel <code>fiber</code>/<code>sugar</code>). Restore után indítsd újra a stacket, hogy a compose{' '}
+              <code>prisma db push</code> lépése visszaállítsa a hiányzó sémát — óvatosan, adatvesztés nélkül
+              ellenőrizd.
             </p>
             <div className="admin-table-wrap">
               <table className="admin-table">
@@ -215,6 +219,8 @@ export function DatabaseRestorePage() {
             <h2 className="admin-panel-title">Helyi fájl feltöltése</h2>
             <p className="admin-muted">
               <strong>Figyelem:</strong> ugyanaz, mint a táblázatos visszaállítás – felülírja az adatbázis tartalmát.
+              Régi dump + újabb app séma esetén a hiányzó táblák / oszlopok restore után is hiányozhatnak, amíg a
+              stack újraindulása (séma push) le nem fut.
             </p>
             <div className="admin-toolbar-row" style={{ marginTop: '0.75rem' }}>
               <input
@@ -239,7 +245,7 @@ export function DatabaseRestorePage() {
       <ConfirmDialog
         open={!!restoreTarget}
         title="Rendszer visszaállítása fájlból"
-        message={`A „${restoreTarget}” fájlból történő visszaállítás törli / felülírja a jelenlegi adatokat. Biztosan folytatod?`}
+        message={`A „${restoreTarget}” fájlból történő visszaállítás törli / felülírja a jelenlegi adatokat. Régi mentés esetén újabb táblák eltűnhetnek a sémából. Biztosan folytatod?`}
         confirmLabel="Visszaállítás"
         danger
         onCancel={() => setRestoreTarget(null)}

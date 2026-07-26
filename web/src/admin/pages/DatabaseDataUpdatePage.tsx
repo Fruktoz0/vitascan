@@ -90,8 +90,8 @@ export function DatabaseDataUpdatePage() {
               <div>
                 <h2 className="admin-panel-title">Szelektív adatfrissítés</h2>
                 <p className="admin-muted">
-                  A meglévő adatbázisba tölthetsz be új adatokat (ételek, tápanyagok stb.)
-                  anélkül, hogy a jelenlegi tartalom törlődne.
+                  Új sorokat tölthetsz be a meglévő adatbázisba (ételek, naplók stb.) anélkül, hogy a jelenlegi
+                  tartalom törlődne vagy felülíródna.
                 </p>
               </div>
             </div>
@@ -107,9 +107,12 @@ export function DatabaseDataUpdatePage() {
                 <div>
                   <strong>Ami történik</strong>
                   <p>
-                    A mentés tartalmát ideiglenes adatbázisba töltjük, majd a célba csak azok a sorok kerülnek, amelyek
-                    ütközés nélkül beszúrhatók (minden egyedi kulcs / elsődleges kulcs szerint létező sor kimarad).
-                    A <code>_prisma_migrations</code> táblát nem módosítjuk.
+                    A cél séma összes releváns táblájára (User, Food, FoodFavorite, FoodEditLog, naplók stb.)
+                    csak az új sorok kerülnek be. Meglévő elsődleges / egyedi kulcsok (pl. étel <code>id</code>,{' '}
+                    <code>barcode</code>, <code>externalId</code>) <strong>nem frissülnek</strong> — a mentésbeli
+                    értékük kimarad. Oszlopeltérésnél csak a közös mezők mennek át; hiányzó creator / FK miatt
+                    árva sorok kimaradnak (az import nem áll le). A <code>_prisma_migrations</code> táblát nem
+                    módosítjuk.
                   </p>
                 </div>
               </div>
@@ -124,7 +127,7 @@ export function DatabaseDataUpdatePage() {
                 <div>
                   <strong>Támogatott formátumok</strong>
                   <p>
-                    <code>.sql</code> — közvetlenül psql-lel fut.<br />
+                    <code>.sql</code> — közvetlenül psql-lel fut (bármit csinálhat a SQL — óvatosan).<br />
                     <code>.dump</code> / <code>.backup</code> — PostgreSQL 15+ és <code>postgres_fdw</code> kiterjesztés
                     szükséges; a régi kliens <code>transaction_timeout</code> sorai szűrve vannak.
                   </p>
@@ -140,8 +143,10 @@ export function DatabaseDataUpdatePage() {
                 </div>
                 <div>
                   <strong>Fontos</strong>
-                  <p>Ez NEM teljes visszaállítás — a séma nem változik, csak adatok kerülnek be.
-                    Teljes felülíráshoz használd a <strong>Rendszer visszaállítás</strong> menüt.</p>
+                  <p>
+                    Ez NEM teljes visszaállítás — a séma nem változik, csak hiányzó adatok kerülnek be.
+                    Teljes felülíráshoz használd a <strong>Rendszer visszaállítás</strong> menüt.
+                  </p>
                 </div>
               </div>
             </div>
@@ -209,7 +214,7 @@ export function DatabaseDataUpdatePage() {
       <ConfirmDialog
         open={confirmUpload}
         title="Adatfrissítés indítása"
-        message={`A „${uploadFile?.name}" fájl tartalmát importáljuk az adatbázisba. A meglévő adatok NEM törlődnek. Folytatod?`}
+        message={`A „${uploadFile?.name}" fájl tartalmát importáljuk: csak új sorok (létező étel / barcode / unique kulcsok érintetlenek). A meglévő adatok nem törlődnek és nem frissülnek. Folytatod?`}
         confirmLabel="Frissítés indítása"
         onCancel={() => setConfirmUpload(false)}
         onConfirm={() => void doUpload()}

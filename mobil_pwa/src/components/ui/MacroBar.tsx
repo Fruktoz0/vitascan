@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../../design/tokens';
 import { GlassCardSimple } from './GlassCard';
-import { IconBakeryDining, IconEggAlt, IconGrain, IconOpacity } from './Icons';
+import { IconEggAlt, IconGrain, IconOpacity } from './Icons';
 import styles from './MacroBar.module.css';
 
 type MacroType = 'protein' | 'carbs' | 'fat';
