@@ -63,12 +63,18 @@ import {
   MdVisibilityOff,
   MdWaterDrop,
   MdWhatshot,
+  MdFitnessCenter,
+  MdExpandMore,
+  MdExpandLess,
+  MdContentCopy,
 } from 'react-icons/md';
 import { FaAppleAlt } from 'react-icons/fa';
 import {
   IoBicycleOutline,
   IoBook,
   IoBookOutline,
+  IoFitness,
+  IoFitnessOutline,
   IoHome,
   IoHomeOutline,
   IoMaleFemaleOutline,
@@ -177,11 +183,18 @@ export const IconScaleOutline = wrap(IoScaleOutline);
 export const IconMoreHoriz = wrap(MdMoreHoriz);
 export const IconBicycleOutline = wrap(IoBicycleOutline);
 export const IconMaleFemaleOutline = wrap(IoMaleFemaleOutline);
+export const IconFitness = wrap(IoFitness);
+export const IconFitnessOutline = wrap(IoFitnessOutline);
+export const IconFitnessCenter = wrap(MdFitnessCenter);
+export const IconExpandMore = wrap(MdExpandMore);
+export const IconExpandLess = wrap(MdExpandLess);
+export const IconContentCopy = wrap(MdContentCopy);
 
 export const TAB_ICONS = {
   home: { outline: IconHomeOutline, filled: IconHome },
   diary: { outline: IconBookOutline, filled: IconBook },
   scan: { outline: IconQrCodeOutline, filled: IconQrCode },
   body: { outline: IconScaleOutline, filled: IconScaleOutline },
+  fitness: { outline: IconFitnessOutline, filled: IconFitness },
   profile: { outline: IconPersonOutlineIo, filled: IconPersonFilled },
 } as const;

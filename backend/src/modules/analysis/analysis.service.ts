@@ -84,12 +84,19 @@ export async function createOrRefreshDailyAnalysis(
     );
   }
 
-  const [logs, profile] = await Promise.all([
+  const [logs, profile, workouts, stepLog] = await Promise.all([
     prisma.dailyLog.findMany({
       where: { userId, createdAt: { gte: rangeStart, lt: rangeEnd } },
       orderBy: { createdAt: 'asc' },
     }),
     prisma.userProfile.findUnique({ where: { userId } }),
+    prisma.workoutLog.findMany({
+      where: { userId, startedAt: { gte: rangeStart, lt: rangeEnd } },
+      orderBy: { startedAt: 'asc' },
+    }),
+    prisma.dailyStepLog.findUnique({
+      where: { userId_loggedDate: { userId, loggedDate: day } },
+    }),
   ]);
 
   if (logs.length === 0) {
@@ -164,6 +171,24 @@ export async function createOrRefreshDailyAnalysis(
     filledMealsMap[m] = meals[m];
   }
 
+  const dailyKcalGoal = profile?.dailyKcalGoal ?? 2000;
+  const dailyProteinGoal = profile?.dailyProteinGoal ?? null;
+  const dailyCarbsGoal = profile?.dailyCarbsGoal ?? null;
+  const dailyFatGoal = profile?.dailyFatGoal ?? null;
+
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+  const deltas = {
+    kcal: round1(totals.kcal - dailyKcalGoal),
+    protein: dailyProteinGoal != null ? round1(totals.protein - dailyProteinGoal) : null,
+    carbs: dailyCarbsGoal != null ? round1(totals.carbs - dailyCarbsGoal) : null,
+    fat: dailyFatGoal != null ? round1(totals.fat - dailyFatGoal) : null,
+  };
+
+  const workoutEnergyKcal = workouts.reduce(
+    (sum, w) => sum + (w.activeEnergyKcal ?? 0),
+    0,
+  );
+
   const payload: GeminiUserPayload = {
     locale,
     date: dateKey,
@@ -182,7 +207,20 @@ export async function createOrRefreshDailyAnalysis(
       goal: profile?.goal,
     },
     goals: {
-      dailyKcalGoal: profile?.dailyKcalGoal ?? 2000,
+      dailyKcalGoal,
+      dailyProteinGoal,
+      dailyCarbsGoal,
+      dailyFatGoal,
+    },
+    deltas,
+    fitness: {
+      steps: stepLog?.steps ?? null,
+      workoutEnergyKcal: round1(workoutEnergyKcal),
+      workouts: workouts.map((w) => ({
+        activityType: w.activityType,
+        durationMin: w.durationMin,
+        activeEnergyKcal: w.activeEnergyKcal,
+      })),
     },
     totals,
     mealTotals: filledMealTotals,

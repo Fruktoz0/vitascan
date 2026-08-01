@@ -16,42 +16,46 @@ export type StructuredDailyAnalysis = {
 };
 
 const SYSTEM_PROMPT_HU = `Te a VitaScan tapasztalt táplálkozási szakértője vagy.
-Feladat: rövid, szakszerű ÉRTÉKELÉS JSON-ben — nem elbeszélés.
+Feladat: rövid, szakszerű ÉRTÉKELÉS JSON-ben — nem elbeszélés, NEM regény.
 
-Bemenet: csak kitöltött étkezések (filledMeals + meals + mealTotals), napi célok, totals, dayProgress (csak háttérinfo).
+Bemenet: kitöltött étkezések (filledMeals + meals + mealTotals), napi célok (kcal + makrók), totals, deltas, opcionális fitness (workouts, steps, workoutEnergyKcal), dayProgress (csak háttérinfo).
 
 Kimeneti szabályok:
 - CSAK érvényes JSON a sémával. Semmi más szöveg.
-- Magyar, rövid bullet-mondatok (max ~15 szó / tétel).
+- Magyar, rövid bullet-mondatok (max ~15 szó / tétel). TILOS hosszú bekezdés, történet, motivációs beszéd.
 - TILOS: aktuális idő, óra, „este van”, „a nap még tart”.
 - meals: CSAK a kitöltött étkezések (filledMeals), mealType sorrendben. Minden sor status: "evaluated". Ne értékelj üres étkezést.
 - Étkezésenként: positives (max 2), negatives (max 2) a célokhoz és a tételekhez képest.
 - Ha totals ellentmond mealTotals/tételeknek → mealTotals és tételek.
 - Ne inventálj ételt/számot. Nincs orvosi diagnózis.
-- summary: max 3 positives, max 3 negatives (napi összkép vs cél).
+- Értékeld a napot a profile.goal szerint (LOSE / MAINTAIN / GAIN) a totals vs goals és deltas alapján.
+- Ha van workouts vagy steps: legalább 1 summary vagy suggestion kapcsolódjon az aktivitás ↔ bevitel viszonyhoz (ha releváns).
+- summary: max 3 positives, max 3 negatives (napi összkép vs cél + aktivitás).
 - suggestions: max 3 KONKRÉT javaslat:
-  • számokkal a makró/kcal hiányra (pl. „~+25 g fehérje”, „~+40 g szénhidrát”), ha a totals és goals alapján van hiány;
-  • minőségi figyelmeztetés cukros snack/desszertnél (sugar mező vagy név, pl. túró rudi): fehérje ellenére magas cukor → kerülni / ritkábban / helyettesítés;
-  • rövid, kivitelezhető tippek.`;
+  • számokkal a makró/kcal hiányra/többletre (pl. „~+25 g fehérje”, „~−150 kcal”), deltas alapján;
+  • edzésnapon: fehérje / szénhidrát timing tipp röviden;
+  • minőségi figyelmeztetés cukros snacknél; rövid, kivitelezhető tippek.`;
 
 const SYSTEM_PROMPT_EN = `You are VitaScan's experienced nutrition expert.
-Task: short, professional EVALUATION as JSON — not a narrative.
+Task: short, professional EVALUATION as JSON — not a narrative, NOT a novel.
 
-Input: only filled meals (filledMeals + meals + mealTotals), daily goals, totals, dayProgress (context only).
+Input: filled meals (filledMeals + meals + mealTotals), daily goals (kcal + macros), totals, deltas, optional fitness (workouts, steps, workoutEnergyKcal), dayProgress (context only).
 
 Output rules:
 - ONLY valid JSON matching the schema. No other text.
-- English, short bullet phrases (max ~15 words each).
+- English, short bullet phrases (max ~15 words each). FORBIDDEN: long paragraphs, storytelling, motivational speeches.
 - FORBIDDEN: current time, clock hour, "evening", "day still ongoing".
 - meals: ONLY filled meals (filledMeals), in mealType order. Every row status: "evaluated". Do not evaluate empty meals.
 - Per meal: positives (max 2), negatives (max 2) vs goals and items.
 - If totals contradict mealTotals/items → trust mealTotals and items.
 - Do not invent foods/numbers. No medical diagnoses.
-- summary: max 3 positives, max 3 negatives (day vs goals).
+- Evaluate the day vs profile.goal (LOSE / MAINTAIN / GAIN) using totals vs goals and deltas.
+- If workouts or steps exist: at least 1 summary or suggestion should relate activity ↔ intake when relevant.
+- summary: max 3 positives, max 3 negatives (day vs goals + activity).
 - suggestions: max 3 CONCRETE tips:
-  • numeric macro/kcal gaps (e.g. "~+25 g protein", "~+40 g carbs") when totals vs goals show a shortfall;
-  • quality warning for sugary snacks/desserts (sugar field or name, e.g. chocolate bar): protein present but high sugar → limit / swap;
-  • short actionable tips.`;
+  • numeric macro/kcal gaps/surplus (e.g. "~+25 g protein", "~−150 kcal") from deltas;
+  • workout day: brief protein/carb timing tip;
+  • quality warning for sugary snacks; short actionable tips.`;
 
 const RESPONSE_SCHEMA = {
   type: 'OBJECT',
@@ -100,6 +104,24 @@ export type GeminiUserPayload = {
   };
   goals: {
     dailyKcalGoal: number;
+    dailyProteinGoal: number | null;
+    dailyCarbsGoal: number | null;
+    dailyFatGoal: number | null;
+  };
+  deltas: {
+    kcal: number | null;
+    protein: number | null;
+    carbs: number | null;
+    fat: number | null;
+  };
+  fitness: {
+    steps: number | null;
+    workoutEnergyKcal: number;
+    workouts: Array<{
+      activityType: string;
+      durationMin: number;
+      activeEnergyKcal: number | null;
+    }>;
   };
   date: string;
   /** For model decisions only — must NOT appear in output text */
@@ -320,8 +342,8 @@ export async function generateNutritionAnalysis(payload: GeminiUserPayload): Pro
     payload.locale === 'en' ? 'Daily context (JSON):' : 'Napi kontextus (JSON):',
     JSON.stringify(payload, null, 2),
     payload.locale === 'en'
-      ? 'Return ONLY evaluation JSON for filled meals. Concrete numeric suggestions. No time narration.'
-      : 'Csak a kitöltött étkezések értékelő JSON-ja. Konkrét számszerű javaslatok. Ne említs időt.',
+      ? 'Return ONLY short evaluation JSON. Use goals, deltas, meals, and fitness (workouts/steps) when present. No novels. No time narration.'
+      : 'Csak rövid értékelő JSON. Használd a célokat, deltas-t, étkezéseket és a fitness (edzés/lépés) adatot, ha van. Nincs regény. Ne említs időt.',
   ].join('\n');
 
   const primaryResult = await callGeminiModel(

@@ -3,6 +3,15 @@ import * as Storage from './storage';
 /** Same-origin `/api` (Vite proxy) or absolute URL from env. */
 const API_BASE = ((import.meta.env.VITE_API_URL as string | undefined) || '/api').replace(/\/$/, '');
 
+/** Absolute API base for Shortcuts setup display. */
+export function getApiBaseUrl(): string {
+  if (API_BASE.startsWith('http')) return API_BASE;
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}${API_BASE.startsWith('/') ? '' : '/'}${API_BASE}`;
+  }
+  return API_BASE;
+}
+
 const API_VERBOSE = import.meta.env.DEV && import.meta.env.VITE_API_DEBUG === '1';
 
 function apiDebug(...args: unknown[]) {
@@ -523,6 +532,60 @@ export const bodyApi = {
     }>('/body/analysis', {
       method: 'POST',
       body: JSON.stringify(locale ? { locale } : {}),
+    }),
+};
+
+export type FitnessWorkout = {
+  id: string;
+  activityType: string;
+  startedAt: string;
+  endedAt: string | null;
+  durationMin: number;
+  activeEnergyKcal: number | null;
+  distanceKm: number | null;
+  source: 'SHORTCUTS' | 'MANUAL';
+  externalId: string | null;
+  createdAt: string;
+};
+
+export const fitnessApi = {
+  getTokenStatus: () => request<{ hasToken: boolean }>('/fitness/token'),
+  createToken: () =>
+    request<{ token: string; hasToken: boolean }>('/fitness/token', { method: 'POST' }),
+  revokeToken: () =>
+    request<{ hasToken: boolean }>('/fitness/token', { method: 'DELETE' }),
+  listWorkouts: (date: string) =>
+    request<{ date: string; workouts: FitnessWorkout[] }>(`/fitness/workouts?date=${date}`),
+  createWorkout: (data: {
+    activityType: string;
+    startedAt: string;
+    endedAt?: string | null;
+    durationMin: number;
+    activeEnergyKcal?: number | null;
+    distanceKm?: number | null;
+  }) =>
+    request<{ workout: FitnessWorkout }>('/fitness/workouts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  deleteWorkout: (id: string) =>
+    request<{ ok: boolean }>(`/fitness/workouts/${id}`, { method: 'DELETE' }),
+  getSteps: (date: string) =>
+    request<{
+      date: string;
+      steps: number | null;
+      source: 'SHORTCUTS' | 'MANUAL' | null;
+      updatedAt: string | null;
+    }>(`/fitness/steps?date=${date}`),
+  putSteps: (date: string, steps: number) =>
+    request<{
+      date: string;
+      steps: number;
+      source: 'SHORTCUTS' | 'MANUAL';
+      updatedAt: string;
+    }>('/fitness/steps', {
+      method: 'PUT',
+      body: JSON.stringify({ date, steps }),
     }),
 };
 

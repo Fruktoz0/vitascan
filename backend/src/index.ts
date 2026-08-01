@@ -19,6 +19,7 @@ import exportRoutes from './modules/export/export.routes';
 import weightRoutes from './modules/weight/weight.routes';
 import analysisRoutes from './modules/analysis/analysis.routes';
 import bodyRoutes from './modules/body/body.routes';
+import fitnessRoutes from './modules/fitness/fitness.routes';
 import { startRefreshTokenCleanupScheduler } from './jobs/refresh-token-cleanup.scheduler';
 
 const fastify = Fastify({
@@ -81,6 +82,7 @@ async function bootstrap() {
     await api.register(weightRoutes, { prefix: '/weight' });
     await api.register(analysisRoutes, { prefix: '/analysis' });
     await api.register(bodyRoutes, { prefix: '/body' });
+    await api.register(fitnessRoutes, { prefix: '/fitness' });
     await api.register(profileRoutes, { prefix: '/profile' });
     await api.register(statsRoutes, { prefix: '/stats' });
     await api.register(onboardingRoutes, { prefix: '/onboarding' });
