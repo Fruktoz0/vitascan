@@ -8,9 +8,11 @@
     "lookingUp": "Keresés...",
     "pointAtBarcode": "Irányítsd a vonalkódra",
     "notFound": "Nem található",
-    "notFoundTitle": "Termék nem található",
-    "notFoundMessage": "Ez a termék még nincs az adatbázisban{{barcode}}.",
-    "notFoundBarcodeSuffix": " ({{code}})"
+    "notFoundTitle": "Az étel nem található",
+    "notFoundMessage": "Ehhez a vonalkódhoz nem találtunk ételt az adatbázisban{{barcode}}. Hozzáadod manuálisan?",
+    "notFoundBarcodeSuffix": " ({{code}})",
+    "addNewFood": "Hozzáadás",
+    "backToAddFood": "Vissza"
   },
   "foodLibrary": "Napló",
   "dataVaultTab": "Adatok",

@@ -24,6 +24,7 @@ export default function ScannerPage() {
   const lastBarcode = useRef('');
   const detailVisibleRef = useRef(false);
   const busy = useRef(false);
+  const navigatingAway = useRef(false);
 
   const [permission, setPermission] = useState<'prompt' | 'granted' | 'denied'>('prompt');
   const [scanState, setScanState] = useState<ScanState>('idle');
@@ -63,14 +64,21 @@ export default function ScannerPage() {
 
   const goToAddFood = useCallback(
     (opts?: { productNotFound?: boolean; barcode?: string }) => {
+      navigatingAway.current = true;
       stopCamera();
+      if (opts?.productNotFound) {
+        navigate(returnPath, {
+          replace: true,
+          state: {
+            productNotFound: true,
+            ...(opts.barcode ? { prefillBarcode: opts.barcode } : {}),
+          },
+        });
+        return;
+      }
       navigate(returnPath, {
         replace: true,
-        state: {
-          openAddFood: true,
-          ...(opts?.barcode ? { prefillBarcode: opts.barcode } : {}),
-          ...(opts?.productNotFound ? { productNotFound: true } : {}),
-        },
+        state: { openAddFood: true },
       });
     },
     [navigate, returnPath, stopCamera],
@@ -230,6 +238,7 @@ export default function ScannerPage() {
         food={foundFood}
         visible={detailVisible}
         onClose={() => {
+          if (navigatingAway.current) return;
           setDetailVisible(false);
           detailVisibleRef.current = false;
           setScanState('idle');
@@ -237,11 +246,9 @@ export default function ScannerPage() {
           busy.current = false;
         }}
         onLogAdded={() => {
-          setDetailVisible(false);
-          detailVisibleRef.current = false;
-          setScanState('idle');
-          lastBarcode.current = '';
-          busy.current = false;
+          navigatingAway.current = true;
+          stopCamera();
+          navigate(returnPath, { replace: true });
         }}
         logSource="SCAN"
       />

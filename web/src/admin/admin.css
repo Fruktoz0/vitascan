@@ -554,6 +554,15 @@
   filter: brightness(1.06);
 }
 
+.admin-btn-success {
+  background: var(--admin-success);
+  color: #fff;
+}
+
+.admin-btn-success:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
 .admin-input,
 .admin-select,
 .admin-textarea {
@@ -766,6 +775,10 @@
   box-shadow: 0 24px 64px rgba(15, 23, 42, 0.18);
 }
 
+.admin-modal-lg {
+  max-width: 520px;
+}
+
 .admin-modal-title {
   margin: 0 0 0.5rem;
   font-size: 1.1rem;
@@ -782,6 +795,101 @@
   justify-content: flex-end;
   gap: 0.5rem;
   margin-top: 0.5rem;
+}
+
+/* ─── User account modal ─── */
+
+.user-account-modal {
+  padding: 0;
+  overflow: hidden;
+}
+
+.user-account-header {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1.25rem 1.35rem;
+  border-bottom: 1px solid var(--admin-border);
+  background:
+    linear-gradient(135deg, rgba(45, 122, 94, 0.08), transparent 55%),
+    var(--admin-surface);
+}
+
+.user-account-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: #fff;
+  background: linear-gradient(145deg, var(--admin-accent), #1f5c45);
+  box-shadow: 0 8px 18px rgba(45, 122, 94, 0.28);
+}
+
+.user-account-header-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.user-account-header-text .admin-modal-title {
+  margin: 0;
+}
+
+.user-account-subtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+}
+
+.user-account-close {
+  flex-shrink: 0;
+}
+
+.user-account-modal .admin-alert {
+  margin: 1rem 1.35rem 0;
+}
+
+.user-account-panel {
+  margin: 1rem 1.35rem;
+  padding: 1rem 1.05rem;
+  border: 1px solid var(--admin-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--admin-hover) 55%, var(--admin-surface));
+}
+
+.user-account-panel + .user-account-panel {
+  margin-top: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.user-account-panel-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.user-account-panel-head p {
+  margin: 0.3rem 0 0.85rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.user-account-panel .admin-label + .admin-label {
+  margin-top: 0.75rem;
+}
+
+.user-account-password-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.user-account-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.9rem;
 }
 
 /* ─── Database section styles ─── */

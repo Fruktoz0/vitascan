@@ -1,4 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
+import argon2 from 'argon2';
 import { authenticate, requireAdmin } from '../../middleware/authenticate';
 import { z } from 'zod';
 import { registerAdminDatabaseRoutes } from './admin.database.routes';
@@ -400,10 +401,124 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.delete('/users/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
-    await fastify.prisma.user.update({
-      where: { id }, data: { deletedAt: new Date() },
+    if (request.user.userId === id) {
+      return reply.status(400).send({ error: 'Saját fiókot nem lehet GDPR-törölni.' });
+    }
+    const existing = await fastify.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, deletedAt: true },
     });
-    return reply.send({ message: 'Soft-törölve (GDPR). 30 nap múlva véglegesedik.' });
+    if (!existing) return reply.status(404).send({ error: 'Felhasználó nem található.' });
+    if (existing.deletedAt) {
+      return reply.status(400).send({ error: 'A felhasználó már soft-törölve van.' });
+    }
+
+    await fastify.prisma.user.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+    await fastify.prisma.refreshToken.updateMany({
+      where: { userId: id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return reply.send({ message: 'Soft-törölve (GDPR). A törlés visszavonható, amíg nincs véglegesítve.' });
+  });
+
+  fastify.post('/users/:id/restore', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const existing = await fastify.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, deletedAt: true, username: true, email: true },
+    });
+    if (!existing) return reply.status(404).send({ error: 'Felhasználó nem található.' });
+    if (!existing.deletedAt) {
+      return reply.status(400).send({ error: 'A felhasználó nincs soft-törölve.' });
+    }
+
+    const user = await fastify.prisma.user.update({
+      where: { id },
+      data: { deletedAt: null },
+      select: { id: true, username: true, email: true, deletedAt: true },
+    });
+    return reply.send({
+      user,
+      message: 'GDPR soft-törlés visszavonva. A fiók újra aktív.',
+    });
+  });
+
+  fastify.patch('/users/:id/email', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        email: z.string().trim().email('Érvénytelen email cím').max(254),
+      })
+      .parse(request.body);
+
+    const email = body.email.toLowerCase();
+    const existing = await fastify.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, email: true },
+    });
+    if (!existing) return reply.status(404).send({ error: 'Felhasználó nem található.' });
+
+    if (existing.email.toLowerCase() === email) {
+      return reply.send({
+        id: existing.id,
+        email: existing.email,
+        message: 'Az email cím változatlan.',
+      });
+    }
+
+    const taken = await fastify.prisma.user.findFirst({
+      where: {
+        email: { equals: email, mode: 'insensitive' },
+        NOT: { id },
+      },
+      select: { id: true },
+    });
+    if (taken) {
+      return reply.status(409).send({ error: 'Ez az email cím már foglalt.' });
+    }
+
+    const user = await fastify.prisma.user.update({
+      where: { id },
+      data: { email },
+      select: { id: true, username: true, email: true },
+    });
+    return reply.send({ ...user, message: 'Email cím frissítve.' });
+  });
+
+  fastify.patch('/users/:id/password', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        password: z
+          .string()
+          .min(8, 'Jelszó min. 8 karakter')
+          .max(72, 'Jelszó max. 72 karakter'),
+      })
+      .parse(request.body);
+
+    const existing = await fastify.prisma.user.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!existing) return reply.status(404).send({ error: 'Felhasználó nem található.' });
+
+    const passwordHash = await argon2.hash(body.password, { type: argon2.argon2id });
+    await fastify.prisma.user.update({
+      where: { id },
+      data: { passwordHash },
+    });
+    await fastify.prisma.refreshToken.updateMany({
+      where: { userId: id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    return reply.send({
+      id,
+      message: 'Jelszó frissítve. A felhasználó aktív sessionjei érvénytelenítve.',
+    });
   });
 
   // ─── Reputáció / Badge ────────────────────────────────────────────────────

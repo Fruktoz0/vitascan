@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as adminApi from '../../api/admin';
 import type { AdminUserRow } from '../../api/admin';
+import { ApiError } from '../../api/client';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { UserAccountModal } from '../components/UserAccountModal';
 
 const PAGE = 20;
 
@@ -16,6 +18,10 @@ export function UsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AdminUserRow | null>(null);
+  const [pendingRestore, setPendingRestore] = useState<AdminUserRow | null>(null);
+  const [manageUser, setManageUser] = useState<AdminUserRow | null>(null);
+  const [manageError, setManageError] = useState<string | null>(null);
+  const [manageSuccess, setManageSuccess] = useState<string | null>(null);
   const [repUser, setRepUser] = useState<AdminUserRow | null>(null);
   const [repDelta, setRepDelta] = useState('');
   const [repReason, setRepReason] = useState('');
@@ -57,8 +63,10 @@ export function UsersPage() {
       });
       setUsers(res.users);
       setTotal(res.total);
+      return res.users;
     } catch {
       setError('Felhasználók betöltése sikertelen.');
+      return null;
     } finally {
       setLoading(false);
     }
@@ -94,6 +102,24 @@ export function UsersPage() {
       await adminApi.softDeleteUser(pendingDelete.id);
       setPendingDelete(null);
       await reload();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'GDPR törlés sikertelen.');
+      setPendingDelete(null);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function confirmRestore() {
+    if (!pendingRestore) return;
+    setBusyId(pendingRestore.id);
+    try {
+      await adminApi.restoreUser(pendingRestore.id);
+      setPendingRestore(null);
+      await reload();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Visszaállítás sikertelen.');
+      setPendingRestore(null);
     } finally {
       setBusyId(null);
     }
@@ -113,6 +139,46 @@ export function UsersPage() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  async function saveManageEmail(email: string) {
+    if (!manageUser) return;
+    setBusyId(manageUser.id);
+    setManageError(null);
+    setManageSuccess(null);
+    try {
+      const res = await adminApi.updateUserEmail(manageUser.id, email);
+      setManageSuccess(res.message);
+      const list = await reload();
+      const updated = list?.find((u) => u.id === manageUser.id);
+      if (updated) setManageUser(updated);
+      else setManageUser({ ...manageUser, email: res.email });
+    } catch (e) {
+      setManageError(e instanceof ApiError ? e.message : 'Email mentése sikertelen.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function saveManagePassword(password: string) {
+    if (!manageUser) return;
+    setBusyId(manageUser.id);
+    setManageError(null);
+    setManageSuccess(null);
+    try {
+      const res = await adminApi.updateUserPassword(manageUser.id, password);
+      setManageSuccess(res.message);
+    } catch (e) {
+      setManageError(e instanceof ApiError ? e.message : 'Jelszó mentése sikertelen.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function openManage(u: AdminUserRow) {
+    setManageError(null);
+    setManageSuccess(null);
+    setManageUser(u);
   }
 
   const pageMax = Math.max(0, Math.ceil(total / PAGE) - 1);
@@ -211,46 +277,65 @@ export function UsersPage() {
                         {u._count.createdFoods} étel · {u._count.logs} napló
                       </td>
                       <td>
-                        {!deleted && (
-                          <div className="admin-actions-cell">
+                        <div className="admin-actions-cell">
+                          {deleted ? (
                             <button
                               type="button"
-                              className="admin-btn admin-btn-sm admin-btn-secondary"
+                              className="admin-btn admin-btn-sm admin-btn-success"
                               disabled={disabled}
-                              onClick={() => toggleRole(u)}
+                              onClick={() => setPendingRestore(u)}
                             >
-                              {u.role === 'ADMIN' ? '→ User' : '→ Admin'}
+                              Visszaállítás
                             </button>
-                            <button
-                              type="button"
-                              className="admin-btn admin-btn-sm admin-btn-secondary"
-                              disabled={disabled}
-                              onClick={() => toggleTier(u)}
-                            >
-                              {tierLabel === 'Premium' ? '→ Free' : '→ Premium'}
-                            </button>
-                            <button
-                              type="button"
-                              className="admin-btn admin-btn-sm admin-btn-secondary"
-                              disabled={disabled}
-                              onClick={() => {
-                                setRepUser(u);
-                                setRepDelta('');
-                                setRepReason('');
-                              }}
-                            >
-                              Rep.
-                            </button>
-                            <button
-                              type="button"
-                              className="admin-btn admin-btn-sm admin-btn-danger"
-                              disabled={disabled}
-                              onClick={() => setPendingDelete(u)}
-                            >
-                              GDPR törlés
-                            </button>
-                          </div>
-                        )}
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                className="admin-btn admin-btn-sm admin-btn-primary"
+                                disabled={disabled}
+                                onClick={() => openManage(u)}
+                              >
+                                Fiók
+                              </button>
+                              <button
+                                type="button"
+                                className="admin-btn admin-btn-sm admin-btn-secondary"
+                                disabled={disabled}
+                                onClick={() => toggleRole(u)}
+                              >
+                                {u.role === 'ADMIN' ? '→ User' : '→ Admin'}
+                              </button>
+                              <button
+                                type="button"
+                                className="admin-btn admin-btn-sm admin-btn-secondary"
+                                disabled={disabled}
+                                onClick={() => toggleTier(u)}
+                              >
+                                {tierLabel === 'Premium' ? '→ Free' : '→ Premium'}
+                              </button>
+                              <button
+                                type="button"
+                                className="admin-btn admin-btn-sm admin-btn-secondary"
+                                disabled={disabled}
+                                onClick={() => {
+                                  setRepUser(u);
+                                  setRepDelta('');
+                                  setRepReason('');
+                                }}
+                              >
+                                Rep.
+                              </button>
+                              <button
+                                type="button"
+                                className="admin-btn admin-btn-sm admin-btn-danger"
+                                disabled={disabled}
+                                onClick={() => setPendingDelete(u)}
+                              >
+                                GDPR törlés
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -289,12 +374,38 @@ export function UsersPage() {
       <ConfirmDialog
         open={!!pendingDelete}
         title="Fiók soft törlés (GDPR)"
-        message={`${pendingDelete?.username} fiókja soft-törölve lesz (30 nap türelmi idő).`}
+        message={`${pendingDelete?.username} fiókja soft-törölve lesz. A törlés később visszavonható, amíg nincs véglegesítve.`}
         confirmLabel="Törlés"
         danger
         onCancel={() => setPendingDelete(null)}
         onConfirm={confirmSoftDelete}
       />
+
+      <ConfirmDialog
+        open={!!pendingRestore}
+        title="GDPR törlés visszavonása"
+        message={`${pendingRestore?.username} fiókja újra aktív lesz, és újra be tud jelentkezni.`}
+        confirmLabel="Visszaállítás"
+        onCancel={() => setPendingRestore(null)}
+        onConfirm={confirmRestore}
+      />
+
+      {manageUser && (
+        <UserAccountModal
+          user={manageUser}
+          busy={busyId === manageUser.id}
+          error={manageError}
+          success={manageSuccess}
+          onClose={() => {
+            if (busyId === manageUser.id) return;
+            setManageUser(null);
+            setManageError(null);
+            setManageSuccess(null);
+          }}
+          onSaveEmail={saveManageEmail}
+          onSavePassword={saveManagePassword}
+        />
+      )}
 
       {repUser && (
         <div className="admin-modal-root" role="presentation">

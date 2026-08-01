@@ -1292,6 +1292,7 @@ interface CreateFoodModalProps {
   visible: boolean;
   onClose: () => void;
   onCreated?: (food: Food) => void;
+  initialBarcode?: string;
 }
 
 interface EditFoodModalProps {
@@ -1305,12 +1306,14 @@ function FoodDataFormModal({
   visible,
   mode,
   initialFood,
+  initialBarcode,
   onClose,
   onSaved,
 }: {
   visible: boolean;
   mode: 'create' | 'edit';
   initialFood?: Food | null;
+  initialBarcode?: string;
   onClose: () => void;
   onSaved?: (food: Food) => void;
 }) {
@@ -1359,7 +1362,7 @@ function FoodDataFormModal({
     } else {
       setName('');
       setBrand('');
-      setBarcode('');
+      setBarcode(initialBarcode?.trim() ?? '');
       setKcal('');
       setProtein('');
       setCarbs('');
@@ -1372,7 +1375,7 @@ function FoodDataFormModal({
     setAiView(false);
     resetAiCapture();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, mode, initialFood]);
+  }, [visible, mode, initialFood, initialBarcode]);
 
   useEffect(() => {
     return () => {
@@ -1730,11 +1733,12 @@ function FoodDataFormModal({
   );
 }
 
-export function CreateFoodModal({ visible, onClose, onCreated }: CreateFoodModalProps) {
+export function CreateFoodModal({ visible, onClose, onCreated, initialBarcode }: CreateFoodModalProps) {
   return (
     <FoodDataFormModal
       visible={visible}
       mode="create"
+      initialBarcode={initialBarcode}
       onClose={onClose}
       onSaved={onCreated}
     />

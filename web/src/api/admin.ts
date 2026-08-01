@@ -219,6 +219,30 @@ export function softDeleteUser(id: string) {
   });
 }
 
+export function restoreUser(id: string) {
+  return request<{ user: { id: string; username: string; email: string; deletedAt: null }; message: string }>(
+    `/admin/users/${id}/restore`,
+    { method: 'POST' },
+  );
+}
+
+export function updateUserEmail(id: string, email: string) {
+  return request<{ id: string; username: string; email: string; message: string }>(
+    `/admin/users/${id}/email`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ email }),
+    },
+  );
+}
+
+export function updateUserPassword(id: string, password: string) {
+  return request<{ id: string; message: string }>(`/admin/users/${id}/password`, {
+    method: 'PATCH',
+    body: JSON.stringify({ password }),
+  });
+}
+
 export function adjustReputation(id: string, delta: number, reason?: string) {
   return request(`/admin/users/${id}/reputation`, {
     method: 'PATCH',

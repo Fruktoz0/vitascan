@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { BentoCard } from '../components/ui/BentoCard';
-import { AddFoodManualModal, FoodDetailModal, EditLogModal, distinctBrand, type DailyLogItem } from '../components/food/FoodModals';
+import { AddFoodManualModal, CreateFoodModal, FoodDetailModal, EditLogModal, distinctBrand, type DailyLogItem } from '../components/food/FoodModals';
 import {
   IconAdd,
   IconBrain,
@@ -45,6 +45,9 @@ export default function FoodLibraryPage() {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [notFoundDialog, setNotFoundDialog] = useState<{ barcode?: string } | null>(null);
+  const [createFoodOpen, setCreateFoodOpen] = useState(false);
+  const [createBarcode, setCreateBarcode] = useState<string | undefined>();
+  const notFoundChoiceRef = useRef<'add' | 'back' | null>(null);
 
   const dateStr = toLocalDateStr(selectedDate);
 
@@ -71,13 +74,19 @@ export default function FoodLibraryPage() {
       prefillBarcode?: string;
       productNotFound?: boolean;
     } | null;
-    if (!st?.openAddFood) return;
+    if (!st) return;
+
+    if (st.productNotFound) {
+      setMealForAdd('SNACK');
+      setNotFoundDialog({ barcode: st.prefillBarcode });
+      navigate(location.pathname, { replace: true, state: {} });
+      return;
+    }
+
+    if (!st.openAddFood) return;
     setMealForAdd('SNACK');
     setPrefillBarcode(st.prefillBarcode);
     setManualOpen(true);
-    if (st.productNotFound) {
-      setNotFoundDialog({ barcode: st.prefillBarcode });
-    }
     navigate(location.pathname, { replace: true, state: {} });
   }, [location.state, location.pathname, navigate]);
 
@@ -359,6 +368,19 @@ export default function FoodLibraryPage() {
           navigate(`/ai-recognize?mealType=${mealForAdd}`)
         }
       />
+      <CreateFoodModal
+        visible={createFoodOpen}
+        initialBarcode={createBarcode}
+        onClose={() => {
+          setCreateFoodOpen(false);
+          setCreateBarcode(undefined);
+        }}
+        onCreated={(food) => {
+          setCreateFoodOpen(false);
+          setCreateBarcode(undefined);
+          setSelectedFood(food);
+        }}
+      />
       <FoodDetailModal
         food={selectedFood}
         visible={!!selectedFood}
@@ -399,8 +421,23 @@ export default function FoodLibraryPage() {
             ? t('scannerScreen.notFoundBarcodeSuffix', { code: notFoundDialog.barcode })
             : '',
         })}
-        confirmLabel={t('common.ok', 'OK')}
-        onClose={() => setNotFoundDialog(null)}
+        confirmLabel={t('scannerScreen.addNewFood')}
+        cancelLabel={t('scannerScreen.backToAddFood')}
+        onConfirm={() => {
+          notFoundChoiceRef.current = 'add';
+        }}
+        onClose={() => {
+          const choice = notFoundChoiceRef.current ?? 'back';
+          notFoundChoiceRef.current = null;
+          const barcode = notFoundDialog?.barcode;
+          setNotFoundDialog(null);
+          if (choice === 'add') {
+            setCreateBarcode(barcode);
+            setCreateFoodOpen(true);
+          } else {
+            setManualOpen(true);
+          }
+        }}
       />
     </div>
   );

@@ -617,9 +617,11 @@
     "lookingUp": "Searching...",
     "pointAtBarcode": "Point at the barcode",
     "notFound": "Not found",
-    "notFoundTitle": "Product not found",
-    "notFoundMessage": "This product is not in the database yet{{barcode}}.",
-    "notFoundBarcodeSuffix": " ({{code}})"
+    "notFoundTitle": "Food not found",
+    "notFoundMessage": "No food matched this barcode in the database{{barcode}}. Would you like to add it manually?",
+    "notFoundBarcodeSuffix": " ({{code}})",
+    "addNewFood": "Add",
+    "backToAddFood": "Back"
   },
   "mealCard": {
     "items": "items",
