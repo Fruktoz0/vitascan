@@ -468,7 +468,7 @@ export default function HomePage() {
         }}
         onOpenScanner={() => navigate('/scanner', { state: { returnPath: '/home' } })}
         onOpenAiRecognize={() =>
-          navigate(`/ai-recognize?mealType=${mealForAdd}`)
+          navigate(`/ai-recognize?mealType=${mealForAdd}`, { state: { returnPath: '/home' } })
         }
       />
       <CreateFoodModal

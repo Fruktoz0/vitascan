@@ -245,12 +245,12 @@ function FoodEditModal({ food, onClose, onSaved }: { food: FoodDetail; onClose: 
             <p className="food-edit-section-title">Adag</p>
             <div className="food-edit-grid">
               <label className="food-edit-field">
-                <span>Adag méret</span>
-                <input className="admin-input" type="number" min="0" step="0.5" value={servingSize} onChange={(e) => setServingSize(e.target.value)} disabled={busy} placeholder="pl. 30" />
+                <span>Adag méret (1 egység g)</span>
+                <input className="admin-input" type="number" min="0" step="0.5" value={servingSize} onChange={(e) => setServingSize(e.target.value)} disabled={busy} placeholder="pl. 118" />
               </label>
               <label className="food-edit-field">
                 <span>Adag egység</span>
-                <input className="admin-input" value={servingUnit} onChange={(e) => setServingUnit(e.target.value)} disabled={busy} placeholder="pl. adag, db, ek" />
+                <input className="admin-input" value={servingUnit} onChange={(e) => setServingUnit(e.target.value)} disabled={busy} placeholder="g, db, adag, ek, szelet" />
               </label>
             </div>
           </div>
@@ -404,12 +404,12 @@ function FoodCreateModal({ onClose, onCreated }: { onClose: () => void; onCreate
             <p className="food-edit-section-title">Adag</p>
             <div className="food-edit-grid">
               <label className="food-edit-field">
-                <span>Adag méret</span>
-                <input className="admin-input" type="number" min="0" step="0.5" value={servingSize} onChange={(e) => setServingSize(e.target.value)} disabled={busy} placeholder="pl. 150" />
+                <span>Adag méret (1 egység g)</span>
+                <input className="admin-input" type="number" min="0" step="0.5" value={servingSize} onChange={(e) => setServingSize(e.target.value)} disabled={busy} placeholder="pl. 118" />
               </label>
               <label className="food-edit-field">
                 <span>Adag egység</span>
-                <input className="admin-input" value={servingUnit} onChange={(e) => setServingUnit(e.target.value)} disabled={busy} placeholder="pl. adag, db, ek" />
+                <input className="admin-input" value={servingUnit} onChange={(e) => setServingUnit(e.target.value)} disabled={busy} placeholder="g, db, adag, ek, szelet" />
               </label>
             </div>
           </div>

@@ -265,10 +265,29 @@ export const foodApi = {
         sugar?: number;
         brand?: string;
         barcode?: string;
+        servingUnit?: string;
+        servingSize?: number;
       }>;
       remaining: number;
       limit: number;
     }>('/foods/ai-recognize', { method: 'POST', body: JSON.stringify(data) }),
+  aiServingEstimate: (data: {
+    name: string;
+    brand?: string;
+    unit: 'db' | 'adag' | 'ek' | 'szelet';
+    locale?: 'hu' | 'en';
+    kcal: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    fiber?: number;
+    sugar?: number;
+  }) =>
+    request<{
+      gramsPerUnit: number;
+      remaining: number;
+      limit: number;
+    }>('/foods/ai-serving-estimate', { method: 'POST', body: JSON.stringify(data) }),
   aiLabelFill: (data: {
     imageBase64: string;
     mimeType?: string;

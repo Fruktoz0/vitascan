@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../design/tokens';
 import {
@@ -29,12 +29,21 @@ type IngredientDraft = {
   sugar: string;
   brand: string;
   barcode: string;
+  servingUnit: string;
+  servingSize: string;
 };
+
+const SERVING_UNITS = ['g', 'db', 'adag', 'ek', 'szelet'] as const;
 
 const MEALS: MealType[] = ['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK'];
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function normalizeUnit(u?: string) {
+  const v = String(u || 'g').trim().toLowerCase();
+  return (SERVING_UNITS as readonly string[]).includes(v) ? v : 'g';
 }
 
 function toDraft(ing: {
@@ -48,7 +57,16 @@ function toDraft(ing: {
   sugar?: number;
   brand?: string;
   barcode?: string;
+  servingUnit?: string;
+  servingSize?: number;
 }): IngredientDraft {
+  const servingUnit = normalizeUnit(ing.servingUnit);
+  const servingSize =
+    ing.servingSize != null && ing.servingSize > 0
+      ? ing.servingSize
+      : servingUnit === 'g'
+        ? ing.amountG
+        : ing.amountG;
   return {
     id: uid(),
     name: ing.name,
@@ -61,6 +79,8 @@ function toDraft(ing: {
     sugar: ing.sugar != null ? String(Math.round(ing.sugar * 10) / 10) : '',
     brand: ing.brand?.trim() || '',
     barcode: ing.barcode?.trim() || '',
+    servingUnit,
+    servingSize: String(Math.round(servingSize * 10) / 10),
   };
 }
 
@@ -89,10 +109,17 @@ function fileToBase64(file: File): Promise<{ base64: string; mimeType: string }>
 export default function AiRecognizePage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const [params] = useSearchParams();
   const selectedDate = useDateStore((s) => s.selectedDate);
   const mealParam = params.get('mealType') as MealType | null;
   const mealType: MealType = mealParam && MEALS.includes(mealParam) ? mealParam : 'SNACK';
+  const returnPath =
+    (location.state as { returnPath?: string } | null)?.returnPath || '/home';
+
+  const goToAddFood = () => {
+    navigate(returnPath, { replace: true, state: { openAddFood: true } });
+  };
 
   const [mode, setMode] = useState<Mode>('choose');
   const [text, setText] = useState('');
@@ -177,6 +204,37 @@ export default function AiRecognizePage() {
     setIngredients((prev) => prev.map((ing) => (ing.id === id ? { ...ing, ...patch } : ing)));
   };
 
+  const updateAmountG = (id: string, nextAmountRaw: string) => {
+    setIngredients((prev) =>
+      prev.map((ing) => {
+        if (ing.id !== id) return ing;
+        const oldG = parseNum(ing.amountG);
+        const cleaned = nextAmountRaw.replace(/[^\d.,]/g, '');
+        const newG = parseNum(cleaned);
+        if (!Number.isFinite(oldG) || oldG <= 0 || !Number.isFinite(newG) || newG <= 0) {
+          return { ...ing, amountG: cleaned };
+        }
+        const scale = newG / oldG;
+        const scaleField = (v: string) => {
+          if (!v.trim()) return v;
+          const n = parseNum(v);
+          if (!Number.isFinite(n)) return v;
+          return String(Math.round(n * scale * 10) / 10);
+        };
+        return {
+          ...ing,
+          amountG: cleaned,
+          kcal: scaleField(ing.kcal),
+          protein: scaleField(ing.protein),
+          carbs: scaleField(ing.carbs),
+          fat: scaleField(ing.fat),
+          fiber: scaleField(ing.fiber),
+          sugar: scaleField(ing.sugar),
+        };
+      }),
+    );
+  };
+
   const removeIng = (id: string) => {
     setIngredients((prev) => prev.filter((ing) => ing.id !== id));
   };
@@ -198,6 +256,8 @@ export default function AiRecognizePage() {
       sugar: ing.sugar.trim() ? parseNum(ing.sugar) : undefined,
       brand: ing.brand.trim() || undefined,
       barcode: ing.barcode.trim() || undefined,
+      servingUnit: normalizeUnit(ing.servingUnit),
+      servingSize: parseNum(ing.servingSize),
     }));
 
     if (
@@ -205,7 +265,9 @@ export default function AiRecognizePage() {
         (p) =>
           !p.name ||
           ![p.amountG, p.kcal, p.protein, p.carbs, p.fat].every((n) => Number.isFinite(n) && n >= 0) ||
-          p.amountG <= 0,
+          p.amountG <= 0 ||
+          !Number.isFinite(p.servingSize) ||
+          p.servingSize <= 0,
       )
     ) {
       setDialog({ title: t('food.errorTitle'), message: t('aiRecognize.invalidValues') });
@@ -228,8 +290,8 @@ export default function AiRecognizePage() {
             fat: per100(p.fat),
             fiber: p.fiber != null ? per100(p.fiber) : undefined,
             sugar: p.sugar != null ? per100(p.sugar) : undefined,
-            servingSize: p.amountG,
-            servingUnit: 'g',
+            servingSize: p.servingSize,
+            servingUnit: p.servingUnit,
             source: 'USER_SCAN',
           });
           foodId = food.id;
@@ -269,7 +331,7 @@ export default function AiRecognizePage() {
   return (
     <div className={`${styles.screen} page-scroll no-tab`}>
       <header className={styles.header}>
-        <button type="button" className={styles.back} onClick={() => navigate(-1)}>
+        <button type="button" className={styles.back} onClick={goToAddFood}>
           <IconArrowBack size={22} color={Colors.dashboard.stroke} />
         </button>
         <h1>{t('aiRecognize.screenTitle')}</h1>
@@ -298,7 +360,7 @@ export default function AiRecognizePage() {
                 <span className={styles.modeSub}>{t('aiRecognize.fromTextDesc')}</span>
               </span>
             </button>
-            <p className={styles.hint}>{t('aiRecognize.limitHint', { limit: 10 })}</p>
+            <p className={styles.hint}>{t('aiRecognize.limitHint', { limit: 20 })}</p>
           </>
         )}
 
@@ -452,7 +514,30 @@ export default function AiRecognizePage() {
                       className={styles.input}
                       inputMode="decimal"
                       value={ing.amountG}
-                      onChange={(e) => updateIng(ing.id, { amountG: e.target.value })}
+                      onChange={(e) => updateAmountG(ing.id, e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    {t('aiRecognize.servingUnit')}
+                    <select
+                      className={styles.input}
+                      value={ing.servingUnit}
+                      onChange={(e) => updateIng(ing.id, { servingUnit: e.target.value })}
+                    >
+                      <option value="g">{t('food.unitG')}</option>
+                      <option value="db">{t('food.unitDb')}</option>
+                      <option value="adag">{t('food.unitAdag')}</option>
+                      <option value="ek">{t('food.unitEk')}</option>
+                      <option value="szelet">{t('food.unitSzelet')}</option>
+                    </select>
+                  </label>
+                  <label>
+                    {t('aiRecognize.servingSizeG')}
+                    <input
+                      className={styles.input}
+                      inputMode="decimal"
+                      value={ing.servingSize}
+                      onChange={(e) => updateIng(ing.id, { servingSize: e.target.value })}
                     />
                   </label>
                   <label>

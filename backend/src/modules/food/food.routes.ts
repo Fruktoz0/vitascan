@@ -14,10 +14,16 @@ import {
 } from '../../utils/foodSearch';
 import { recognizeFoodWithGemini } from './food.ai-recognize';
 import { fillFoodLabelWithGemini } from './food.ai-label-fill';
+import {
+  estimateServingWithGemini,
+  SERVING_UNITS,
+} from './food.ai-serving-estimate';
 
-export const AI_FOOD_RECOGNIZE_DAILY_LIMIT = 10;
+export const AI_FOOD_RECOGNIZE_DAILY_LIMIT = 20;
 
 // ─── Validation schemas ───────────────────────────────────────────────────────
+
+const ServingUnitSchema = z.enum(SERVING_UNITS);
 
 const CreateFoodSchema = z.object({
   name: z.string().min(2).max(120),
@@ -31,8 +37,9 @@ const CreateFoodSchema = z.object({
   fat: z.number().min(0).max(1000),
   fiber: z.number().min(0).max(1000).nullable().optional(),
   sugar: z.number().min(0).max(1000).nullable().optional(),
+  /** Grams equal to 1 servingUnit (e.g. 1 db banana ≈ 118). */
   servingSize: z.number().min(0).optional(),
-  servingUnit: z.string().max(20).optional(),
+  servingUnit: ServingUnitSchema.optional(),
   source: z.enum(['INTERNAL', 'USER_SCAN', 'EXTERNAL_API']).default('USER_SCAN'),
 });
 
@@ -483,7 +490,7 @@ export default async function foodRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // POST /foods/ai-recognize — Gemini vision/text (kép NEM tárolódik), napi 10 limit
+  // POST /foods/ai-recognize — Gemini vision/text (kép NEM tárolódik), napi 20 limit
   fastify.post('/ai-recognize', {
     preHandler: [authenticate],
   }, async (req, reply) => {
@@ -520,7 +527,7 @@ export default async function foodRoutes(fastify: FastifyInstance) {
 
     if (usage.count >= AI_FOOD_RECOGNIZE_DAILY_LIMIT) {
       return reply.status(429).send({
-        error: 'Elérted a napi AI felismerési limitet (10). Próbáld holnap.',
+        error: `Elérted a napi AI felismerési limitet (${AI_FOOD_RECOGNIZE_DAILY_LIMIT}). Próbáld holnap.`,
         remaining: 0,
         limit: AI_FOOD_RECOGNIZE_DAILY_LIMIT,
       });
@@ -549,6 +556,85 @@ export default async function foodRoutes(fastify: FastifyInstance) {
       const status = err?.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 502;
       return reply.status(status).send({
         error: err?.message || 'A felismerés sikertelen.',
+        remaining: Math.max(0, AI_FOOD_RECOGNIZE_DAILY_LIMIT - usage.count),
+        limit: AI_FOOD_RECOGNIZE_DAILY_LIMIT,
+      });
+    }
+  });
+
+  // POST /foods/ai-serving-estimate — 1 egység tipikus gramm súlya (közös napi AI kvóta)
+  fastify.post('/ai-serving-estimate', {
+    preHandler: [authenticate],
+  }, async (req, reply) => {
+    const bodySchema = z.object({
+      name: z.string().min(1).max(120),
+      brand: z.string().max(80).optional(),
+      unit: ServingUnitSchema,
+      locale: z.enum(['hu', 'en']).optional(),
+      kcal: z.number().min(0).max(10000),
+      protein: z.number().min(0).max(1000),
+      carbs: z.number().min(0).max(1000),
+      fat: z.number().min(0).max(1000),
+      fiber: z.number().min(0).max(1000).optional(),
+      sugar: z.number().min(0).max(1000).optional(),
+    });
+    const parsed = bodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.errors[0].message });
+    }
+
+    const { name, brand, unit, locale, kcal, protein, carbs, fat, fiber, sugar } = parsed.data;
+    if (unit === 'g') {
+      return reply.status(400).send({ error: 'Gramm egységhez nincs szükség becslésre.' });
+    }
+
+    const prisma = (fastify as any).prisma;
+    const userId = (req as any).user.userId ?? (req as any).user.id;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const usage = await prisma.aiFoodRecognition.upsert({
+      where: { userId_loggedDate: { userId, loggedDate: today } },
+      create: { userId, loggedDate: today, count: 0 },
+      update: {},
+    });
+
+    if (usage.count >= AI_FOOD_RECOGNIZE_DAILY_LIMIT) {
+      return reply.status(429).send({
+        error: `Elérted a napi AI felismerési limitet (${AI_FOOD_RECOGNIZE_DAILY_LIMIT}). Próbáld holnap.`,
+        remaining: 0,
+        limit: AI_FOOD_RECOGNIZE_DAILY_LIMIT,
+      });
+    }
+
+    try {
+      const result = await estimateServingWithGemini({
+        locale: locale ?? 'hu',
+        name,
+        brand,
+        unit,
+        kcal,
+        protein,
+        carbs,
+        fat,
+        fiber,
+        sugar,
+      });
+
+      const updated = await prisma.aiFoodRecognition.update({
+        where: { userId_loggedDate: { userId, loggedDate: today } },
+        data: { count: { increment: 1 } },
+      });
+
+      return reply.send({
+        ...result,
+        remaining: Math.max(0, AI_FOOD_RECOGNIZE_DAILY_LIMIT - updated.count),
+        limit: AI_FOOD_RECOGNIZE_DAILY_LIMIT,
+      });
+    } catch (err: any) {
+      const status = err?.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 502;
+      return reply.status(status).send({
+        error: err?.message || 'A becslés sikertelen.',
         remaining: Math.max(0, AI_FOOD_RECOGNIZE_DAILY_LIMIT - usage.count),
         limit: AI_FOOD_RECOGNIZE_DAILY_LIMIT,
       });
@@ -587,7 +673,7 @@ export default async function foodRoutes(fastify: FastifyInstance) {
 
     if (usage.count >= AI_FOOD_RECOGNIZE_DAILY_LIMIT) {
       return reply.status(429).send({
-        error: 'Elérted a napi AI felismerési limitet (10). Próbáld holnap.',
+        error: `Elérted a napi AI felismerési limitet (${AI_FOOD_RECOGNIZE_DAILY_LIMIT}). Próbáld holnap.`,
         remaining: 0,
         limit: AI_FOOD_RECOGNIZE_DAILY_LIMIT,
       });

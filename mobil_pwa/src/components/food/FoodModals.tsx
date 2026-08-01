@@ -7,7 +7,6 @@ import {
   IconAddCircle,
   IconApple,
   IconArrowBack,
-  IconArrowForward,
   IconBolt,
   IconBrain,
   IconChevronRight,
@@ -39,11 +38,33 @@ type MealType = 'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNAC
 
 const MEAL_TYPES: MealType[] = ['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK'];
 
+const SERVING_UNITS = ['g', 'db', 'adag', 'ek', 'szelet'] as const;
+type ServingUnitCode = (typeof SERVING_UNITS)[number];
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function isLocalFoodId(id: string | null | undefined): boolean {
   return typeof id === 'string' && UUID_RE.test(id);
+}
+
+function normalizeServingUnit(raw?: string | null): ServingUnitCode {
+  const v = String(raw || 'g').trim().toLowerCase();
+  return (SERVING_UNITS as readonly string[]).includes(v) ? (v as ServingUnitCode) : 'g';
+}
+
+function gramsPerServingUnit(food: Pick<Food, 'servingSize' | 'servingUnit'>): number {
+  const size = food.servingSize != null && food.servingSize > 0 ? food.servingSize : 100;
+  return size;
+}
+
+function defaultQtyForUnit(unit: ServingUnitCode, gramsPerUnit: number): number {
+  return unit === 'g' ? Math.round(gramsPerUnit * 10) / 10 : 1;
+}
+
+function qtyToGrams(qty: number, displayUnit: ServingUnitCode, gramsPerUnit: number): number {
+  if (!Number.isFinite(qty) || qty <= 0) return 0;
+  return displayUnit === 'g' ? qty : qty * gramsPerUnit;
 }
 
 function foodNameSizeClass(name: string): string {
@@ -363,6 +384,7 @@ export function FoodDetailModal({
   const { t } = useTranslation();
   const selectedDate = useDateStore((s) => s.selectedDate);
   const [amount, setAmount] = useState('100');
+  const [displayUnit, setDisplayUnit] = useState<ServingUnitCode>('g');
   const [mealType, setMealType] = useState<MealType>(initialMealType);
   const [adding, setAdding] = useState(false);
   const [currentFood, setCurrentFood] = useState<Food | null>(null);
@@ -376,8 +398,11 @@ export function FoodDetailModal({
   useEffect(() => {
     if (visible && food) {
       setMealType(initialMealType);
-      const serving = food.servingSize != null && food.servingSize > 0 ? food.servingSize : 100;
-      setAmount(String(Math.round(serving)));
+      const unit = normalizeServingUnit(food.servingUnit);
+      const gpu = gramsPerServingUnit(food);
+      setDisplayUnit(unit);
+      const initial = defaultQtyForUnit(unit, gpu);
+      setAmount(String(Number.isInteger(initial) ? initial : Math.round(initial * 10) / 10));
       setEditOpen(false);
     }
   }, [visible, initialMealType, food]);
@@ -391,11 +416,25 @@ export function FoodDetailModal({
     currentFood.name;
   const brandLabel = distinctBrand(displayName, currentFood.brand);
 
-  const servingSize = currentFood.servingSize != null && currentFood.servingSize > 0 ? currentFood.servingSize : 100;
-  const servingUnit = currentFood.servingUnit?.trim() || 'g';
-  const portionLabel = `${Math.round(servingSize)}${servingUnit} / ${t('food.serving')}`;
+  const foodUnit = normalizeServingUnit(currentFood.servingUnit);
+  const gramsPerUnit = gramsPerServingUnit(currentFood);
+  const unitLabel = (u: ServingUnitCode) => {
+    if (u === 'g') return t('food.unitG');
+    if (u === 'db') return t('food.unitDb');
+    if (u === 'adag') return t('food.unitAdag');
+    if (u === 'ek') return t('food.unitEk');
+    return t('food.unitSzelet');
+  };
+  const portionLabel =
+    foodUnit === 'g'
+      ? t('food.portionBadgeGrams', { grams: Math.round(gramsPerUnit) })
+      : t('food.portionBadgeUnit', {
+          unit: unitLabel(foodUnit),
+          grams: Math.round(gramsPerUnit * 10) / 10,
+        });
 
-  const g = parseFloat(amount) || 0;
+  const qty = parseFloat(amount.replace(',', '.')) || 0;
+  const g = qtyToGrams(qty, displayUnit, gramsPerUnit);
   const calc = {
     kcal: Math.round((currentFood.kcal / 100) * g),
     protein: Math.round((currentFood.protein / 100) * g * 10) / 10,
@@ -421,9 +460,29 @@ export function FoodDetailModal({
     return t('food.snack');
   };
 
-  const adjustAmount = (delta: number) => {
-    const next = Math.max(0, Math.round((parseFloat(amount) || 0) + delta));
-    setAmount(String(next));
+  const formatQty = (n: number) =>
+    String(Number.isInteger(n) ? n : Math.round(n * 10) / 10);
+
+  const switchDisplayUnit = (next: ServingUnitCode) => {
+    if (next === displayUnit) return;
+    const grams = qtyToGrams(qty, displayUnit, gramsPerUnit);
+    if (next === 'g') {
+      setAmount(formatQty(Math.max(1, Math.round(grams))));
+    } else {
+      const pieces = gramsPerUnit > 0 ? grams / gramsPerUnit : 1;
+      setAmount(formatQty(Math.max(0.1, Math.round(pieces * 10) / 10)));
+    }
+    setDisplayUnit(next);
+  };
+
+  /** Grams: ±10; piece/adag/ek: ±1 */
+  const adjustAmount = (dir: -1 | 1) => {
+    if (displayUnit === 'g') {
+      setAmount(String(Math.max(0, Math.round(qty + dir * 10))));
+      return;
+    }
+    const next = Math.max(0, Math.round((qty + dir * 1) * 10) / 10);
+    setAmount(formatQty(next));
   };
 
   const handleAddLog = async () => {
@@ -512,7 +571,7 @@ export function FoodDetailModal({
         <div className={styles.sections}>
           <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
             <div className={styles.amountStepper}>
-              <button type="button" className={styles.amountStepBtn} onClick={() => adjustAmount(-10)}>
+              <button type="button" className={styles.amountStepBtn} onClick={() => adjustAmount(-1)}>
                 <span className={styles.amountStepShadow} />
                 <span className={styles.amountStepFace}>
                   <IconRemove size={22} color={Colors.dashboard.stroke} />
@@ -522,19 +581,45 @@ export function FoodDetailModal({
                 <input
                   className={styles.amountInputCompact}
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))}
+                  onChange={(e) => setAmount(e.target.value.replace(/[^\d.,]/g, ''))}
                   inputMode="decimal"
-                  placeholder="100"
+                  placeholder={displayUnit === 'g' ? '100' : '1'}
                 />
-                <span className={styles.amountUnit}>g</span>
+                <span className={styles.amountUnit}>{unitLabel(displayUnit)}</span>
               </div>
-              <button type="button" className={styles.amountStepBtn} onClick={() => adjustAmount(10)}>
+              <button type="button" className={styles.amountStepBtn} onClick={() => adjustAmount(1)}>
                 <span className={styles.amountStepShadow} />
                 <span className={styles.amountStepFace}>
                   <IconAdd size={22} color={Colors.dashboard.stroke} />
                 </span>
               </button>
             </div>
+            {foodUnit !== 'g' ? (
+              <div className={styles.unitSegment} role="group" aria-label={t('food.servingUnit')}>
+                <button
+                  type="button"
+                  className={`${styles.unitSegmentBtn} ${displayUnit === foodUnit ? styles.unitSegmentBtnActive : ''}`}
+                  onClick={() => switchDisplayUnit(foodUnit)}
+                >
+                  {unitLabel(foodUnit)}
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.unitSegmentBtn} ${displayUnit === 'g' ? styles.unitSegmentBtnActive : ''}`}
+                  onClick={() => switchDisplayUnit('g')}
+                >
+                  {t('food.unitG')}
+                </button>
+              </div>
+            ) : null}
+            {displayUnit !== 'g' ? (
+              <div className={styles.amountMetaRow}>
+                <span className={styles.amountMetaLabel}>{t('food.amount')}</span>
+                <span className={styles.amountMetaValue}>
+                  {t('food.amountEqualsGrams', { grams: Math.round(g * 10) / 10 })}
+                </span>
+              </div>
+            ) : null}
           </GlassCardSimple>
 
           <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
@@ -1152,6 +1237,43 @@ export function AddFoodManualModal({
               );
             })}
           </div>
+
+          {(onOpenAiRecognize || onOpenScanner) && (
+            <div className={styles.quickActionRow}>
+              {onOpenAiRecognize && (
+                <button
+                  type="button"
+                  className={styles.quickActionWrap}
+                  onClick={() => {
+                    onClose();
+                    onOpenAiRecognize();
+                  }}
+                >
+                  <span className={styles.quickActionShadow} />
+                  <span className={`${styles.quickActionInner} ${styles.quickActionAi}`}>
+                    <IconBrain size={18} color={Colors.dashboard.stroke} />
+                    <span className={styles.quickActionLabel}>{t('aiRecognize.entryShort')}</span>
+                  </span>
+                </button>
+              )}
+              {onOpenScanner && (
+                <button
+                  type="button"
+                  className={styles.quickActionWrap}
+                  onClick={() => {
+                    onClose();
+                    onOpenScanner();
+                  }}
+                >
+                  <span className={styles.quickActionShadow} />
+                  <span className={`${styles.quickActionInner} ${styles.quickActionScan}`}>
+                    <IconQrCodeScanner size={18} color={Colors.dashboard.stroke} />
+                    <span className={styles.quickActionLabel}>{t('food.scanBarcodeShort')}</span>
+                  </span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className={styles.addBody}>
@@ -1226,52 +1348,6 @@ export function AddFoodManualModal({
               })
             )}
           </GlassCardSimple>
-
-          {onOpenAiRecognize && (
-            <button
-              type="button"
-              className={styles.scanCardWrap}
-              onClick={() => {
-                onClose();
-                onOpenAiRecognize();
-              }}
-            >
-              <span className={styles.scanCardShadow} />
-              <span className={`${styles.scanCardInner} ${styles.aiCardInner}`}>
-                <span className={styles.scanIconWrap}>
-                  <IconBrain size={22} color={Colors.dashboard.stroke} />
-                </span>
-                <span className={styles.resultInfo}>
-                  <span className={styles.scanTitle}>{t('aiRecognize.entryTitle')}</span>
-                  <span className={styles.scanSub}>{t('aiRecognize.entrySub')}</span>
-                </span>
-                <IconArrowForward size={14} color={Colors.dashboard.tabInactive} />
-              </span>
-            </button>
-          )}
-
-          {onOpenScanner && (
-            <button
-              type="button"
-              className={styles.scanCardWrap}
-              onClick={() => {
-                onClose();
-                onOpenScanner();
-              }}
-            >
-              <span className={styles.scanCardShadow} />
-              <span className={styles.scanCardInner}>
-                <span className={styles.scanIconWrap}>
-                  <IconQrCodeScanner size={22} color={Colors.dashboard.stroke} />
-                </span>
-                <span className={styles.resultInfo}>
-                  <span className={styles.scanTitle}>{t('food.scanBarcodeTitle')}</span>
-                  <span className={styles.scanSub}>{t('food.scanBarcodeSub')}</span>
-                </span>
-                <IconArrowForward size={14} color={Colors.dashboard.tabInactive} />
-              </span>
-            </button>
-          )}
         </div>
       </div>
 
@@ -1327,6 +1403,10 @@ function FoodDataFormModal({
   const [fat, setFat] = useState('');
   const [fiber, setFiber] = useState('');
   const [sugar, setSugar] = useState('');
+  const [servingUnit, setServingUnit] = useState<ServingUnitCode>('g');
+  const [servingGrams, setServingGrams] = useState('100');
+  const [servingEstimateBusy, setServingEstimateBusy] = useState(false);
+  const [estimateHint, setEstimateHint] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [dialog, setDialog] = useState<{ title: string; message: string } | null>(null);
   const [aiView, setAiView] = useState(false);
@@ -1359,6 +1439,14 @@ function FoodDataFormModal({
       setFat(String(initialFood.fat ?? ''));
       setFiber(initialFood.fiber != null ? String(initialFood.fiber) : '');
       setSugar(initialFood.sugar != null ? String(initialFood.sugar) : '');
+      setServingUnit(normalizeServingUnit(initialFood.servingUnit));
+      setServingGrams(
+        String(
+          initialFood.servingSize != null && initialFood.servingSize > 0
+            ? initialFood.servingSize
+            : 100,
+        ),
+      );
     } else {
       setName('');
       setBrand('');
@@ -1369,7 +1457,11 @@ function FoodDataFormModal({
       setFat('');
       setFiber('');
       setSugar('');
+      setServingUnit('g');
+      setServingGrams('100');
     }
+    setServingEstimateBusy(false);
+    setEstimateHint(false);
     setDialog(null);
     setApproxNote(null);
     setAiView(false);
@@ -1391,6 +1483,13 @@ function FoodDataFormModal({
     const n = parseFloat(v.replace(',', '.'));
     return Number.isFinite(n) ? n : NaN;
   };
+
+  const canEstimateServing =
+    name.trim().length > 0 &&
+    [kcal, protein, carbs, fat].every((v) => {
+      const n = num(v);
+      return Number.isFinite(n) && n >= 0 && String(v).trim() !== '';
+    });
 
   const fmtNum = (n: number) => String(Math.round(n * 10) / 10);
 
@@ -1464,12 +1563,17 @@ function FoodDataFormModal({
 
     const fiberN = fiber.trim() ? num(fiber) : undefined;
     const sugarN = sugar.trim() ? num(sugar) : undefined;
+    const servingN = num(servingGrams);
     if (fiberN != null && (!Number.isFinite(fiberN) || fiberN < 0)) {
       showDialog(t('food.missingDataTitle'), t('food.fiberPer100g'));
       return;
     }
     if (sugarN != null && (!Number.isFinite(sugarN) || sugarN < 0)) {
       showDialog(t('food.missingDataTitle'), t('food.sugarPer100g'));
+      return;
+    }
+    if (!Number.isFinite(servingN) || servingN <= 0) {
+      showDialog(t('food.missingDataTitle'), t('food.servingGramsPerUnit'));
       return;
     }
 
@@ -1489,8 +1593,8 @@ function FoodDataFormModal({
         fat: f,
         fiber: fiberN ?? null,
         sugar: sugarN ?? null,
-        servingSize: initialFood?.servingSize ?? 100,
-        servingUnit: initialFood?.servingUnit ?? 'g',
+        servingSize: servingN,
+        servingUnit,
         source: 'USER_SCAN' as const,
       };
 
@@ -1623,6 +1727,86 @@ function FoodDataFormModal({
                   placeholder={t('food.barcodeOptional')}
                   inputMode="numeric"
                 />
+              </GlassCardSimple>
+
+              <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
+                <label className={styles.formLabel}>{t('food.servingUnit')}</label>
+                <select
+                  className={styles.formInput}
+                  value={servingUnit}
+                  onChange={(e) => setServingUnit(normalizeServingUnit(e.target.value))}
+                >
+                  <option value="g">{t('food.unitG')}</option>
+                  <option value="db">{t('food.unitDb')}</option>
+                  <option value="adag">{t('food.unitAdag')}</option>
+                  <option value="ek">{t('food.unitEk')}</option>
+                  <option value="szelet">{t('food.unitSzelet')}</option>
+                </select>
+                <label className={styles.formLabel}>{t('food.servingGramsPerUnit')}</label>
+                <div className={styles.servingGramsRow}>
+                  <input
+                    className={styles.formInput}
+                    value={servingGrams}
+                    onChange={(e) => setServingGrams(e.target.value.replace(/[^\d.,]/g, ''))}
+                    inputMode="decimal"
+                    placeholder="100"
+                  />
+                  {servingUnit !== 'g' ? (
+                    <button
+                      type="button"
+                      className={`${styles.aiEstimateBtn} ${!canEstimateServing ? styles.aiEstimateBtnInactive : ''}`}
+                      disabled={servingEstimateBusy}
+                      aria-disabled={!canEstimateServing}
+                      onClick={async () => {
+                        if (!canEstimateServing) {
+                          setEstimateHint(true);
+                          window.setTimeout(() => setEstimateHint(false), 3200);
+                          return;
+                        }
+                        setEstimateHint(false);
+                        setServingEstimateBusy(true);
+                        try {
+                          const locale = i18n.language?.startsWith('en') ? 'en' : 'hu';
+                          const k = num(kcal);
+                          const p = num(protein);
+                          const c = num(carbs);
+                          const f = num(fat);
+                          const fiberN = fiber.trim() ? num(fiber) : undefined;
+                          const sugarN = sugar.trim() ? num(sugar) : undefined;
+                          const res = await foodApi.aiServingEstimate({
+                            name: name.trim(),
+                            brand: brand.trim() || undefined,
+                            unit: servingUnit as 'db' | 'adag' | 'ek' | 'szelet',
+                            locale,
+                            kcal: k,
+                            protein: p,
+                            carbs: c,
+                            fat: f,
+                            ...(fiberN != null && Number.isFinite(fiberN) ? { fiber: fiberN } : {}),
+                            ...(sugarN != null && Number.isFinite(sugarN) ? { sugar: sugarN } : {}),
+                          });
+                          setServingGrams(String(res.gramsPerUnit));
+                        } catch (e: any) {
+                          showDialog(
+                            t('food.errorTitle'),
+                            getErrorMessage(e, t('food.errorTitle')),
+                          );
+                        } finally {
+                          setServingEstimateBusy(false);
+                        }
+                      }}
+                    >
+                      {servingEstimateBusy
+                        ? t('food.aiEstimateServingBusy')
+                        : t('food.aiEstimateServing')}
+                    </button>
+                  ) : null}
+                </div>
+                {servingUnit !== 'g' && estimateHint ? (
+                  <div className={styles.aiEstimateBubble} role="status">
+                    {t('food.aiEstimateServingNeedMacros')}
+                  </div>
+                ) : null}
               </GlassCardSimple>
 
               <GlassCardSimple padding={20} radius={24} shadowOffset={3}>

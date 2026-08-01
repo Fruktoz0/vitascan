@@ -14,6 +14,10 @@ export type RecognizedIngredient = {
   sugar?: number;
   brand?: string;
   barcode?: string;
+  /** Default logging unit: g | db | adag | ek */
+  servingUnit?: string;
+  /** Grams equal to 1 servingUnit */
+  servingSize?: number;
 };
 
 export type FoodRecognizeResult = {
@@ -50,8 +54,10 @@ const RESPONSE_SCHEMA = {
           sugar: { type: 'NUMBER' },
           brand: { type: 'STRING' },
           barcode: { type: 'STRING' },
+          servingUnit: { type: 'STRING' },
+          servingSize: { type: 'NUMBER' },
         },
-        required: ['name', 'amountG', 'kcal', 'protein', 'carbs', 'fat'],
+        required: ['name', 'amountG', 'kcal', 'protein', 'carbs', 'fat', 'servingUnit', 'servingSize'],
       },
     },
   },
@@ -114,22 +120,28 @@ Rules:
 - kcal, protein, carbs, fat are TOTAL for that amount (not per 100g).
 - fiber and sugar optional totals for that amount.
 - brand and barcode are optional per ingredient. Fill them ONLY when clearly visible on packaging / stated in the text. If not clearly identifiable, leave brand and barcode as empty strings — NEVER guess or invent them.
+- servingUnit: one of "g", "db" (piece), "adag" (serving), "ek" (tablespoon), "szelet" (slice) — the most natural default unit for logging this food later.
+- servingSize: grams equal to ONE unit of servingUnit (precise typical edible weight). If servingUnit is "g", set servingSize to a sensible default portion in grams (often same as amountG or 100).
+- Example: banana → servingUnit "db", servingSize ~118; egg → "db" ~55; oil → "ek" ~14; bread → "szelet" ~30–40; yogurt cup → "adag" or "g".
 - For macros: if uncertain, still give a best estimate with reasonable portions.
 - Max ${MAX_INGREDIENTS} ingredients.
 - dishName: short meal title.`;
   }
   return `Te a VitaScan tápanyag-becslője vagy.
 Azonosítsd az ételeket / hozzávalókat fotóból vagy szöveges leírásból.
-CSAK a sémának megfelelő JSON-t adj vissza.
+Csak a sémának megfelelő JSON-t adj vissza.
 Szabályok:
-- Ha lehet, bontsd realisztikus hozzávalókra (ne egyetlen „étel” sort adj).
-- amountG = becsült gramm az adott hozzávaló adagjára.
-- kcal, protein, carbs, fat: ÖSSZESEN az adott mennyiségre (nem 100g-ra).
-- fiber és sugar opcionális összesen az adott mennyiségre.
-- brand és barcode opcionális hozzávalónként. CSAK akkor töltsd ki, ha a csomagoláson egyértelműen látszik, vagy a szövegben szerepel. Ha nem azonosítható biztosan, hagyd üres stringnek — SOHA ne találgass / inventálj brandet vagy vonalkódot.
-- Makróknál: bizonytalanság esetén is adj reális becslést.
+- Ha lehet, bontsd realisztikus hozzávalókra (ne egy vagus „étel” sor).
+- amountG = becsült gramm az adott hozzávaló látható/leírt adagjára.
+- kcal, protein, carbs, fat = ÖSSZESEN erre a mennyiségre (nem 100g-ra).
+- fiber és sugar opcionális összesen ugyanarra a mennyiségre.
+- brand és barcode opcionális. Csak ha egyértelműen látszik / szerepel. Ha nem, üres string — SOHA ne találj ki.
+- servingUnit: "g", "db", "adag", "ek" vagy "szelet" — a legtermészetesebb alap egység későbbi naplózáshoz.
+- servingSize: EGY servingUnit gramm-egyenértéke (precíz tipikus ehető súly). Ha servingUnit "g", a servingSize legyen ésszerű alap adag grammban (gyakran amountG vagy 100).
+- Példa: banán → servingUnit "db", servingSize ~118; tojás → "db" ~55; olaj → "ek" ~14; kenyér → "szelet" ~30–40; joghurt → "adag" vagy "g".
+- Makróknál bizonytalanság esetén is adj legjobb becslést.
 - Max ${MAX_INGREDIENTS} hozzávaló.
-- dishName: rövid ételnév.`;
+- dishName: rövid ételcím.`;
 }
 
 function parseResult(raw: unknown): FoodRecognizeResult | null {
@@ -154,6 +166,12 @@ function parseResult(raw: unknown): FoodRecognizeResult | null {
     const sugar = r.sugar != null ? Number(r.sugar) : undefined;
     const brand = cleanOptionalLabel(r.brand, 80);
     const barcode = cleanOptionalLabel(r.barcode, 30);
+    const unitRaw = String(r.servingUnit ?? 'g').trim().toLowerCase();
+    const servingUnit = ['g', 'db', 'adag', 'ek', 'szelet'].includes(unitRaw) ? unitRaw : 'g';
+    let servingSize = Number(r.servingSize);
+    if (!Number.isFinite(servingSize) || servingSize <= 0) {
+      servingSize = servingUnit === 'g' ? amountG : amountG;
+    }
     ingredients.push({
       name: name.slice(0, 120),
       amountG: round1(clamp(amountG, 1, 5000)),
@@ -169,6 +187,8 @@ function parseResult(raw: unknown): FoodRecognizeResult | null {
         : {}),
       ...(brand ? { brand } : {}),
       ...(barcode ? { barcode } : {}),
+      servingUnit,
+      servingSize: round1(clamp(servingSize, 0.1, 2000)),
     });
   }
 

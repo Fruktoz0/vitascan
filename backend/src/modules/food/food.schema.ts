@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+export const ServingUnitSchema = z.enum(['g', 'db', 'adag', 'ek', 'szelet']);
+
 export const CreateFoodSchema = z.object({
   name: z.string().min(2, 'Név min. 2 karakter').max(100),
   nameHu: z.string().min(2).max(100).optional(),
@@ -12,8 +14,9 @@ export const CreateFoodSchema = z.object({
   fat: z.number().min(0).max(100),
   fiber: z.number().min(0).max(100).optional(),
   sugar: z.number().min(0).max(100).optional(),
+  /** Grams that equal 1 servingUnit (e.g. 1 db = 118 g). */
   servingSize: z.number().min(0).optional(),
-  servingUnit: z.string().max(20).optional(),
+  servingUnit: ServingUnitSchema.optional(),
   source: z.enum(['INTERNAL', 'USER_SCAN', 'EXTERNAL_API']).optional(),
 });
 

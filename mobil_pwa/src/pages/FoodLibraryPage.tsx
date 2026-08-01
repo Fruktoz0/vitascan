@@ -273,7 +273,11 @@ export default function FoodLibraryPage() {
                     type="button"
                     className={styles.aiAddBtn}
                     aria-label={t('aiRecognize.entryTitle')}
-                    onClick={() => navigate(`/ai-recognize?mealType=${meal}`)}
+                    onClick={() =>
+                      navigate(`/ai-recognize?mealType=${meal}`, {
+                        state: { returnPath: '/food-library' },
+                      })
+                    }
                   >
                     <span className={styles.btnShadow} />
                     <span className={styles.aiAddFace}>
@@ -365,7 +369,9 @@ export default function FoodLibraryPage() {
         onCreated={(food) => setSelectedFood(food)}
         onOpenScanner={() => navigate('/scanner', { state: { returnPath: '/food-library' } })}
         onOpenAiRecognize={() =>
-          navigate(`/ai-recognize?mealType=${mealForAdd}`)
+          navigate(`/ai-recognize?mealType=${mealForAdd}`, {
+            state: { returnPath: '/food-library' },
+          })
         }
       />
       <CreateFoodModal
