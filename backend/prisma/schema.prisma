@@ -62,25 +62,57 @@ model UserProfile {
   dailyFatGoal     Float? // g / nap
   avatarKey        String? // DiceBear seed, pl. Felix — ingyenes választható avatar
 
-  /** SHA-256 hash of Apple Shortcuts ingest token (vitafit_…). Plain token never stored. */
-  fitnessIngestTokenHash String?
+  // FitnessSyncer OAuth (per-user Personal Application credentials + tokens)
+  fsClientId             String?
+  fsClientSecretEnc      String? // AES-GCM
+  fsAccessTokenEnc       String?
+  fsRefreshTokenEnc      String?
+  fsTokenExpiresAt       DateTime?
+  fsConnectedAt          DateTime?
+  fsLastSyncAt           DateTime?
+  fsStatus               FitnessSyncerStatus @default(DISCONNECTED)
+  fsLastError            String?
+  /** Pending OAuth PKCE (cleared after callback). */
+  fsOauthState           String?
+  fsOauthCodeVerifier    String?
+  fsOauthStateExpiresAt  DateTime?
 
   tier Tier @default(FREE) // Freemium
 }
 
-/** Apple Fitness / Shortcuts (or manual) workout session. */
+/** Workout session — FitnessSyncer sync or manual. */
 model WorkoutLog {
   id               String         @id @default(uuid())
   userId           String
   user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   activityType     String
+  title            String?
   startedAt        DateTime
   endedAt          DateTime?
   durationMin      Float
   activeEnergyKcal Float?
   distanceKm       Float?
+  steps            Int?
+  avgHeartrate     Int?
+  minHeartrate     Int?
+  maxHeartrate     Int?
+  restingHeartrate Int?
+  pace             Float?
+  speedAvg         Float?
+  speedMax         Float?
+  elevationGain    Float?
+  elevationMin     Float?
+  elevationMax     Float?
+  floorsClimbed    Int?
+  vo2Max           Int?
+  respiratoryRate  Float?
+  mindfulMinutes   Int?
+  avgStressLevel   Int?
+  providerType     String?
+  /** Downsampled HR series: [{ tMs, bpm }, ...] from GPS points. */
+  hrSeries         Json?
   source           FitnessSource  @default(MANUAL)
-  /** Client-provided id for Shortcuts dedupe (unique per user). */
+  /** FitnessSyncer itemId (or other client id) for dedupe. */
   externalId       String?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
@@ -89,7 +121,7 @@ model WorkoutLog {
   @@index([userId, startedAt])
 }
 
-/** Daily step count — evening Shortcuts sync upserts one row per day. */
+/** Daily step count — FitnessSyncer daily summary or manual. */
 model DailyStepLog {
   id         String        @id @default(uuid())
   userId     String
@@ -243,18 +275,20 @@ model WeightLog {
   @@index([userId, loggedDate])
 }
 
-/** Napi AI táplálkozási elemzés — max 2 generálás / nap, új felülírja a régit. */
+/** Napi AI elemzés — kind: nutrition (ételkönyvtár) | fitness (edzői napértékelés). */
 model DailyAnalysis {
   id              String   @id @default(uuid())
   userId          String
   user            User     @relation(fields: [userId], references: [id])
   loggedDate      DateTime @db.Date
+  /** nutrition | fitness */
+  kind            String   @default("nutrition")
   content         String
   generationCount Int      @default(1)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  @@unique([userId, loggedDate])
+  @@unique([userId, loggedDate, kind])
   @@index([userId, loggedDate])
 }
 
@@ -380,4 +414,11 @@ enum BodyPart {
 enum FitnessSource {
   SHORTCUTS
   MANUAL
+  FITNESSSYNCER
+}
+
+enum FitnessSyncerStatus {
+  DISCONNECTED
+  CONNECTED
+  ERROR
 }

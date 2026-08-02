@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { MAX_GENERATIONS_PER_DAY } from './analysis.schema';
 import {
-  generateNutritionAnalysis,
+  generateDailyAnalysis,
   MEAL_ORDER,
   type GeminiUserPayload,
 } from './analysis.gemini';
@@ -25,23 +25,30 @@ function parseDay(dateStr?: string): { day: Date; dateKey: string; rangeStart: D
   return { day, dateKey, rangeStart, rangeEnd };
 }
 
-function resolveLocalClock(localTime?: string): { queryLocalTime: string; queryLocalHour: number; localDateKey: string } {
+function resolveLocalClock(localTime?: string): {
+  queryLocalTime: string;
+  queryLocalHour: number;
+  localDateKey: string;
+} {
   const now = localTime ? new Date(localTime) : new Date();
   const valid = !Number.isNaN(now.getTime()) ? now : new Date();
-  const queryLocalTime = localTime && !Number.isNaN(new Date(localTime).getTime())
-    ? localTime
-    : valid.toISOString();
+  const queryLocalTime =
+    localTime && !Number.isNaN(new Date(localTime).getTime())
+      ? localTime
+      : valid.toISOString();
   let queryLocalHour = valid.getHours();
   const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}):/.exec(queryLocalTime);
   if (m) {
     queryLocalHour = Number(m[2]);
   }
-  const localDateKey = m?.[1] ?? (() => {
-    const y = valid.getFullYear();
-    const mo = String(valid.getMonth() + 1).padStart(2, '0');
-    const d = String(valid.getDate()).padStart(2, '0');
-    return `${y}-${mo}-${d}`;
-  })();
+  const localDateKey =
+    m?.[1] ??
+    (() => {
+      const y = valid.getFullYear();
+      const mo = String(valid.getMonth() + 1).padStart(2, '0');
+      const d = String(valid.getDate()).padStart(2, '0');
+      return `${y}-${mo}-${d}`;
+    })();
   return { queryLocalTime, queryLocalHour, localDateKey };
 }
 
@@ -49,12 +56,17 @@ export async function getDailyAnalysis(
   prisma: PrismaClient,
   userId: string,
   dateStr?: string,
+  kind: 'nutrition' | 'fitness' = 'nutrition',
 ) {
   const { day, dateKey } = parseDay(dateStr);
   const row = await prisma.dailyAnalysis.findUnique({
-    where: { userId_loggedDate: { userId, loggedDate: day } },
+    where: { userId_loggedDate_kind: { userId, loggedDate: day, kind } },
   });
-  const generationCount = row?.generationCount ?? 0;
+  const dayRows = await prisma.dailyAnalysis.findMany({
+    where: { userId, loggedDate: day },
+    select: { generationCount: true },
+  });
+  const generationCount = dayRows.reduce((s, r) => s + r.generationCount, 0);
   return {
     date: dateKey,
     content: row?.content ?? null,
@@ -67,16 +79,22 @@ export async function getDailyAnalysis(
 export async function createOrRefreshDailyAnalysis(
   prisma: PrismaClient,
   userId: string,
-  opts: { date?: string; locale?: 'hu' | 'en'; localTime?: string },
+  opts: {
+    date?: string;
+    locale?: 'hu' | 'en';
+    localTime?: string;
+    kind?: 'nutrition' | 'fitness';
+  },
 ) {
+  const kind = opts.kind ?? 'nutrition';
   const { day, dateKey, rangeStart, rangeEnd } = parseDay(opts.date);
   const locale = opts.locale ?? 'hu';
   const { queryLocalTime, queryLocalHour, localDateKey } = resolveLocalClock(opts.localTime);
 
-  const existing = await prisma.dailyAnalysis.findUnique({
-    where: { userId_loggedDate: { userId, loggedDate: day } },
+  const dayRows = await prisma.dailyAnalysis.findMany({
+    where: { userId, loggedDate: day },
   });
-  const generationCount = existing?.generationCount ?? 0;
+  const generationCount = dayRows.reduce((s, r) => s + r.generationCount, 0);
   if (generationCount >= MAX_GENERATIONS_PER_DAY) {
     throw Object.assign(
       new Error(`Ma már elértéd a ${MAX_GENERATIONS_PER_DAY} elemzés limitet.`),
@@ -84,7 +102,9 @@ export async function createOrRefreshDailyAnalysis(
     );
   }
 
-  const [logs, profile, workouts, stepLog] = await Promise.all([
+  const existing = dayRows.find((r) => r.kind === kind) ?? null;
+
+  const [logs, profile, workouts, stepLog, latestWeight, bodyLatest] = await Promise.all([
     prisma.dailyLog.findMany({
       where: { userId, createdAt: { gte: rangeStart, lt: rangeEnd } },
       orderBy: { createdAt: 'asc' },
@@ -97,13 +117,21 @@ export async function createOrRefreshDailyAnalysis(
     prisma.dailyStepLog.findUnique({
       where: { userId_loggedDate: { userId, loggedDate: day } },
     }),
+    prisma.weightLog.findFirst({
+      where: { userId },
+      orderBy: { loggedDate: 'desc' },
+    }),
+    prisma.bodyMeasurementLog.findMany({
+      where: { userId },
+      orderBy: { loggedDate: 'desc' },
+      take: 40,
+    }),
   ]);
 
   if (logs.length === 0) {
-    throw Object.assign(
-      new Error('Nincs rögzített étel erre a napra.'),
-      { statusCode: 400 },
-    );
+    throw Object.assign(new Error('Nincs rögzített étel erre a napra.'), {
+      statusCode: 400,
+    });
   }
 
   const meals: GeminiUserPayload['meals'] = {};
@@ -138,7 +166,6 @@ export async function createOrRefreshDailyAnalysis(
     mealTotals[key].itemCount += 1;
   }
 
-  // Only keep totals for filled meals in the payload mealTotals rollup for day
   const filledMeals = MEAL_ORDER.filter((m) => (meals[m]?.length ?? 0) > 0);
   const emptyMeals = MEAL_ORDER.filter((m) => (meals[m]?.length ?? 0) === 0);
 
@@ -189,8 +216,19 @@ export async function createOrRefreshDailyAnalysis(
     0,
   );
 
+  const bodyByPart = new Map<string, { bodyPart: string; valueCm: number; loggedDate: string }>();
+  for (const row of bodyLatest) {
+    if (bodyByPart.has(row.bodyPart)) continue;
+    bodyByPart.set(row.bodyPart, {
+      bodyPart: row.bodyPart,
+      valueCm: row.valueCm,
+      loggedDate: row.loggedDate.toISOString().slice(0, 10),
+    });
+  }
+
   const payload: GeminiUserPayload = {
     locale,
+    analysisKind: kind,
     date: dateKey,
     queryLocalTime,
     queryLocalHour,
@@ -202,9 +240,16 @@ export async function createOrRefreshDailyAnalysis(
       gender: profile?.gender,
       birthYear: profile?.birthYear,
       heightCm: profile?.heightCm,
-      weightKg: profile?.weightKg,
+      weightKg: latestWeight?.weightKg ?? profile?.weightKg,
       activityLevel: profile?.activityLevel,
       goal: profile?.goal,
+    },
+    body: {
+      weightKg: latestWeight?.weightKg ?? profile?.weightKg ?? null,
+      weightLoggedDate: latestWeight
+        ? latestWeight.loggedDate.toISOString().slice(0, 10)
+        : null,
+      measurements: [...bodyByPart.values()],
     },
     goals: {
       dailyKcalGoal,
@@ -218,8 +263,13 @@ export async function createOrRefreshDailyAnalysis(
       workoutEnergyKcal: round1(workoutEnergyKcal),
       workouts: workouts.map((w) => ({
         activityType: w.activityType,
+        title: w.title,
         durationMin: w.durationMin,
         activeEnergyKcal: w.activeEnergyKcal,
+        distanceKm: w.distanceKm,
+        avgHeartrate: w.avgHeartrate,
+        maxHeartrate: w.maxHeartrate,
+        minHeartrate: w.minHeartrate,
       })),
     },
     totals,
@@ -227,28 +277,30 @@ export async function createOrRefreshDailyAnalysis(
     meals: filledMealsMap,
   };
 
-  const content = await generateNutritionAnalysis(payload);
-  const nextCount = generationCount + 1;
+  const content = await generateDailyAnalysis(payload);
+  const nextKindCount = (existing?.generationCount ?? 0) + 1;
+  const nextTotal = generationCount + 1;
 
   const saved = await prisma.dailyAnalysis.upsert({
-    where: { userId_loggedDate: { userId, loggedDate: day } },
+    where: { userId_loggedDate_kind: { userId, loggedDate: day, kind } },
     create: {
       userId,
       loggedDate: day,
+      kind,
       content,
-      generationCount: nextCount,
+      generationCount: nextKindCount,
     },
     update: {
       content,
-      generationCount: nextCount,
+      generationCount: nextKindCount,
     },
   });
 
   return {
     date: dateKey,
     content: saved.content,
-    generationCount: saved.generationCount,
-    remaining: Math.max(0, MAX_GENERATIONS_PER_DAY - saved.generationCount),
+    generationCount: nextTotal,
+    remaining: Math.max(0, MAX_GENERATIONS_PER_DAY - nextTotal),
     updatedAt: saved.updatedAt,
   };
 }

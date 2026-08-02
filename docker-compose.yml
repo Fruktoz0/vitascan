@@ -32,6 +32,9 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
       GEMINI_FALLBACK_MODEL: ${GEMINI_FALLBACK_MODEL:-gemini-3.5-flash-lite}
       USDA_API_KEY: ${USDA_API_KEY:-}
+      FITNESS_CREDENTIALS_KEY: ${FITNESS_CREDENTIALS_KEY:-}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-}
+      PUBLIC_PWA_URL: ${PUBLIC_PWA_URL:-}
     ports:
       - "${PORT:-3005}:${PORT:-3005}"
     networks:

@@ -50,6 +50,7 @@ import {
   MdPublic,
   MdQrCodeScanner,
   MdRamenDining,
+  MdRefresh,
   MdRemove,
   MdRestaurant,
   MdScience,
@@ -189,6 +190,7 @@ export const IconFitnessCenter = wrap(MdFitnessCenter);
 export const IconExpandMore = wrap(MdExpandMore);
 export const IconExpandLess = wrap(MdExpandLess);
 export const IconContentCopy = wrap(MdContentCopy);
+export const IconRefresh = wrap(MdRefresh);
 
 export const TAB_ICONS = {
   home: { outline: IconHomeOutline, filled: IconHome },

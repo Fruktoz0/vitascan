@@ -17,6 +17,7 @@ import BodyMeasurementsPage from './pages/BodyMeasurementsPage';
 import BodyPartLogPage from './pages/BodyPartLogPage';
 import BodyMeasurementNewPage from './pages/BodyMeasurementNewPage';
 import FitnessPage from './pages/FitnessPage';
+import WorkoutDetailPage from './pages/WorkoutDetailPage';
 import WeightLogPage from './pages/WeightLogPage';
 import WeightNewPage from './pages/WeightNewPage';
 import WaterLogPage from './pages/WaterLogPage';
@@ -65,6 +66,7 @@ export default function App() {
           <Route path="/ai-recognize" element={<AiRecognizePage />} />
           <Route path="/body/new" element={<BodyMeasurementNewPage />} />
           <Route path="/body/:part" element={<BodyPartLogPage />} />
+          <Route path="/fitness/workout/:id" element={<WorkoutDetailPage />} />
           <Route path="/weight" element={<WeightLogPage />} />
           <Route path="/weight/new" element={<WeightNewPage />} />
           <Route path="/water" element={<WaterLogPage />} />

@@ -57,6 +57,36 @@ Output rules:
   • workout day: brief protein/carb timing tip;
   • quality warning for sugary snacks; short actionable tips.`;
 
+const FITNESS_COACH_PROMPT_HU = `Te a VitaScan profi edzője és fitness szakértője vagy.
+Feladat: a NAP egésze edzői értékelése JSON-ben — energiaegyensúly, edzésminőség, regeneráció, célilleszkedés.
+
+Bemenet: teljes napi étkezés (meals/totals/deltas), célok, profile + body (súly, körfogatok), fitness.workouts (időtartam, kcal, pulzus ha van), steps.
+
+Kimeneti szabályok:
+- CSAK érvényes JSON a sémával. Semmi más szöveg.
+- Magyar, rövid bullet-mondatok (max ~18 szó). TILOS regény, motivációs lózung.
+- TILOS: aktuális óra / „este van”.
+- meals: CSAK filledMeals, status "evaluated". Étkezésenként max 2 positives / 2 negatives — CSAK tények az energia/makró vs edzés igényhez (pl. „fehérje alacsony edzésnaphoz”), DE NE adj ételcserét / menüt / „egyél X-et” javaslatot itt.
+- summary: max 3 positives, max 3 negatives — nap edzői összképe (edzés + bevitel + cél + súly/méret kontextus).
+- suggestions: max 3 tipp CSAK edzés/regeneráció/terhelés/intenzitás/lépés témában. TILOS étkezési javaslat, recept, élelmiszer-ajánlás (arra külön menü van).
+- Használd a pulzust (avg/max HR) ha van; ha nincs edzés, értékeld a lépéseket és a célt.
+- Ne inventálj számot. Nincs orvosi diagnózis.`;
+
+const FITNESS_COACH_PROMPT_EN = `You are VitaScan's professional coach and fitness expert.
+Task: evaluate the WHOLE DAY as a coach in JSON — energy balance, workout quality, recovery, goal fit.
+
+Input: full-day meals (meals/totals/deltas), goals, profile + body (weight, girths), fitness.workouts (duration, kcal, HR if present), steps.
+
+Output rules:
+- ONLY valid JSON matching the schema. No other text.
+- English, short bullets (max ~18 words). FORBIDDEN: novels, hype speeches.
+- FORBIDDEN: current clock / "it's evening".
+- meals: ONLY filledMeals, status "evaluated". Per meal max 2 positives / 2 negatives — factual energy/macro vs training demand only. Do NOT suggest food swaps, menus, or "eat X" here.
+- summary: max 3 positives, max 3 negatives — coach overview (training + intake + goals + weight/measurements context).
+- suggestions: max 3 tips ONLY about training/recovery/load/intensity/steps. FORBIDDEN: meal advice, recipes, food recommendations (separate menu covers that).
+- Use HR (avg/max) when present; if no workouts, judge steps vs goals.
+- Do not invent numbers. No medical diagnoses.`;
+
 const RESPONSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
@@ -94,6 +124,7 @@ const RESPONSE_SCHEMA = {
 
 export type GeminiUserPayload = {
   locale: 'hu' | 'en';
+  analysisKind?: 'nutrition' | 'fitness';
   profile: {
     gender?: string | null;
     birthYear?: number | null;
@@ -101,6 +132,11 @@ export type GeminiUserPayload = {
     weightKg?: number | null;
     activityLevel?: string | null;
     goal?: string | null;
+  };
+  body?: {
+    weightKg: number | null;
+    weightLoggedDate: string | null;
+    measurements: Array<{ bodyPart: string; valueCm: number; loggedDate: string }>;
   };
   goals: {
     dailyKcalGoal: number;
@@ -119,8 +155,13 @@ export type GeminiUserPayload = {
     workoutEnergyKcal: number;
     workouts: Array<{
       activityType: string;
+      title?: string | null;
       durationMin: number;
       activeEnergyKcal: number | null;
+      distanceKm?: number | null;
+      avgHeartrate?: number | null;
+      maxHeartrate?: number | null;
+      minHeartrate?: number | null;
     }>;
   };
   date: string;
@@ -327,7 +368,7 @@ async function callGeminiModel(
 }
 
 /** Returns canonical JSON string to store in DB */
-export async function generateNutritionAnalysis(payload: GeminiUserPayload): Promise<string> {
+export async function generateDailyAnalysis(payload: GeminiUserPayload): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) {
     throw Object.assign(new Error('Gemini API kulcs nincs beállítva.'), { statusCode: 503 });
@@ -337,13 +378,25 @@ export async function generateNutritionAnalysis(payload: GeminiUserPayload): Pro
   const fallback =
     process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-3.5-flash-lite';
 
-  const system = payload.locale === 'en' ? SYSTEM_PROMPT_EN : SYSTEM_PROMPT_HU;
+  const isFitness = payload.analysisKind === 'fitness';
+  const system = isFitness
+    ? payload.locale === 'en'
+      ? FITNESS_COACH_PROMPT_EN
+      : FITNESS_COACH_PROMPT_HU
+    : payload.locale === 'en'
+      ? SYSTEM_PROMPT_EN
+      : SYSTEM_PROMPT_HU;
+
   const userText = [
     payload.locale === 'en' ? 'Daily context (JSON):' : 'Napi kontextus (JSON):',
     JSON.stringify(payload, null, 2),
-    payload.locale === 'en'
-      ? 'Return ONLY short evaluation JSON. Use goals, deltas, meals, and fitness (workouts/steps) when present. No novels. No time narration.'
-      : 'Csak rövid értékelő JSON. Használd a célokat, deltas-t, étkezéseket és a fitness (edzés/lépés) adatot, ha van. Nincs regény. Ne említs időt.',
+    isFitness
+      ? payload.locale === 'en'
+        ? 'Return ONLY coach evaluation JSON. Use meals+goals+body+workouts. No meal recommendations in suggestions.'
+        : 'Csak edzői értékelő JSON. Használd az étkezést+célokat+testadatot+edzéseket. suggestions-ben TILOS étkezési javaslat.'
+      : payload.locale === 'en'
+        ? 'Return ONLY short evaluation JSON. Use goals, deltas, meals, and fitness (workouts/steps) when present. No novels. No time narration.'
+        : 'Csak rövid értékelő JSON. Használd a célokat, deltas-t, étkezéseket és a fitness (edzés/lépés) adatot, ha van. Nincs regény. Ne említs időt.',
   ].join('\n');
 
   const primaryResult = await callGeminiModel(
@@ -370,6 +423,11 @@ export async function generateNutritionAnalysis(payload: GeminiUserPayload): Pro
   }
 
   throw Object.assign(new Error(primaryResult.error), { statusCode: 502 });
+}
+
+/** @deprecated use generateDailyAnalysis */
+export async function generateNutritionAnalysis(payload: GeminiUserPayload): Promise<string> {
+  return generateDailyAnalysis({ ...payload, analysisKind: payload.analysisKind ?? 'nutrition' });
 }
 
 function extractText(body: any, locale: 'hu' | 'en'): string {

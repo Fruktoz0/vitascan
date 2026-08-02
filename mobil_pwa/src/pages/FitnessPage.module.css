@@ -197,6 +197,16 @@
   line-height: 1.4;
 }
 
+.errorText {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #c62828;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .iconBtn {
   width: 36px;
   height: 36px;
@@ -222,13 +232,23 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
   padding: 10px 0;
+  border: none;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .workoutRow:first-child {
   border-top: none;
   padding-top: 2px;
+}
+
+.workoutRow:active {
+  opacity: 0.75;
 }
 
 .workoutMain {
@@ -284,6 +304,19 @@
   font: inherit;
   font-weight: 600;
   background: #fff;
+}
+
+.pasteArea {
+  width: 100%;
+  border-radius: 12px;
+  border: 1.5px solid var(--stroke);
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  background: #fff;
+  resize: vertical;
+  box-sizing: border-box;
 }
 
 .primaryBtn,
@@ -440,4 +473,342 @@
 
 .aiBtn:disabled {
   opacity: 0.45;
+}
+
+.topBarActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.calendarBtn:disabled {
+  opacity: 0.4;
+}
+
+.spinIcon {
+  animation: fitnessSpin 0.9s linear infinite;
+}
+
+@keyframes fitnessSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.detailTopBar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(var(--safe-top) + 12px) 20px 0;
+}
+
+.backBtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  border: 1.5px solid var(--stroke);
+  background: #fff;
+  box-shadow: 2px 2px 0 var(--shadow-hard);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.heroStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.heroStat {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  border: 1.5px solid var(--stroke);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.heroStatValue {
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+}
+
+.heroStatUnit {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.sourceRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.sourceBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1.5px solid var(--stroke);
+  background: #f5f5f5;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.hrLabels {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 12px 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.hrTrack {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: #ffebee;
+  border: 1.5px solid var(--stroke);
+  overflow: visible;
+}
+
+.hrFill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ef9a9a, #c62828);
+}
+
+.hrMarker {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #c62828;
+  box-shadow: 1px 1px 0 var(--shadow-hard);
+}
+
+.hrChartWrap {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  min-height: 120px;
+}
+
+.hrChartSvg {
+  flex: 1;
+  width: 100%;
+  height: 120px;
+  border: 1.5px solid var(--stroke);
+  border-radius: 14px;
+  background: #fff5f5;
+}
+
+.hrChartArea {
+  fill: rgba(198, 40, 40, 0.18);
+}
+
+.hrChartLine {
+  stroke: #c62828;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.hrChartAxis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.45);
+  padding: 4px 0;
+  flex-shrink: 0;
+}
+
+.detailSection {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detailSectionHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.detailSectionIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  border: 1.5px solid var(--stroke);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.hrBigRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.hrBigCell {
+  text-align: center;
+  padding: 12px 8px;
+  border: 1.5px solid var(--stroke);
+  border-radius: 16px;
+  background: #fff8f8;
+  box-shadow: 2px 2px 0 var(--shadow-hard);
+}
+
+.hrBigLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.45);
+  margin-bottom: 4px;
+}
+
+.hrBigValue {
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+
+.hrBigValue span {
+  margin-left: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.4);
+}
+
+.hrChartBlock {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.metricRows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.metricRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 2px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.metricRow:first-child {
+  border-top: none;
+  padding-top: 2px;
+}
+
+.metricRowLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.metricRowValue {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.2px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.metricRowUnit {
+  margin-left: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.4);
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.metricTile {
+  position: relative;
+  overflow: hidden;
+  border: 1.5px solid var(--stroke);
+  border-radius: 16px;
+  padding: 12px;
+  background: #fff;
+  box-shadow: 2px 2px 0 var(--shadow-hard);
+}
+
+.metricTone {
+  position: absolute;
+  inset: 0;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.metricLabel {
+  position: relative;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.5);
+  margin-bottom: 4px;
+}
+
+.metricValue {
+  position: relative;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.4px;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.metricUnit {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.goalDelete {
+  width: 100%;
+  height: 48px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 14px;
+  border: 1.5px solid var(--stroke);
+  background: #ffe8e6;
+  color: #c62828;
+  box-shadow: 2px 2px 0 var(--shadow-hard);
+  margin-top: 4px;
+}
+
+.goalDelete:disabled {
+  opacity: 0.6;
 }

@@ -3,7 +3,7 @@ import * as Storage from './storage';
 /** Same-origin `/api` (Vite proxy) or absolute URL from env. */
 const API_BASE = ((import.meta.env.VITE_API_URL as string | undefined) || '/api').replace(/\/$/, '');
 
-/** Absolute API base for Shortcuts setup display. */
+/** Absolute API base for display / OAuth setup. */
 export function getApiBaseUrl(): string {
   if (API_BASE.startsWith('http')) return API_BASE;
   if (typeof window !== 'undefined') {
@@ -37,9 +37,22 @@ export class ApiError extends Error {
 
 /** Human-readable message for UI (always returns something useful). */
 export function getErrorMessage(err: unknown, fallback = 'Váratlan hiba történt.'): string {
-  if (err instanceof ApiError) return err.message || fallback;
-  if (err instanceof Error && err.message.trim()) return err.message;
-  return fallback;
+  let raw = '';
+  if (err instanceof ApiError) raw = err.message || fallback;
+  else if (err instanceof Error && err.message.trim()) raw = err.message;
+  else raw = fallback;
+  return clampUiMessage(raw, fallback);
+}
+
+/** Keep dialogs readable — API/Prisma dumps must not blow up the UI. */
+export function clampUiMessage(message: string, fallback = 'Váratlan hiba történt.', max = 220): string {
+  const cleaned = String(message ?? '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return fallback;
+  if (cleaned.length <= max) return cleaned;
+  return `${cleaned.slice(0, max - 1).trimEnd()}…`;
 }
 
 function toNetworkApiError(error: unknown): ApiError {
@@ -354,8 +367,9 @@ export type DailyAnalysisResult = {
 };
 
 export const analysisApi = {
-  get: (date: string) => request<DailyAnalysisResult>(`/analysis?date=${date}`),
-  generate: (date: string, locale?: 'hu' | 'en') => {
+  get: (date: string, kind: 'nutrition' | 'fitness' = 'nutrition') =>
+    request<DailyAnalysisResult>(`/analysis?date=${date}&kind=${kind}`),
+  generate: (date: string, locale?: 'hu' | 'en', kind: 'nutrition' | 'fitness' = 'nutrition') => {
     const d = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     const offMin = -d.getTimezoneOffset();
@@ -365,7 +379,7 @@ export const analysisApi = {
     const localTime = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${oh}:${om}`;
     return request<DailyAnalysisResult>('/analysis', {
       method: 'POST',
-      body: JSON.stringify({ date, localTime, ...(locale ? { locale } : {}) }),
+      body: JSON.stringify({ date, localTime, kind, ...(locale ? { locale } : {}) }),
     });
   },
 };
@@ -535,27 +549,87 @@ export const bodyApi = {
     }),
 };
 
+export type FitnessHrPoint = { tMs: number; bpm: number };
+
 export type FitnessWorkout = {
   id: string;
   activityType: string;
+  title: string | null;
   startedAt: string;
   endedAt: string | null;
   durationMin: number;
   activeEnergyKcal: number | null;
   distanceKm: number | null;
-  source: 'SHORTCUTS' | 'MANUAL';
+  steps: number | null;
+  avgHeartrate: number | null;
+  minHeartrate: number | null;
+  maxHeartrate: number | null;
+  restingHeartrate: number | null;
+  pace: number | null;
+  speedAvg: number | null;
+  speedMax: number | null;
+  elevationGain: number | null;
+  elevationMin: number | null;
+  elevationMax: number | null;
+  floorsClimbed: number | null;
+  vo2Max: number | null;
+  respiratoryRate: number | null;
+  mindfulMinutes: number | null;
+  avgStressLevel: number | null;
+  providerType: string | null;
+  hrSeries: FitnessHrPoint[] | null;
+  source: 'SHORTCUTS' | 'MANUAL' | 'FITNESSSYNCER';
   externalId: string | null;
   createdAt: string;
 };
 
+export type FitnessSyncerStatus = {
+  status: 'DISCONNECTED' | 'CONNECTED' | 'ERROR';
+  hasCredentials: boolean;
+  hasClientId: boolean;
+  connected: boolean;
+  connectedAt: string | null;
+  lastSyncAt: string | null;
+  lastError: string | null;
+  callbackUrl: string | null;
+  oauthPending?: boolean;
+  needsSync: boolean;
+  cryptoConfigured: boolean;
+};
+
 export const fitnessApi = {
-  getTokenStatus: () => request<{ hasToken: boolean }>('/fitness/token'),
-  createToken: () =>
-    request<{ token: string; hasToken: boolean }>('/fitness/token', { method: 'POST' }),
-  revokeToken: () =>
-    request<{ hasToken: boolean }>('/fitness/token', { method: 'DELETE' }),
+  getFsStatus: () => request<FitnessSyncerStatus>('/fitness/fitnesssyncer/status'),
+  saveFsCredentials: (clientId: string, clientSecret: string) =>
+    request<FitnessSyncerStatus>('/fitness/fitnesssyncer/credentials', {
+      method: 'PUT',
+      body: JSON.stringify({ clientId, clientSecret }),
+    }),
+  startFsConnect: () =>
+    request<{ authorizeUrl: string; callbackUrl: string; hint?: string }>(
+      '/fitness/fitnesssyncer/connect',
+    ),
+  exchangeFsPaste: (pasted: string) =>
+    request<FitnessSyncerStatus>('/fitness/fitnesssyncer/exchange', {
+      method: 'POST',
+      body: JSON.stringify({ pasted }),
+    }),
+  disconnectFs: () => request<FitnessSyncerStatus>('/fitness/fitnesssyncer', { method: 'DELETE' }),
+  sync: (days?: number) =>
+    request<{
+      ok: boolean;
+      sources: number;
+      workoutsUpserted: number;
+      stepsUpserted: number;
+      days: number;
+      lastSyncAt: string;
+    }>('/fitness/sync', {
+      method: 'POST',
+      body: JSON.stringify(days != null ? { days } : {}),
+    }),
   listWorkouts: (date: string) =>
     request<{ date: string; workouts: FitnessWorkout[] }>(`/fitness/workouts?date=${date}`),
+  getWorkout: (id: string) =>
+    request<{ workout: FitnessWorkout }>(`/fitness/workouts/${id}`),
   createWorkout: (data: {
     activityType: string;
     startedAt: string;
@@ -574,14 +648,14 @@ export const fitnessApi = {
     request<{
       date: string;
       steps: number | null;
-      source: 'SHORTCUTS' | 'MANUAL' | null;
+      source: 'SHORTCUTS' | 'MANUAL' | 'FITNESSSYNCER' | null;
       updatedAt: string | null;
     }>(`/fitness/steps?date=${date}`),
   putSteps: (date: string, steps: number) =>
     request<{
       date: string;
       steps: number;
-      source: 'SHORTCUTS' | 'MANUAL';
+      source: 'SHORTCUTS' | 'MANUAL' | 'FITNESSSYNCER';
       updatedAt: string;
     }>('/fitness/steps', {
       method: 'PUT',

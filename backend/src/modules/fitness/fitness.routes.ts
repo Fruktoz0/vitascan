@@ -1,10 +1,11 @@
 import { FastifyPluginAsync } from 'fastify';
 import { authenticate } from '../../middleware/authenticate';
 import {
-  WorkoutIngestSchema,
   WorkoutCreateSchema,
-  StepsIngestSchema,
   StepsPutSchema,
+  FsCredentialsSchema,
+  SyncSchema,
+  FsExchangeSchema,
 } from './fitness.schema';
 import * as svc from './fitness.service';
 
@@ -12,71 +13,101 @@ function statusFromErr(err: any): number {
   return typeof err?.statusCode === 'number' ? err.statusCode : 500;
 }
 
+function publicErrMessage(err: any, fallback = 'Váratlan hiba.'): string {
+  const raw = typeof err?.message === 'string' ? err.message : fallback;
+  const cleaned = raw.replace(/\s+/g, ' ').trim() || fallback;
+  return cleaned.length > 240 ? `${cleaned.slice(0, 239).trimEnd()}…` : cleaned;
+}
+
 const fitnessRoutes: FastifyPluginAsync = async (fastify) => {
-  // ─── Token (JWT) ───────────────────────────────────────────────────────────
-  fastify.get('/token', { preHandler: authenticate }, async (request, reply) => {
-    const status = await svc.getTokenStatus(fastify.prisma, request.user.userId);
-    return reply.send(status);
+  // ─── FitnessSyncer ─────────────────────────────────────────────────────────
+  fastify.get('/fitnesssyncer/status', { preHandler: authenticate }, async (request, reply) => {
+    return reply.send(await svc.getFsStatus(fastify.prisma, request.user.userId));
   });
 
-  fastify.post('/token', { preHandler: authenticate }, async (request, reply) => {
-    const result = await svc.createIngestToken(fastify.prisma, request.user.userId);
-    return reply.status(201).send(result);
-  });
-
-  fastify.delete('/token', { preHandler: authenticate }, async (request, reply) => {
-    const result = await svc.revokeIngestToken(fastify.prisma, request.user.userId);
-    return reply.send(result);
-  });
-
-  // ─── Workouts ingest (Shortcuts token) ─────────────────────────────────────
-  fastify.post('/workouts/ingest', async (request, reply) => {
-    const userId = await svc.findUserIdByIngestToken(
-      fastify.prisma,
-      request.headers.authorization,
-    );
-    if (!userId) {
-      return reply.status(401).send({ error: 'Érvénytelen fitness token.' });
-    }
-    const parsed = WorkoutIngestSchema.safeParse(request.body);
+  fastify.put('/fitnesssyncer/credentials', { preHandler: authenticate }, async (request, reply) => {
+    const parsed = FsCredentialsSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.errors[0].message });
     }
     try {
-      const workout = await svc.ingestWorkout(fastify.prisma, userId, parsed.data);
-      return reply.status(201).send({ workout });
+      return reply.send(
+        await svc.saveFsCredentials(
+          fastify.prisma,
+          request.user.userId,
+          parsed.data.clientId,
+          parsed.data.clientSecret,
+        ),
+      );
     } catch (err: any) {
-      return reply.status(statusFromErr(err)).send({ error: err.message });
+      return reply.status(statusFromErr(err)).send({ error: publicErrMessage(err) });
     }
   });
 
-  // ─── Steps ingest (Shortcuts token) ────────────────────────────────────────
-  fastify.post('/steps/ingest', async (request, reply) => {
-    const userId = await svc.findUserIdByIngestToken(
-      fastify.prisma,
-      request.headers.authorization,
-    );
-    if (!userId) {
-      return reply.status(401).send({ error: 'Érvénytelen fitness token.' });
+  fastify.get('/fitnesssyncer/connect', { preHandler: authenticate }, async (request, reply) => {
+    try {
+      return reply.send(await svc.startFsConnect(fastify.prisma, request.user.userId));
+    } catch (err: any) {
+      return reply.status(statusFromErr(err)).send({ error: publicErrMessage(err) });
     }
-    const parsed = StepsIngestSchema.safeParse(request.body);
+  });
+
+  /** Personal App: paste redirect URL / code after authorize */
+  fastify.post('/fitnesssyncer/exchange', { preHandler: authenticate }, async (request, reply) => {
+    const parsed = FsExchangeSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.errors[0].message });
     }
-    const result = await svc.upsertSteps(
-      fastify.prisma,
-      userId,
-      parsed.data.date,
-      parsed.data.steps,
-      'SHORTCUTS',
-    );
-    return reply.status(201).send(result);
+    try {
+      return reply.send(
+        await svc.exchangeFsPaste(fastify.prisma, request.user.userId, parsed.data.pasted),
+      );
+    } catch (err: any) {
+      return reply.status(statusFromErr(err)).send({ error: publicErrMessage(err) });
+    }
+  });
+
+  // Legacy callback — Personal apps redirect to personal.fitnesssyncer.com, not here
+  fastify.get('/fitnesssyncer/callback', async (request, reply) => {
+    const q = request.query as { code?: string; state?: string; error?: string };
+    const redirectTo = await svc.handleFsCallback(fastify.prisma, q);
+    return reply.redirect(redirectTo);
+  });
+
+  fastify.delete('/fitnesssyncer', { preHandler: authenticate }, async (request, reply) => {
+    return reply.send(await svc.disconnectFs(fastify.prisma, request.user.userId));
+  });
+
+  fastify.post('/sync', { preHandler: authenticate }, async (request, reply) => {
+    const parsed = SyncSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.errors[0].message });
+    }
+    try {
+      const result = await svc.syncFromFitnessSyncer(
+        fastify.prisma,
+        request.user.userId,
+        parsed.data.days ?? 7,
+      );
+      return reply.send(result);
+    } catch (err: any) {
+      return reply.status(statusFromErr(err)).send({ error: publicErrMessage(err) });
+    }
   });
 
   // ─── Workouts (JWT) ────────────────────────────────────────────────────────
   fastify.get('/workouts', { preHandler: authenticate }, async (request, reply) => {
     const { date } = request.query as { date?: string };
     return reply.send(await svc.listWorkouts(fastify.prisma, request.user.userId, date));
+  });
+
+  fastify.get('/workouts/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      return reply.send(await svc.getWorkout(fastify.prisma, request.user.userId, id));
+    } catch (err: any) {
+      return reply.status(statusFromErr(err)).send({ error: publicErrMessage(err) });
+    }
   });
 
   fastify.post('/workouts', { preHandler: authenticate }, async (request, reply) => {
@@ -88,7 +119,7 @@ const fitnessRoutes: FastifyPluginAsync = async (fastify) => {
       const workout = await svc.createWorkout(fastify.prisma, request.user.userId, parsed.data);
       return reply.status(201).send({ workout });
     } catch (err: any) {
-      return reply.status(statusFromErr(err)).send({ error: err.message });
+      return reply.status(statusFromErr(err)).send({ error: publicErrMessage(err) });
     }
   });
 
@@ -97,7 +128,7 @@ const fitnessRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       return reply.send(await svc.deleteWorkout(fastify.prisma, request.user.userId, id));
     } catch (err: any) {
-      return reply.status(statusFromErr(err)).send({ error: err.message });
+      return reply.status(statusFromErr(err)).send({ error: publicErrMessage(err) });
     }
   });
 

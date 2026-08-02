@@ -4,7 +4,7 @@ import { AnalysisQuerySchema, GenerateAnalysisSchema } from './analysis.schema';
 import { getDailyAnalysis, createOrRefreshDailyAnalysis } from './analysis.service';
 
 const analysisRoutes: FastifyPluginAsync = async (fastify) => {
-  // GET /analysis?date=YYYY-MM-DD
+  // GET /analysis?date=YYYY-MM-DD&kind=nutrition|fitness
   fastify.get('/', { preHandler: authenticate }, async (request, reply) => {
     const parsed = AnalysisQuerySchema.safeParse(request.query);
     if (!parsed.success) {
@@ -14,11 +14,12 @@ const analysisRoutes: FastifyPluginAsync = async (fastify) => {
       fastify.prisma,
       request.user.userId,
       parsed.data.date,
+      parsed.data.kind ?? 'nutrition',
     );
     return reply.send(result);
   });
 
-  // POST /analysis — max 2×/nap, felülír
+  // POST /analysis — max generations / nap, felülír (kind szerint külön)
   fastify.post('/', { preHandler: authenticate }, async (request, reply) => {
     const parsed = GenerateAnalysisSchema.safeParse(request.body ?? {});
     if (!parsed.success) {

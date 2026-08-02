@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../design/tokens';
 import {
@@ -7,21 +7,24 @@ import {
   IconBolt,
   IconBrain,
   IconCalendarToday,
+  IconChevronRight,
   IconContentCopy,
   IconDirectionsWalk,
   IconExpandLess,
   IconExpandMore,
   IconFitnessCenter,
+  IconRefresh,
 } from '../components/ui/Icons';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { AnalysisResultView } from '../components/food/AnalysisResult';
 import {
   analysisApi,
+  clampUiMessage,
   fitnessApi,
-  getApiBaseUrl,
   getErrorMessage,
   logApi,
   type DailyAnalysisResult,
+  type FitnessSyncerStatus,
   type FitnessWorkout,
 } from '../services/api';
 import { parseAnalysisContent } from '../utils/parseAnalysisContent';
@@ -36,15 +39,25 @@ type DialogState =
 export default function FitnessPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { selectedDate } = useDateStore();
   const dateStr = toLocalDateStr(selectedDate);
+  const autoSyncTried = useRef(false);
 
   const [loading, setLoading] = useState(true);
   const [steps, setSteps] = useState<number | null>(null);
   const [workouts, setWorkouts] = useState<FitnessWorkout[]>([]);
-  const [hasToken, setHasToken] = useState(false);
-  const [plainToken, setPlainToken] = useState<string | null>(null);
+  const [fsStatus, setFsStatus] = useState<FitnessSyncerStatus | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
+  const [clientId, setClientId] = useState('');
+  const [clientSecret, setClientSecret] = useState('');
+  const [oauthPaste, setOauthPaste] = useState('');
+  const [oauthPending, setOauthPending] = useState(false);
+  const [exchanging, setExchanging] = useState(false);
+  const [savingCreds, setSavingCreds] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+
   const [addOpen, setAddOpen] = useState(false);
   const [activityType, setActivityType] = useState('Running');
   const [durationMin, setDurationMin] = useState('30');
@@ -56,26 +69,24 @@ export default function FitnessPage() {
   const [hasFoodLogs, setHasFoodLogs] = useState(false);
   const [dialog, setDialog] = useState<DialogState>(null);
 
-  const apiBase = useMemo(() => getApiBaseUrl(), []);
   const locale = i18n.language?.startsWith('en') ? 'en' : 'hu';
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [stepsRes, workoutsRes, tokenRes, analysisRes, logsRes] = await Promise.all([
+      const [stepsRes, workoutsRes, statusRes, analysisRes, logsRes] = await Promise.all([
         fitnessApi.getSteps(dateStr),
         fitnessApi.listWorkouts(dateStr),
-        fitnessApi.getTokenStatus().catch(() => ({ hasToken: false })),
-        analysisApi.get(dateStr).catch(() => null),
+        fitnessApi.getFsStatus().catch(() => null),
+        analysisApi.get(dateStr, 'fitness').catch(() => null),
         logApi.getByDate(dateStr).catch(() => null),
       ]);
       setSteps(stepsRes.steps);
       setWorkouts(workoutsRes.workouts);
-      setHasToken(tokenRes.hasToken);
+      setFsStatus(statusRes);
+      setOauthPending(!!statusRes?.oauthPending);
       setAnalysis(analysisRes);
-      const logCount = Array.isArray((logsRes as any)?.logs)
-        ? (logsRes as any).logs.length
-        : 0;
+      const logCount = Array.isArray((logsRes as any)?.logs) ? (logsRes as any).logs.length : 0;
       setHasFoodLogs(logCount > 0);
     } catch (e) {
       setDialog({
@@ -92,6 +103,53 @@ export default function FitnessPage() {
     load();
   }, [load]);
 
+  // Always start with FitnessSyncer panel collapsed (survives HMR / remount quirks).
+  useEffect(() => {
+    setSetupOpen(false);
+  }, [dateStr]);
+
+  // OAuth return query
+  useEffect(() => {
+    const fs = searchParams.get('fs');
+    if (!fs) return;
+    if (fs === 'connected') {
+      setDialog({
+        mode: 'alert',
+        title: t('fitness.fsConnectedTitle'),
+        message: t('fitness.fsConnected'),
+      });
+      // Keep FitnessSyncer panel collapsed — user can expand if needed.
+    } else if (fs === 'error') {
+      setDialog({
+        mode: 'alert',
+        title: t('food.errorTitle'),
+        message: clampUiMessage(
+          searchParams.get('message') || t('fitness.fsConnectError'),
+          t('fitness.fsConnectError'),
+        ),
+      });
+    }
+    setSearchParams({}, { replace: true });
+    load();
+  }, [searchParams, setSearchParams, t, load]);
+
+  // Auto-sync if connected and stale (>1h)
+  useEffect(() => {
+    if (loading || autoSyncTried.current || !fsStatus?.connected || !fsStatus.needsSync) return;
+    autoSyncTried.current = true;
+    (async () => {
+      setSyncing(true);
+      try {
+        await fitnessApi.sync(7);
+        await load();
+      } catch {
+        // silent — user can tap Sync
+      } finally {
+        setSyncing(false);
+      }
+    })();
+  }, [loading, fsStatus, load]);
+
   const headerDate = useMemo(() => {
     const today = toLocalDateStr();
     if (dateStr === today) return t('date.today');
@@ -104,42 +162,12 @@ export default function FitnessPage() {
 
   const remaining = analysis?.remaining ?? 0;
 
-  const handleGenerateToken = async () => {
-    try {
-      const res = await fitnessApi.createToken();
-      setPlainToken(res.token);
-      setHasToken(true);
-      setSetupOpen(true);
-    } catch (e) {
-      setDialog({
-        mode: 'alert',
-        title: t('food.errorTitle'),
-        message: getErrorMessage(e, t('fitness.tokenError')),
-      });
-    }
-  };
-
-  const handleRevokeToken = () => {
-    setDialog({
-      mode: 'confirm',
-      title: t('fitness.revokeTitle'),
-      message: t('fitness.revokeConfirm'),
-      onConfirm: async () => {
-        setDialog(null);
-        try {
-          await fitnessApi.revokeToken();
-          setHasToken(false);
-          setPlainToken(null);
-        } catch (e) {
-          setDialog({
-            mode: 'alert',
-            title: t('food.errorTitle'),
-            message: getErrorMessage(e, t('fitness.tokenError')),
-          });
-        }
-      },
-    });
-  };
+  const statusLabel = useMemo(() => {
+    if (!fsStatus) return t('fitness.fsUnknown');
+    if (fsStatus.connected) return t('fitness.fsStatusConnected');
+    if (fsStatus.hasCredentials) return t('fitness.fsStatusCredsOnly');
+    return t('fitness.fsStatusDisconnected');
+  }, [fsStatus, t]);
 
   const copyText = async (text: string) => {
     try {
@@ -155,6 +183,135 @@ export default function FitnessPage() {
         title: t('food.errorTitle'),
         message: t('fitness.copyFailed'),
       });
+    }
+  };
+
+  const handleSaveCredentials = async () => {
+    if (!clientId.trim() || !clientSecret.trim()) {
+      setDialog({
+        mode: 'alert',
+        title: t('food.errorTitle'),
+        message: t('fitness.fsCredsRequired'),
+      });
+      return;
+    }
+    setSavingCreds(true);
+    try {
+      const status = await fitnessApi.saveFsCredentials(clientId.trim(), clientSecret.trim());
+      setFsStatus(status);
+      setClientSecret('');
+      setDialog({
+        mode: 'alert',
+        title: t('fitness.fsCredsSavedTitle'),
+        message: t('fitness.fsCredsSaved'),
+      });
+    } catch (e) {
+      setDialog({
+        mode: 'alert',
+        title: t('food.errorTitle'),
+        message: getErrorMessage(e, t('fitness.fsCredsError')),
+      });
+    } finally {
+      setSavingCreds(false);
+    }
+  };
+
+  const handleConnect = async () => {
+    setConnecting(true);
+    try {
+      const { authorizeUrl } = await fitnessApi.startFsConnect();
+      setOauthPending(true);
+      setOauthPaste('');
+      // Open authorize in new tab so user can return to VitaScan and paste the URL
+      window.open(authorizeUrl, '_blank', 'noopener,noreferrer');
+      setDialog({
+        mode: 'alert',
+        title: t('fitness.fsConnectOpenedTitle'),
+        message: t('fitness.fsConnectOpened'),
+      });
+    } catch (e) {
+      setDialog({
+        mode: 'alert',
+        title: t('food.errorTitle'),
+        message: getErrorMessage(e, t('fitness.fsConnectError')),
+      });
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleExchangePaste = async () => {
+    if (!oauthPaste.trim()) {
+      setDialog({
+        mode: 'alert',
+        title: t('food.errorTitle'),
+        message: t('fitness.fsPasteRequired'),
+      });
+      return;
+    }
+    setExchanging(true);
+    try {
+      const status = await fitnessApi.exchangeFsPaste(oauthPaste.trim());
+      setFsStatus(status);
+      setOauthPending(false);
+      setOauthPaste('');
+      setDialog({
+        mode: 'alert',
+        title: t('fitness.fsConnectedTitle'),
+        message: t('fitness.fsConnected'),
+      });
+    } catch (e) {
+      setDialog({
+        mode: 'alert',
+        title: t('food.errorTitle'),
+        message: getErrorMessage(e, t('fitness.fsExchangeError')),
+      });
+    } finally {
+      setExchanging(false);
+    }
+  };
+
+  const handleDisconnect = () => {
+    setDialog({
+      mode: 'confirm',
+      title: t('fitness.fsDisconnectTitle'),
+      message: t('fitness.fsDisconnectConfirm'),
+      onConfirm: async () => {
+        setDialog(null);
+        try {
+          setFsStatus(await fitnessApi.disconnectFs());
+        } catch (e) {
+          setDialog({
+            mode: 'alert',
+            title: t('food.errorTitle'),
+            message: getErrorMessage(e, t('fitness.fsDisconnectError')),
+          });
+        }
+      },
+    });
+  };
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const res = await fitnessApi.sync(7);
+      await load();
+      setDialog({
+        mode: 'alert',
+        title: t('fitness.fsSyncDoneTitle'),
+        message: t('fitness.fsSyncDone', {
+          workouts: res.workoutsUpserted,
+          steps: res.stepsUpserted,
+        }),
+      });
+    } catch (e) {
+      setDialog({
+        mode: 'alert',
+        title: t('food.errorTitle'),
+        message: getErrorMessage(e, t('fitness.fsSyncError')),
+      });
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -193,27 +350,6 @@ export default function FitnessPage() {
     }
   };
 
-  const handleDeleteWorkout = (id: string) => {
-    setDialog({
-      mode: 'confirm',
-      title: t('fitness.deleteWorkoutTitle'),
-      message: t('fitness.deleteWorkoutConfirm'),
-      onConfirm: async () => {
-        setDialog(null);
-        try {
-          await fitnessApi.deleteWorkout(id);
-          await load();
-        } catch (e) {
-          setDialog({
-            mode: 'alert',
-            title: t('food.errorTitle'),
-            message: getErrorMessage(e, t('fitness.deleteWorkoutError')),
-          });
-        }
-      },
-    });
-  };
-
   const handleGenerateAnalysis = async () => {
     if (!hasFoodLogs) {
       setDialog({
@@ -249,7 +385,7 @@ export default function FitnessPage() {
   const runAnalysis = async () => {
     setAnalysisLoading(true);
     try {
-      setAnalysis(await analysisApi.generate(dateStr, locale));
+      setAnalysis(await analysisApi.generate(dateStr, locale, 'fitness'));
     } catch (e) {
       setDialog({
         mode: 'alert',
@@ -272,6 +408,7 @@ export default function FitnessPage() {
   }
 
   const parsed = parseAnalysisContent(analysis?.content);
+  const callbackUrl = fsStatus?.callbackUrl;
 
   return (
     <div className={`${styles.screen} page-scroll`}>
@@ -281,12 +418,30 @@ export default function FitnessPage() {
 
       <header className={styles.topBar}>
         <h1 className={styles.pageTitle}>{t('fitness.title')}</h1>
-        <button type="button" className={styles.calendarBtn} onClick={() => navigate('/date-picker')}>
-          <span className={styles.calendarShadow} />
-          <span className={styles.calendarInner}>
-            <IconCalendarToday size={20} color={Colors.dashboard.stroke} />
-          </span>
-        </button>
+        <div className={styles.topBarActions}>
+          <button
+            type="button"
+            className={styles.calendarBtn}
+            disabled={!fsStatus?.connected || syncing}
+            aria-label={t('fitness.fsSync')}
+            onClick={handleSync}
+          >
+            <span className={styles.calendarShadow} />
+            <span className={styles.calendarInner}>
+              <IconRefresh
+                size={20}
+                color={Colors.dashboard.stroke}
+                className={syncing ? styles.spinIcon : undefined}
+              />
+            </span>
+          </button>
+          <button type="button" className={styles.calendarBtn} onClick={() => navigate('/date-picker')}>
+            <span className={styles.calendarShadow} />
+            <span className={styles.calendarInner}>
+              <IconCalendarToday size={20} color={Colors.dashboard.stroke} />
+            </span>
+          </button>
+        </div>
       </header>
       <p className={styles.dateSub}>{headerDate}</p>
 
@@ -377,23 +532,26 @@ export default function FitnessPage() {
             ) : (
               <ul className={styles.workoutList}>
                 {workouts.map((w) => (
-                  <li key={w.id} className={styles.workoutRow}>
-                    <div className={styles.workoutMain}>
-                      <div className={styles.workoutName}>{w.activityType}</div>
-                      <div className={styles.workoutMeta}>
-                        {Math.round(w.durationMin)} min
-                        {w.activeEnergyKcal != null
-                          ? ` · ${Math.round(w.activeEnergyKcal)} kcal`
-                          : ''}
-                        {w.distanceKm != null ? ` · ${w.distanceKm.toFixed(1)} km` : ''}
-                      </div>
-                    </div>
+                  <li key={w.id}>
                     <button
                       type="button"
-                      className={styles.deleteBtn}
-                      onClick={() => handleDeleteWorkout(w.id)}
+                      className={styles.workoutRow}
+                      onClick={() => navigate(`/fitness/workout/${w.id}`)}
                     >
-                      {t('common.delete')}
+                      <div className={styles.workoutMain}>
+                        <div className={styles.workoutName}>
+                          {w.title?.trim() || w.activityType}
+                        </div>
+                        <div className={styles.workoutMeta}>
+                          {Math.round(w.durationMin)} min
+                          {w.activeEnergyKcal != null
+                            ? ` · ${Math.round(w.activeEnergyKcal)} kcal`
+                            : ''}
+                          {w.distanceKm != null ? ` · ${w.distanceKm.toFixed(1)} km` : ''}
+                          {w.avgHeartrate != null ? ` · ${w.avgHeartrate} bpm` : ''}
+                        </div>
+                      </div>
+                      <IconChevronRight size={20} color="rgba(0,0,0,0.35)" />
                     </button>
                   </li>
                 ))}
@@ -402,7 +560,7 @@ export default function FitnessPage() {
           </div>
         </div>
 
-        {/* Shortcuts */}
+        {/* FitnessSyncer */}
         <div className={styles.cardWrap}>
           <span className={styles.cardShadow} />
           <div className={styles.cardInner}>
@@ -412,10 +570,8 @@ export default function FitnessPage() {
               onClick={() => setSetupOpen((v) => !v)}
             >
               <div>
-                <div className={styles.sectionTitle}>{t('fitness.shortcutsTitle')}</div>
-                <div className={styles.sectionSub}>
-                  {hasToken ? t('fitness.tokenActive') : t('fitness.tokenMissing')}
-                </div>
+                <div className={styles.sectionTitle}>{t('fitness.fsTitle')}</div>
+                <div className={styles.sectionSub}>{statusLabel}</div>
               </div>
               {setupOpen ? (
                 <IconExpandLess size={22} color={Colors.dashboard.stroke} />
@@ -426,45 +582,119 @@ export default function FitnessPage() {
 
             {setupOpen && (
               <div className={styles.setupBody}>
-                <p className={styles.monoLabel}>{t('fitness.apiBase')}</p>
-                <div className={styles.copyRow}>
-                  <code className={styles.mono}>{apiBase}</code>
-                  <button type="button" className={styles.iconBtn} onClick={() => copyText(apiBase)}>
-                    <IconContentCopy size={18} color={Colors.dashboard.stroke} />
+                {fsStatus?.lastSyncAt && (
+                  <p className={styles.emptyText}>
+                    {t('fitness.fsLastSync', {
+                      time: new Date(fsStatus.lastSyncAt).toLocaleString(
+                        locale === 'hu' ? 'hu-HU' : 'en-US',
+                      ),
+                    })}
+                  </p>
+                )}
+                {fsStatus?.lastError && (
+                  <p className={styles.errorText}>
+                    {clampUiMessage(fsStatus.lastError, t('fitness.fsSyncError'), 160)}
+                  </p>
+                )}
+
+                <label className={styles.field}>
+                  <span>{t('fitness.fsClientId')}</span>
+                  <input
+                    value={clientId}
+                    onChange={(e) => setClientId(e.target.value)}
+                    autoComplete="off"
+                    placeholder={fsStatus?.hasClientId ? '••••••••' : ''}
+                  />
+                </label>
+                <label className={styles.field}>
+                  <span>{t('fitness.fsClientSecret')}</span>
+                  <input
+                    type="password"
+                    value={clientSecret}
+                    onChange={(e) => setClientSecret(e.target.value)}
+                    autoComplete="off"
+                    placeholder={fsStatus?.hasCredentials ? '••••••••' : ''}
+                  />
+                </label>
+
+                <div className={styles.tokenActions}>
+                  <button
+                    type="button"
+                    className={styles.primaryBtn}
+                    disabled={savingCreds}
+                    onClick={handleSaveCredentials}
+                  >
+                    {savingCreds ? t('common.loading') : t('fitness.fsSaveCreds')}
                   </button>
+                  <button
+                    type="button"
+                    className={styles.primaryBtn}
+                    disabled={connecting || !fsStatus?.hasCredentials}
+                    onClick={handleConnect}
+                  >
+                    {connecting ? t('common.loading') : t('fitness.fsConnect')}
+                  </button>
+
+                  {(oauthPending || !!oauthPaste) && !fsStatus?.connected && (
+                    <>
+                      <p className={styles.emptyText}>{t('fitness.fsPasteHint')}</p>
+                      <label className={styles.field}>
+                        <span>{t('fitness.fsPasteLabel')}</span>
+                        <textarea
+                          className={styles.pasteArea}
+                          value={oauthPaste}
+                          onChange={(e) => setOauthPaste(e.target.value)}
+                          rows={3}
+                          placeholder="https://personal.fitnesssyncer.com/?code=..."
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className={styles.primaryBtn}
+                        disabled={exchanging || !oauthPaste.trim()}
+                        onClick={handleExchangePaste}
+                      >
+                        {exchanging ? t('common.loading') : t('fitness.fsPasteSubmit')}
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    type="button"
+                    className={styles.primaryBtn}
+                    disabled={syncing || !fsStatus?.connected}
+                    onClick={handleSync}
+                  >
+                    {syncing ? t('fitness.fsSyncing') : t('fitness.fsSync')}
+                  </button>
+                  {fsStatus?.connected && (
+                    <button type="button" className={styles.secondaryBtn} onClick={handleDisconnect}>
+                      {t('fitness.fsDisconnect')}
+                    </button>
+                  )}
                 </div>
 
-                {plainToken ? (
+                {callbackUrl && (
                   <>
-                    <p className={styles.monoLabel}>{t('fitness.tokenOnce')}</p>
+                    <p className={styles.monoLabel}>{t('fitness.fsCallback')}</p>
                     <div className={styles.copyRow}>
-                      <code className={styles.mono}>{plainToken}</code>
+                      <code className={styles.mono}>{callbackUrl}</code>
                       <button
                         type="button"
                         className={styles.iconBtn}
-                        onClick={() => copyText(plainToken)}
+                        onClick={() => copyText(callbackUrl)}
                       >
                         <IconContentCopy size={18} color={Colors.dashboard.stroke} />
                       </button>
                     </div>
                   </>
-                ) : null}
-
-                <div className={styles.tokenActions}>
-                  <button type="button" className={styles.primaryBtn} onClick={handleGenerateToken}>
-                    {hasToken ? t('fitness.regenerateToken') : t('fitness.generateToken')}
-                  </button>
-                  {hasToken && (
-                    <button type="button" className={styles.secondaryBtn} onClick={handleRevokeToken}>
-                      {t('fitness.revokeToken')}
-                    </button>
-                  )}
-                </div>
+                )}
 
                 <ol className={styles.checklist}>
-                  <li>{t('fitness.setupWorkout')}</li>
-                  <li>{t('fitness.setupSteps')}</li>
-                  <li>{t('fitness.setupAuth')}</li>
+                  <li>{t('fitness.fsSetup1')}</li>
+                  <li>{t('fitness.fsSetup2')}</li>
+                  <li>{t('fitness.fsSetup3')}</li>
+                  <li>{t('fitness.fsSetup4')}</li>
                 </ol>
               </div>
             )}
