@@ -17,10 +17,12 @@ import {
   IconLeaf,
   IconPeopleOutline,
   IconPhotoCamera,
+  IconPhotoLibrary,
   IconPieChartOutline,
   IconQrCodeScanner,
   IconRemove,
   IconRestaurantOutline,
+  IconScaleOutline,
   IconScience,
   IconSearch,
   IconThumbDown,
@@ -1414,7 +1416,15 @@ function FoodDataFormModal({
   const [aiPreviewUrl, setAiPreviewUrl] = useState<string | null>(null);
   const [aiImageFile, setAiImageFile] = useState<File | null>(null);
   const [approxNote, setApproxNote] = useState<string | null>(null);
+  const [unitMacrosOpen, setUnitMacrosOpen] = useState(false);
+  const [unitKcal, setUnitKcal] = useState('');
+  const [unitProtein, setUnitProtein] = useState('');
+  const [unitCarbs, setUnitCarbs] = useState('');
+  const [unitFat, setUnitFat] = useState('');
+  const [unitFiber, setUnitFiber] = useState('');
+  const [unitSugar, setUnitSugar] = useState('');
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const resetAiCapture = () => {
     if (aiPreviewUrl) URL.revokeObjectURL(aiPreviewUrl);
@@ -1465,6 +1475,7 @@ function FoodDataFormModal({
     setDialog(null);
     setApproxNote(null);
     setAiView(false);
+    setUnitMacrosOpen(false);
     resetAiCapture();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, mode, initialFood, initialBarcode]);
@@ -1484,6 +1495,14 @@ function FoodDataFormModal({
     return Number.isFinite(n) ? n : NaN;
   };
 
+  const unitLabel = (u: ServingUnitCode) => {
+    if (u === 'g') return t('food.unitG');
+    if (u === 'db') return t('food.unitDb');
+    if (u === 'adag') return t('food.unitAdag');
+    if (u === 'ek') return t('food.unitEk');
+    return t('food.unitSzelet');
+  };
+
   const canEstimateServing =
     name.trim().length > 0 &&
     [kcal, protein, carbs, fat].every((v) => {
@@ -1492,6 +1511,58 @@ function FoodDataFormModal({
     });
 
   const fmtNum = (n: number) => String(Math.round(n * 10) / 10);
+
+  const scaleOptional = (raw: string, factor: number) => {
+    if (!raw.trim()) return '';
+    const n = num(raw);
+    if (!Number.isFinite(n)) return '';
+    return fmtNum(n * factor);
+  };
+
+  const openUnitMacros = () => {
+    const grams = num(servingGrams);
+    if (!Number.isFinite(grams) || grams <= 0) {
+      showDialog(t('food.missingDataTitle'), t('food.unitMacrosNeedGrams'));
+      return;
+    }
+    const factor = grams / 100;
+    setUnitKcal(scaleOptional(kcal, factor) || '0');
+    setUnitProtein(scaleOptional(protein, factor) || '0');
+    setUnitCarbs(scaleOptional(carbs, factor) || '0');
+    setUnitFat(scaleOptional(fat, factor) || '0');
+    setUnitFiber(scaleOptional(fiber, factor));
+    setUnitSugar(scaleOptional(sugar, factor));
+    setUnitMacrosOpen(true);
+  };
+
+  const applyUnitMacros = () => {
+    const grams = num(servingGrams);
+    if (!Number.isFinite(grams) || grams <= 0) {
+      showDialog(t('food.missingDataTitle'), t('food.unitMacrosNeedGrams'));
+      return;
+    }
+    const uk = num(unitKcal);
+    const up = num(unitProtein);
+    const uc = num(unitCarbs);
+    const uf = num(unitFat);
+    if (![uk, up, uc, uf].every((n) => Number.isFinite(n) && n >= 0)) {
+      showDialog(
+        t('food.missingDataTitle'),
+        t('food.fillFields', {
+          fields: [t('food.energy'), t('food.protein'), t('food.carbs'), t('food.fat')].join(', '),
+        }),
+      );
+      return;
+    }
+    const factor = 100 / grams;
+    setKcal(fmtNum(uk * factor));
+    setProtein(fmtNum(up * factor));
+    setCarbs(fmtNum(uc * factor));
+    setFat(fmtNum(uf * factor));
+    setFiber(scaleOptional(unitFiber, factor));
+    setSugar(scaleOptional(unitSugar, factor));
+    setUnitMacrosOpen(false);
+  };
 
   const onPickAiPhoto = (file: File | null) => {
     if (!file) return;
@@ -1573,7 +1644,10 @@ function FoodDataFormModal({
       return;
     }
     if (!Number.isFinite(servingN) || servingN <= 0) {
-      showDialog(t('food.missingDataTitle'), t('food.servingGramsPerUnit'));
+      showDialog(
+        t('food.missingDataTitle'),
+        t('food.servingGramsPerUnit', { unit: unitLabel(servingUnit) }),
+      );
       return;
     }
 
@@ -1672,6 +1746,16 @@ function FoodDataFormModal({
                     e.target.value = '';
                   }}
                 />
+                <input
+                  ref={galleryInputRef}
+                  type="file"
+                  accept="image/*"
+                  className={styles.hiddenFile}
+                  onChange={(e) => {
+                    onPickAiPhoto(e.target.files?.[0] ?? null);
+                    e.target.value = '';
+                  }}
+                />
                 {aiPreviewUrl ? (
                   <img src={aiPreviewUrl} alt="" className={styles.aiFillPreview} />
                 ) : null}
@@ -1684,6 +1768,15 @@ function FoodDataFormModal({
                   >
                     <IconPhotoCamera size={22} color={Colors.dashboard.stroke} />
                     {aiPreviewUrl ? t('food.aiFill.retake') : t('food.aiFill.takePhoto')}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.aiFillSecondary}
+                    disabled={aiBusy}
+                    onClick={() => galleryInputRef.current?.click()}
+                  >
+                    <IconPhotoLibrary size={22} color={Colors.dashboard.stroke} />
+                    {t('food.aiFill.pickGallery')}
                   </button>
                   <button
                     type="button"
@@ -1730,6 +1823,18 @@ function FoodDataFormModal({
               </GlassCardSimple>
 
               <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
+                <div className={styles.sectionHeaderSmall}>
+                  <IconScaleOutline size={24} color={Colors.dashboard.stroke} />
+                  <span className={styles.sectionTitle}>{t('food.servingUnit')}</span>
+                  <button
+                    type="button"
+                    className={styles.unitMacrosBtn}
+                    aria-label={t('food.unitMacrosAria')}
+                    onClick={openUnitMacros}
+                  >
+                    <IconPieChartOutline size={20} color={Colors.dashboard.stroke} />
+                  </button>
+                </div>
                 <label className={styles.formLabel}>{t('food.servingUnit')}</label>
                 <select
                   className={styles.formInput}
@@ -1742,7 +1847,9 @@ function FoodDataFormModal({
                   <option value="ek">{t('food.unitEk')}</option>
                   <option value="szelet">{t('food.unitSzelet')}</option>
                 </select>
-                <label className={styles.formLabel}>{t('food.servingGramsPerUnit')}</label>
+                <label className={styles.formLabel}>
+                  {t('food.servingGramsPerUnit', { unit: unitLabel(servingUnit) })}
+                </label>
                 <div className={styles.servingGramsRow}>
                   <input
                     className={styles.formInput}
@@ -1905,6 +2012,99 @@ function FoodDataFormModal({
           </footer>
         ) : null}
       </div>
+      {unitMacrosOpen ? (
+        <div
+          className={styles.unitMacrosOverlay}
+          role="presentation"
+          onClick={() => setUnitMacrosOpen(false)}
+        >
+          <div
+            className={styles.unitMacrosCard}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="unit-macros-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="unit-macros-title" className={styles.unitMacrosTitle}>
+              {t('food.unitMacrosTitle', { unit: unitLabel(servingUnit) })}
+            </h2>
+            <div className={styles.unitMacrosGrid}>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>{t('food.energy')} (kcal)</label>
+                <input
+                  className={styles.formInput}
+                  value={unitKcal}
+                  onChange={(e) => setUnitKcal(e.target.value.replace(/[^\d.,]/g, ''))}
+                  inputMode="decimal"
+                  placeholder="0"
+                />
+              </div>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>{t('food.protein')}</label>
+                <input
+                  className={styles.formInput}
+                  value={unitProtein}
+                  onChange={(e) => setUnitProtein(e.target.value.replace(/[^\d.,]/g, ''))}
+                  inputMode="decimal"
+                  placeholder="0"
+                />
+              </div>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>{t('food.carbs')}</label>
+                <input
+                  className={styles.formInput}
+                  value={unitCarbs}
+                  onChange={(e) => setUnitCarbs(e.target.value.replace(/[^\d.,]/g, ''))}
+                  inputMode="decimal"
+                  placeholder="0"
+                />
+              </div>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>{t('food.fat')}</label>
+                <input
+                  className={styles.formInput}
+                  value={unitFat}
+                  onChange={(e) => setUnitFat(e.target.value.replace(/[^\d.,]/g, ''))}
+                  inputMode="decimal"
+                  placeholder="0"
+                />
+              </div>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>{t('food.fiber')}</label>
+                <input
+                  className={styles.formInput}
+                  value={unitFiber}
+                  onChange={(e) => setUnitFiber(e.target.value.replace(/[^\d.,]/g, ''))}
+                  inputMode="decimal"
+                  placeholder="0"
+                />
+              </div>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>{t('food.sugar')}</label>
+                <input
+                  className={styles.formInput}
+                  value={unitSugar}
+                  onChange={(e) => setUnitSugar(e.target.value.replace(/[^\d.,]/g, ''))}
+                  inputMode="decimal"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+            <div className={styles.unitMacrosActions}>
+              <button
+                type="button"
+                className={styles.unitMacrosSecondary}
+                onClick={() => setUnitMacrosOpen(false)}
+              >
+                {t('common.cancel', 'Mégse')}
+              </button>
+              <button type="button" className={styles.unitMacrosPrimary} onClick={applyUnitMacros}>
+                {t('common.save', 'Mentés')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <ConfirmDialog
         visible={!!dialog}
         title={dialog?.title ?? ''}

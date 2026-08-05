@@ -173,6 +173,39 @@
   box-shadow: none;
 }
 
+.mealGoalBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+  max-width: 46%;
+}
+
+.mealGoalTrack {
+  width: 100%;
+  min-width: 72px;
+  height: 6px;
+  border-radius: 999px;
+  background: #f0eded;
+  border: 1px solid rgba(28, 27, 27, 0.12);
+  overflow: hidden;
+}
+
+.mealGoalFill {
+  height: 100%;
+  background: #ffb77d;
+  border-radius: 999px;
+  transition: width 0.35s ease;
+}
+
+.mealHighlight {
+  border-radius: 20px;
+  outline: 2px solid var(--stroke);
+  outline-offset: 2px;
+  transition: outline-color 0.3s ease;
+}
+
 .mealItem {
   display: flex;
   justify-content: space-between;

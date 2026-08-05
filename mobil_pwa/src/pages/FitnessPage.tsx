@@ -723,7 +723,7 @@ export default function FitnessPage() {
               </p>
             ) : parsed.kind === 'structured' ? (
               <div className={styles.analysisBox}>
-                <AnalysisResultView data={parsed.data} />
+                <AnalysisResultView data={parsed.data} hideMeals />
               </div>
             ) : (
               <p className={styles.analysisPlain}>{parsed.text}</p>

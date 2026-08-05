@@ -60,30 +60,30 @@ Output rules:
 const FITNESS_COACH_PROMPT_HU = `Te a VitaScan profi edzője és fitness szakértője vagy.
 Feladat: a NAP egésze edzői értékelése JSON-ben — energiaegyensúly, edzésminőség, regeneráció, célilleszkedés.
 
-Bemenet: teljes napi étkezés (meals/totals/deltas), célok, profile + body (súly, körfogatok), fitness.workouts (időtartam, kcal, pulzus ha van), steps.
+Bemenet: teljes napi étkezés (meals/totals/deltas) CSAK kontextusként, célok, profile + body (súly, körfogatok), fitness.workouts (időtartam, kcal, pulzus ha van), steps.
 
 Kimeneti szabályok:
 - CSAK érvényes JSON a sémával. Semmi más szöveg.
 - Magyar, rövid bullet-mondatok (max ~18 szó). TILOS regény, motivációs lózung.
 - TILOS: aktuális óra / „este van”.
-- meals: CSAK filledMeals, status "evaluated". Étkezésenként max 2 positives / 2 negatives — CSAK tények az energia/makró vs edzés igényhez (pl. „fehérje alacsony edzésnaphoz”), DE NE adj ételcserét / menüt / „egyél X-et” javaslatot itt.
-- summary: max 3 positives, max 3 negatives — nap edzői összképe (edzés + bevitel + cél + súly/méret kontextus).
-- suggestions: max 3 tipp CSAK edzés/regeneráció/terhelés/intenzitás/lépés témában. TILOS étkezési javaslat, recept, élelmiszer-ajánlás (arra külön menü van).
+- meals: MINDIG üres tömb ([]). TILOS étkezésenkénti értékelés, positives/negatives étkezésenként. Az étkezéseket csak átnézed, és az összképbe (summary) építed.
+- summary: max 4 positives, max 4 negatives — nap edzői összképe (edzés + napi bevitel összesen + cél + súly/méret kontextus). Ne bontsd étkezésekre.
+- suggestions: max 3 tipp CSAK edzés/regeneráció/terhelés/intenzitás/lépés témában. TILOS étkezési javaslat, recept, élelmiszer-ajánlás, „egyél X-et” (arra külön menü van).
 - Használd a pulzust (avg/max HR) ha van; ha nincs edzés, értékeld a lépéseket és a célt.
 - Ne inventálj számot. Nincs orvosi diagnózis.`;
 
 const FITNESS_COACH_PROMPT_EN = `You are VitaScan's professional coach and fitness expert.
 Task: evaluate the WHOLE DAY as a coach in JSON — energy balance, workout quality, recovery, goal fit.
 
-Input: full-day meals (meals/totals/deltas), goals, profile + body (weight, girths), fitness.workouts (duration, kcal, HR if present), steps.
+Input: full-day meals (meals/totals/deltas) as CONTEXT ONLY, goals, profile + body (weight, girths), fitness.workouts (duration, kcal, HR if present), steps.
 
 Output rules:
 - ONLY valid JSON matching the schema. No other text.
 - English, short bullets (max ~18 words). FORBIDDEN: novels, hype speeches.
 - FORBIDDEN: current clock / "it's evening".
-- meals: ONLY filledMeals, status "evaluated". Per meal max 2 positives / 2 negatives — factual energy/macro vs training demand only. Do NOT suggest food swaps, menus, or "eat X" here.
-- summary: max 3 positives, max 3 negatives — coach overview (training + intake + goals + weight/measurements context).
-- suggestions: max 3 tips ONLY about training/recovery/load/intensity/steps. FORBIDDEN: meal advice, recipes, food recommendations (separate menu covers that).
+- meals: ALWAYS an empty array ([]). FORBIDDEN: per-meal evaluation or per-meal positives/negatives. Review meals only to inform the overall picture in summary.
+- summary: max 4 positives, max 4 negatives — coach overview (training + day intake totals + goals + weight/measurements). Do not break down by meal.
+- suggestions: max 3 tips ONLY about training/recovery/load/intensity/steps. FORBIDDEN: meal advice, recipes, food recommendations, "eat X" (separate menu covers that).
 - Use HR (avg/max) when present; if no workouts, judge steps vs goals.
 - Do not invent numbers. No medical diagnoses.`;
 
@@ -107,6 +107,36 @@ const RESPONSE_SCHEMA = {
           negatives: { type: 'ARRAY', items: { type: 'STRING' } },
         },
         required: ['mealType', 'status', 'positives', 'negatives'],
+      },
+    },
+    summary: {
+      type: 'OBJECT',
+      properties: {
+        positives: { type: 'ARRAY', items: { type: 'STRING' } },
+        negatives: { type: 'ARRAY', items: { type: 'STRING' } },
+      },
+      required: ['positives', 'negatives'],
+    },
+    suggestions: { type: 'ARRAY', items: { type: 'STRING' } },
+  },
+  required: ['meals', 'summary', 'suggestions'],
+};
+
+/** Fitness coach: overview only — meals must be empty. */
+const FITNESS_RESPONSE_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    meals: {
+      type: 'ARRAY',
+      description: 'Must always be an empty array. No per-meal evaluation.',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          mealType: { type: 'STRING', enum: [...MEAL_ORDER] },
+          status: { type: 'STRING', enum: ['evaluated'] },
+          positives: { type: 'ARRAY', items: { type: 'STRING' } },
+          negatives: { type: 'ARRAY', items: { type: 'STRING' } },
+        },
       },
     },
     summary: {
@@ -198,7 +228,11 @@ export { MEAL_ORDER };
 
 type GenConfig = Record<string, unknown>;
 
-function buildGenerationConfig(model: string, withJsonSchema: boolean): GenConfig {
+function buildGenerationConfig(
+  model: string,
+  withJsonSchema: boolean,
+  kind: 'nutrition' | 'fitness' = 'nutrition',
+): GenConfig {
   const isGemini3 = /gemini-3/i.test(model);
   const base: GenConfig = {
     temperature: 0.35,
@@ -206,7 +240,7 @@ function buildGenerationConfig(model: string, withJsonSchema: boolean): GenConfi
     responseMimeType: 'application/json',
   };
   if (withJsonSchema) {
-    base.responseSchema = RESPONSE_SCHEMA;
+    base.responseSchema = kind === 'fitness' ? FITNESS_RESPONSE_SCHEMA : RESPONSE_SCHEMA;
   }
   if (isGemini3) {
     return { ...base, thinkingConfig: { thinkingLevel: 'low' } };
@@ -237,11 +271,29 @@ function isRetryableConfigError(message: string): boolean {
 export function normalizeStructuredAnalysis(
   raw: unknown,
   filledMeals?: string[],
+  opts?: { overviewOnly?: boolean },
 ): StructuredDailyAnalysis {
   if (!raw || typeof raw !== 'object') {
     throw new Error('Invalid analysis JSON');
   }
   const obj = raw as Record<string, unknown>;
+  const overviewOnly = opts?.overviewOnly === true;
+
+  // Fitness coach: never keep per-meal evaluations
+  if (overviewOnly) {
+    const summaryRaw = (obj.summary && typeof obj.summary === 'object'
+      ? (obj.summary as Record<string, unknown>)
+      : {}) as Record<string, unknown>;
+    return {
+      meals: [],
+      summary: {
+        positives: asStringArray(summaryRaw.positives, 4),
+        negatives: asStringArray(summaryRaw.negatives, 4),
+      },
+      suggestions: asStringArray(obj.suggestions, 3),
+    };
+  }
+
   const mealList = Array.isArray(obj.meals) ? obj.meals : [];
   const filledSet = filledMeals?.length
     ? new Set(filledMeals)
@@ -301,13 +353,14 @@ export function normalizeStructuredAnalysis(
 export function parseStructuredAnalysisJson(
   text: string,
   filledMeals?: string[],
+  opts?: { overviewOnly?: boolean },
 ): StructuredDailyAnalysis {
   let cleaned = text.trim();
   if (cleaned.startsWith('```')) {
     cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
   }
   const parsed = JSON.parse(cleaned);
-  return normalizeStructuredAnalysis(parsed, filledMeals);
+  return normalizeStructuredAnalysis(parsed, filledMeals, opts);
 }
 
 async function callGeminiModel(
@@ -317,12 +370,14 @@ async function callGeminiModel(
   userText: string,
   locale: 'hu' | 'en',
   filledMeals: string[],
+  kind: 'nutrition' | 'fitness' = 'nutrition',
 ): Promise<{ ok: true; content: string } | { ok: false; rateLimited: boolean; error: string }> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const overviewOnly = kind === 'fitness';
 
   const attempts: GenConfig[] = [
-    buildGenerationConfig(model, true),
-    buildGenerationConfig(model, false),
+    buildGenerationConfig(model, true, kind),
+    buildGenerationConfig(model, false, kind),
     { temperature: 0.35, maxOutputTokens: 8192, responseMimeType: 'application/json' },
     { temperature: 0.35, maxOutputTokens: 4096 },
   ];
@@ -356,7 +411,11 @@ async function callGeminiModel(
 
     try {
       const text = extractText(body, locale);
-      const structured = parseStructuredAnalysisJson(text, filledMeals);
+      const structured = parseStructuredAnalysisJson(
+        text,
+        overviewOnly ? [] : filledMeals,
+        { overviewOnly },
+      );
       return { ok: true, content: JSON.stringify(structured) };
     } catch (err: any) {
       lastError = err?.message || lastError;
@@ -379,6 +438,7 @@ export async function generateDailyAnalysis(payload: GeminiUserPayload): Promise
     process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-3.5-flash-lite';
 
   const isFitness = payload.analysisKind === 'fitness';
+  const kind = isFitness ? 'fitness' : 'nutrition';
   const system = isFitness
     ? payload.locale === 'en'
       ? FITNESS_COACH_PROMPT_EN
@@ -392,8 +452,8 @@ export async function generateDailyAnalysis(payload: GeminiUserPayload): Promise
     JSON.stringify(payload, null, 2),
     isFitness
       ? payload.locale === 'en'
-        ? 'Return ONLY coach evaluation JSON. Use meals+goals+body+workouts. No meal recommendations in suggestions.'
-        : 'Csak edzői értékelő JSON. Használd az étkezést+célokat+testadatot+edzéseket. suggestions-ben TILOS étkezési javaslat.'
+        ? 'Return ONLY coach overview JSON. meals MUST be []. Put all evaluation in summary + training suggestions. No per-meal opinions. No meal recommendations.'
+        : 'Csak edzői összkép JSON. meals MINDIG []. Minden értékelés a summary-ban + edzésjavaslatok. TILOS étkezésenkénti vélemény. TILOS étkezési javaslat.'
       : payload.locale === 'en'
         ? 'Return ONLY short evaluation JSON. Use goals, deltas, meals, and fitness (workouts/steps) when present. No novels. No time narration.'
         : 'Csak rövid értékelő JSON. Használd a célokat, deltas-t, étkezéseket és a fitness (edzés/lépés) adatot, ha van. Nincs regény. Ne említs időt.',
@@ -406,6 +466,7 @@ export async function generateDailyAnalysis(payload: GeminiUserPayload): Promise
     userText,
     payload.locale,
     payload.filledMeals,
+    kind,
   );
   if (primaryResult.ok) return primaryResult.content;
 
@@ -417,6 +478,7 @@ export async function generateDailyAnalysis(payload: GeminiUserPayload): Promise
       userText,
       payload.locale,
       payload.filledMeals,
+      kind,
     );
     if (fallbackResult.ok) return fallbackResult.content;
     throw Object.assign(new Error(fallbackResult.error), { statusCode: 502 });

@@ -419,6 +419,25 @@
   margin-bottom: 12px;
 }
 
+.unitMacrosBtn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid var(--stroke);
+  border-radius: 14px;
+  background: var(--surface-low, #f6f3f2);
+  cursor: pointer;
+}
+
+.unitMacrosBtn:active {
+  transform: translate(1px, 1px);
+}
+
 .sectionTitle {
   flex: 1;
   font-size: 24px;
@@ -605,6 +624,85 @@
   bottom: 100%;
   border: 7px solid transparent;
   border-bottom-color: #1c1b1b;
+}
+
+.unitMacrosOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 520;
+  background: rgba(28, 27, 27, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: unitMacrosFade 0.16s ease-out;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@keyframes unitMacrosFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.unitMacrosCard {
+  width: min(100%, 380px);
+  max-height: min(85vh, 640px);
+  display: flex;
+  flex-direction: column;
+  background: var(--page, #faf9f6);
+  border: 1.5px solid var(--stroke);
+  border-radius: 24px;
+  box-shadow: 4px 4px 0 var(--shadow-hard, #1c1b1b);
+  padding: 20px 18px 16px;
+  overflow: hidden;
+}
+
+.unitMacrosTitle {
+  margin: 0 0 14px;
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--stroke);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.unitMacrosGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+  margin-bottom: 16px;
+}
+
+.unitMacrosActions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.unitMacrosPrimary,
+.unitMacrosSecondary {
+  flex: 1;
+  min-height: 48px;
+  border-radius: 999px;
+  border: 1.5px solid var(--stroke);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.unitMacrosSecondary {
+  background: #fff;
+  color: var(--stroke);
+}
+
+.unitMacrosPrimary {
+  background: var(--soft-green, #e8f5e9);
+  color: var(--stroke);
 }
 
 .macroEnergyRow {

@@ -30,39 +30,41 @@ function asStringArray(v: unknown, max: number): string[] {
 function normalize(raw: unknown): StructuredDailyAnalysis | null {
   if (!raw || typeof raw !== 'object') return null;
   const obj = raw as Record<string, unknown>;
-  if (!Array.isArray(obj.meals) || !obj.summary || typeof obj.summary !== 'object') return null;
+  if (!obj.summary || typeof obj.summary !== 'object') return null;
 
   const meals: StructuredDailyAnalysis['meals'] = [];
   const seen = new Set<string>();
 
-  for (const item of obj.meals) {
-    if (!item || typeof item !== 'object') continue;
-    const m = item as Record<string, unknown>;
-    const mealType = String(m.mealType || '');
-    if (!MEAL_ORDER.includes(mealType as MealTypeKey)) continue;
-    const statusRaw = String(m.status || 'evaluated');
-    // Skip empty-meal placeholders from older analyses
-    if (statusRaw === 'empty_ok' || statusRaw === 'empty_missed') continue;
-    if (seen.has(mealType)) continue;
-    seen.add(mealType);
-    meals.push({
-      mealType: mealType as MealTypeKey,
-      status: 'evaluated',
-      positives: asStringArray(m.positives, 2),
-      negatives: asStringArray(m.negatives, 2),
-    });
-  }
+  if (Array.isArray(obj.meals)) {
+    for (const item of obj.meals) {
+      if (!item || typeof item !== 'object') continue;
+      const m = item as Record<string, unknown>;
+      const mealType = String(m.mealType || '');
+      if (!MEAL_ORDER.includes(mealType as MealTypeKey)) continue;
+      const statusRaw = String(m.status || 'evaluated');
+      // Skip empty-meal placeholders from older analyses
+      if (statusRaw === 'empty_ok' || statusRaw === 'empty_missed') continue;
+      if (seen.has(mealType)) continue;
+      seen.add(mealType);
+      meals.push({
+        mealType: mealType as MealTypeKey,
+        status: 'evaluated',
+        positives: asStringArray(m.positives, 2),
+        negatives: asStringArray(m.negatives, 2),
+      });
+    }
 
-  meals.sort(
-    (a, b) => MEAL_ORDER.indexOf(a.mealType) - MEAL_ORDER.indexOf(b.mealType),
-  );
+    meals.sort(
+      (a, b) => MEAL_ORDER.indexOf(a.mealType) - MEAL_ORDER.indexOf(b.mealType),
+    );
+  }
 
   const summary = obj.summary as Record<string, unknown>;
   return {
     meals,
     summary: {
-      positives: asStringArray(summary.positives, 3),
-      negatives: asStringArray(summary.negatives, 3),
+      positives: asStringArray(summary.positives, 4),
+      negatives: asStringArray(summary.negatives, 4),
     },
     suggestions: asStringArray(obj.suggestions, 3),
   };

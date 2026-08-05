@@ -20,7 +20,10 @@ import { AnalysisResultView } from '../components/food/AnalysisResult';
 import { parseAnalysisContent } from '../utils/parseAnalysisContent';
 import { Colors } from '../design/tokens';
 import { MEAL_META, type MealType } from '../utils/mealMeta';
+import { mealKcalGoal } from '../utils/mealInsights';
 import styles from './FoodLibraryPage.module.css';
+
+const VALID_MEALS: MealType[] = ['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK'];
 
 type DialogState =
   | null
@@ -47,7 +50,10 @@ export default function FoodLibraryPage() {
   const [notFoundDialog, setNotFoundDialog] = useState<{ barcode?: string } | null>(null);
   const [createFoodOpen, setCreateFoodOpen] = useState(false);
   const [createBarcode, setCreateBarcode] = useState<string | undefined>();
+  const [highlightMeal, setHighlightMeal] = useState<MealType | null>(null);
   const notFoundChoiceRef = useRef<'add' | 'back' | null>(null);
+  const mealRefs = useRef<Partial<Record<MealType, HTMLDivElement | null>>>({});
+  const scrolledMealRef = useRef<string | null>(null);
 
   const dateStr = toLocalDateStr(selectedDate);
 
@@ -67,6 +73,25 @@ export default function FoodLibraryPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const mealParam = params.get('meal') as MealType | null;
+    if (!mealParam || !VALID_MEALS.includes(mealParam)) return;
+    if (loading && !data) return;
+    const key = `${dateStr}:${mealParam}`;
+    if (scrolledMealRef.current === key) return;
+    scrolledMealRef.current = key;
+    setHighlightMeal(mealParam);
+    const el = mealRefs.current[mealParam];
+    if (el) {
+      requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    }
+    const timer = window.setTimeout(() => setHighlightMeal(null), 2200);
+    return () => window.clearTimeout(timer);
+  }, [location.search, loading, data, dateStr]);
 
   useEffect(() => {
     const st = location.state as {
@@ -96,6 +121,7 @@ export default function FoodLibraryPage() {
     day: 'numeric',
   });
   const totals = data?.totals ?? { kcal: 0 };
+  const dailyKcalGoal = data?.goals?.dailyKcalGoal ?? 2200;
   const meals: MealType[] = ['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK'];
   const labels: Record<MealType, string> = {
     BREAKFAST: t('food.breakfast'),
@@ -212,8 +238,17 @@ export default function FoodLibraryPage() {
             );
             const meta = MEAL_META[meal];
             const MealIcon = meta.Icon;
+            const goal = mealKcalGoal(dailyKcalGoal, meal);
+            const goalPct = goal > 0 ? Math.min(mealTotals.kcal / goal, 1) : 0;
             return (
-              <BentoCard key={meal} backgroundColor={Colors.dashboard.card} padding={16}>
+              <div
+                key={meal}
+                ref={(el) => {
+                  mealRefs.current[meal] = el;
+                }}
+                className={highlightMeal === meal ? styles.mealHighlight : undefined}
+              >
+              <BentoCard backgroundColor={Colors.dashboard.card} padding={16}>
                 <div className={styles.mealHead}>
                   <div className={styles.mealTitleRow}>
                     <span className={styles.iconCircle} style={{ background: meta.bg }}>
@@ -226,9 +261,24 @@ export default function FoodLibraryPage() {
                       </div>
                     </div>
                   </div>
-                  <span className={`${styles.kcalBadge} ${logs.length === 0 ? styles.kcalEmpty : ''}`}>
-                    {Math.round(mealTotals.kcal)} kcal
-                  </span>
+                  <div className={styles.mealGoalBlock}>
+                    <span className={`${styles.kcalBadge} ${logs.length === 0 ? styles.kcalEmpty : ''}`}>
+                      {goal > 0
+                        ? t('foodLibraryScreen.mealGoalOf', {
+                            consumed: Math.round(mealTotals.kcal),
+                            goal,
+                          })
+                        : `${Math.round(mealTotals.kcal)} kcal`}
+                    </span>
+                    {goal > 0 && (
+                      <div className={styles.mealGoalTrack} aria-hidden>
+                        <div
+                          className={styles.mealGoalFill}
+                          style={{ width: `${goalPct * 100}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {logs.map((log: any) => {
@@ -287,6 +337,7 @@ export default function FoodLibraryPage() {
                   </button>
                 </div>
               </BentoCard>
+              </div>
             );
           })}
 

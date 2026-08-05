@@ -6,128 +6,42 @@ import { GlassCardSimple } from '../components/ui/GlassCard';
 import KcalRing from '../components/ui/KcalRing';
 import { MacroChip } from '../components/ui/MacroBar';
 import WaterProgressBar from '../components/ui/WaterProgressBar';
-import { AddFoodManualModal, CreateFoodModal, FoodDetailModal, EditLogModal, distinctBrand, type DailyLogItem } from '../components/food/FoodModals';
+import {
+  AddFoodManualModal,
+  CreateFoodModal,
+  FoodDetailModal,
+} from '../components/food/FoodModals';
+import MealInsightsCard from '../components/food/MealInsightsCard';
+import WeeklyKcalChart, { type WeeklyDay } from '../components/food/WeeklyKcalChart';
+import StreakCard from '../components/food/StreakCard';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { IconAdd, IconAddCircle, IconCalendarToday, IconRestaurant, IconWeight } from '../components/ui/Icons';
+import { IconAddCircle, IconCalendarToday, IconWeight } from '../components/ui/Icons';
 import { Colors } from '../design/tokens';
 import { statsApi, waterApi, weightApi, type Food } from '../services/api';
 import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import { useProfileStore } from '../stores/profileStore';
 import { UserAvatar } from '../components/ui/AvatarPicker';
-import { MEAL_META, type MealType } from '../utils/mealMeta';
+import type { MealType } from '../utils/mealMeta';
+import type { MealAvgEntry } from '../utils/mealInsights';
 import styles from './HomePage.module.css';
-
-
-function sumMeal(logs: any[] | undefined) {
-  return (logs ?? []).reduce(
-    (acc, l) => ({
-      kcal: acc.kcal + (l.kcal ?? 0),
-      protein: acc.protein + (l.protein ?? 0),
-      carbs: acc.carbs + (l.carbs ?? 0),
-      fat: acc.fat + (l.fat ?? 0),
-    }),
-    { kcal: 0, protein: 0, carbs: 0, fat: 0 },
-  );
-}
-
-function fmtMacro(n: number) {
-  return Math.round(n * 10) / 10;
-}
-
-function MealSection({
-  meal,
-  label,
-  logs,
-  onAdd,
-  onEditLog,
-  customRadius,
-}: {
-  meal: MealType;
-  label: string;
-  logs: any[];
-  onAdd: () => void;
-  onEditLog: (log: DailyLogItem) => void;
-  customRadius?: {
-    borderTopLeftRadius?: number;
-    borderTopRightRadius?: number;
-    borderBottomRightRadius?: number;
-    borderBottomLeftRadius?: number;
-  };
-}) {
-  const totals = sumMeal(logs);
-  const meta = MEAL_META[meal];
-  const MealIcon = meta.Icon;
-  return (
-    <GlassCardSimple
-      backgroundColor="#FFFFFF"
-      padding={14}
-      shadowOffset={2}
-      customRadius={customRadius}
-    >
-      <div className={styles.mealSection}>
-        <div className={styles.mealRow}>
-          <div className={styles.mealRowLeft}>
-            <span className={styles.mealIconCircle} style={{ background: meta.bg }}>
-              <MealIcon size={13} color={Colors.dashboard.stroke} />
-            </span>
-            <div className={styles.mealRowText}>
-              <span className={styles.mealRowLabel}>{label}</span>
-              <span className={styles.mealRowKcal}>{Math.round(totals.kcal)} kcal</span>
-              <span className={styles.mealRowMacros}>
-                F {fmtMacro(totals.protein)}g · Sz {fmtMacro(totals.carbs)}g · Zs {fmtMacro(totals.fat)}g
-              </span>
-            </div>
-          </div>
-          <button type="button" className={styles.mealRowAddBtn} onClick={onAdd}>
-            <IconAdd size={16} color={Colors.dashboard.stroke} />
-          </button>
-        </div>
-        {logs.length > 0 && (
-          <div className={styles.mealItems}>
-            {logs.map((log) => {
-              const brand = distinctBrand(log.foodName, log.brand);
-              return (
-              <button
-                key={log.id}
-                type="button"
-                className={styles.mealFoodItem}
-                onClick={() => onEditLog(log)}
-              >
-                <div className={styles.mealFoodLeft}>
-                  <span className={styles.mealFoodName}>{log.foodName}</span>
-                  {brand ? <span className={styles.mealFoodBrand}>{brand}</span> : null}
-                  <span className={styles.mealFoodMeta}>{Math.round(log.amount ?? 100)}g</span>
-                </div>
-                <div className={styles.mealFoodRight}>
-                  <span className={styles.mealFoodKcal}>{Math.round(log.kcal)} kcal</span>
-                  <span className={styles.mealFoodMacros}>
-                    F {fmtMacro(log.protein)} · Sz {fmtMacro(log.carbs)} · Zs {fmtMacro(log.fat)}
-                  </span>
-                </div>
-              </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </GlassCardSimple>
-  );
-}
 
 export default function HomePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const { selectedDate } = useDateStore();
+  const { selectedDate, setDate } = useDateStore();
   const avatarKey = useProfileStore((s) => s.avatarKey);
   const [data, setData] = useState<any>(null);
   const [water, setWater] = useState<any>(null);
   const [weight, setWeight] = useState<any>(null);
+  const [weeklyDays, setWeeklyDays] = useState<WeeklyDay[]>([]);
+  const [weekAvgKcal, setWeekAvgKcal] = useState<number | null>(null);
+  const [mealAvg, setMealAvg] = useState<Record<string, MealAvgEntry> | null>(null);
+  const [streak, setStreak] = useState(0);
   const [loading, setLoading] = useState(true);
   const [manualOpen, setManualOpen] = useState(false);
   const [prefillBarcode, setPrefillBarcode] = useState<string | undefined>();
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
-  const [selectedLog, setSelectedLog] = useState<DailyLogItem | null>(null);
   const [mealForAdd, setMealForAdd] = useState<MealType>('SNACK');
   const [notFoundDialog, setNotFoundDialog] = useState<{ barcode?: string } | null>(null);
   const [createFoodOpen, setCreateFoodOpen] = useState(false);
@@ -138,6 +52,10 @@ export default function HomePage() {
     setMealForAdd(meal);
     setPrefillBarcode(undefined);
     setManualOpen(true);
+  };
+
+  const openDiary = (meal?: MealType) => {
+    navigate(meal ? `/food-library?meal=${meal}` : '/food-library');
   };
 
   useEffect(() => {
@@ -181,14 +99,26 @@ export default function HomePage() {
     setLoading(true);
     try {
       const dateStr = toLocalDateStr(selectedDate);
-      const [summary, waterData, weightData] = await Promise.all([
+      const [summary, waterData, weightData, weekly, streakData] = await Promise.all([
         statsApi.day(dateStr),
         waterApi.getByDate(dateStr),
         weightApi.getByDate(dateStr),
+        statsApi.weekly().catch(() => null),
+        statsApi.streak().catch(() => null),
       ]);
       setData(summary);
       setWater(waterData);
       setWeight(weightData);
+      if (weekly?.days) {
+        setWeeklyDays(weekly.days);
+        setWeekAvgKcal(typeof weekly.avg?.kcal === 'number' ? weekly.avg.kcal : null);
+        setMealAvg(weekly.mealAvg ?? null);
+      } else {
+        setWeeklyDays([]);
+        setWeekAvgKcal(null);
+        setMealAvg(null);
+      }
+      setStreak(typeof streakData?.streak === 'number' ? streakData.streak : 0);
     } catch {}
     setLoading(false);
   }, [selectedDate]);
@@ -236,18 +166,15 @@ export default function HomePage() {
     dailyCarbsGoal: 250,
     dailyFatGoal: 65,
   };
-  const breakfastLogs = data?.byMealType?.BREAKFAST ?? [];
-  const tizoraiLogs = data?.byMealType?.TIZORAI ?? [];
-  const lunchLogs = data?.byMealType?.LUNCH ?? [];
-  const uzsonnaLogs = data?.byMealType?.UZSONNA ?? [];
-  const dinnerLogs = data?.byMealType?.DINNER ?? [];
+  const byMealType = data?.byMealType ?? {};
   const weightValue = typeof weight?.weightKg === 'number' ? weight.weightKg.toFixed(1) : '--';
   const todayStr = toLocalDateStr();
   const selectedDateStr = toLocalDateStr(selectedDate);
+  const isToday = selectedDateStr === todayStr;
   const hasDayWeight = typeof weight?.weightKg === 'number';
   const lastMeasuredText = !hasDayWeight
     ? t('homeScreen.weightNoMeasurement')
-    : selectedDateStr === todayStr
+    : isToday
       ? t('homeScreen.weightLastMeasuredToday')
       : t('homeScreen.weightMeasuredOnDay', {
           date: selectedDate.toLocaleDateString(
@@ -317,95 +244,27 @@ export default function HomePage() {
           />
         </div>
 
-        <GlassCardSimple
-          backgroundColor={Colors.dashboard.card}
-          padding={16}
-          customRadius={{
-            borderTopLeftRadius: 32,
-            borderTopRightRadius: 16,
-            borderBottomRightRadius: 24,
-            borderBottomLeftRadius: 32,
-          }}
-        >
-          <div className={styles.mealsBlock}>
-            <div className={styles.nutritionHeader}>
-              <span className={styles.nutritionIconCircle}>
-                <span className={styles.nutritionIconShadow} />
-                <span className={styles.nutritionIconInner}>
-                  <IconRestaurant size={20} color={Colors.dashboard.nutritionIcon} />
-                </span>
-              </span>
-              <span className={styles.nutritionTitle}>{t('homeScreen.todayMeals')}</span>
-            </div>
-            <div className={styles.mealCards}>
-              <MealSection
-                meal="BREAKFAST"
-                label={t('food.breakfast')}
-                logs={breakfastLogs}
-                onAdd={() => openAddFood('BREAKFAST')}
-                onEditLog={setSelectedLog}
-                customRadius={{
-                  borderTopLeftRadius: 22,
-                  borderTopRightRadius: 14,
-                  borderBottomRightRadius: 18,
-                  borderBottomLeftRadius: 16,
-                }}
-              />
-              <MealSection
-                meal="TIZORAI"
-                label={t('food.tizorai')}
-                logs={tizoraiLogs}
-                onAdd={() => openAddFood('TIZORAI')}
-                onEditLog={setSelectedLog}
-                customRadius={{
-                  borderTopLeftRadius: 16,
-                  borderTopRightRadius: 22,
-                  borderBottomRightRadius: 14,
-                  borderBottomLeftRadius: 20,
-                }}
-              />
-              <MealSection
-                meal="LUNCH"
-                label={t('food.lunch')}
-                logs={lunchLogs}
-                onAdd={() => openAddFood('LUNCH')}
-                onEditLog={setSelectedLog}
-                customRadius={{
-                  borderTopLeftRadius: 20,
-                  borderTopRightRadius: 14,
-                  borderBottomRightRadius: 22,
-                  borderBottomLeftRadius: 16,
-                }}
-              />
-              <MealSection
-                meal="UZSONNA"
-                label={t('food.uzsonna')}
-                logs={uzsonnaLogs}
-                onAdd={() => openAddFood('UZSONNA')}
-                onEditLog={setSelectedLog}
-                customRadius={{
-                  borderTopLeftRadius: 14,
-                  borderTopRightRadius: 20,
-                  borderBottomRightRadius: 16,
-                  borderBottomLeftRadius: 22,
-                }}
-              />
-              <MealSection
-                meal="DINNER"
-                label={t('food.dinner')}
-                logs={dinnerLogs}
-                onAdd={() => openAddFood('DINNER')}
-                onEditLog={setSelectedLog}
-                customRadius={{
-                  borderTopLeftRadius: 22,
-                  borderTopRightRadius: 16,
-                  borderBottomRightRadius: 18,
-                  borderBottomLeftRadius: 20,
-                }}
-              />
-            </div>
-          </div>
-        </GlassCardSimple>
+        <MealInsightsCard
+          byMealType={byMealType}
+          dayKcal={totals.kcal}
+          dailyKcalGoal={goals.dailyKcalGoal}
+          weekAvgKcal={weekAvgKcal}
+          mealAvg={mealAvg}
+          isToday={isToday}
+          onOpenDiary={openDiary}
+          onAddMeal={openAddFood}
+        />
+
+        {weeklyDays.length > 0 && (
+          <WeeklyKcalChart
+            days={weeklyDays}
+            avgKcal={weekAvgKcal ?? undefined}
+            selectedDate={selectedDate}
+            onSelectDate={setDate}
+          />
+        )}
+
+        <StreakCard streak={streak} />
 
         <WaterProgressBar
           totalMl={water?.totalMl ?? 0}
@@ -495,12 +354,6 @@ export default function HomePage() {
         }}
         logSource="SEARCH"
         initialMealType={mealForAdd}
-      />
-      <EditLogModal
-        log={selectedLog}
-        visible={!!selectedLog}
-        onClose={() => setSelectedLog(null)}
-        onSaved={fetchData}
       />
       <ConfirmDialog
         visible={!!notFoundDialog}

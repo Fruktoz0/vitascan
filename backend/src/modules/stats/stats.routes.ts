@@ -175,7 +175,45 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       fat:     Math.round(days.reduce((s, d) => s + d.fat, 0) / 7 * 10) / 10,
     };
 
-    return reply.send({ days, avg, from: startDate.toISOString().split('T')[0], to: endDate.toISOString().split('T')[0] });
+    // Étkezéstípus átlag: csak azokra a napokra, ahol volt log az adott étkezésnél
+    type MealAgg = { kcal: number; protein: number; carbs: number; fat: number; daysWithMeal: number };
+    const mealDaySets: Record<string, Map<string, { kcal: number; protein: number; carbs: number; fat: number }>> = {};
+
+    for (const l of logs) {
+      const mealType = l.mealType as string;
+      const dateStr = l.createdAt.toISOString().split('T')[0];
+      if (!mealDaySets[mealType]) mealDaySets[mealType] = new Map();
+      const dayMap = mealDaySets[mealType];
+      const prev = dayMap.get(dateStr) ?? { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+      dayMap.set(dateStr, {
+        kcal: prev.kcal + l.kcal,
+        protein: prev.protein + l.protein,
+        carbs: prev.carbs + l.carbs,
+        fat: prev.fat + l.fat,
+      });
+    }
+
+    const mealAvg: Record<string, MealAgg> = {};
+    for (const [mealType, dayMap] of Object.entries(mealDaySets)) {
+      const dayValues = [...dayMap.values()];
+      const n = dayValues.length;
+      if (n === 0) continue;
+      mealAvg[mealType] = {
+        kcal: Math.round(dayValues.reduce((s, d) => s + d.kcal, 0) / n),
+        protein: Math.round((dayValues.reduce((s, d) => s + d.protein, 0) / n) * 10) / 10,
+        carbs: Math.round((dayValues.reduce((s, d) => s + d.carbs, 0) / n) * 10) / 10,
+        fat: Math.round((dayValues.reduce((s, d) => s + d.fat, 0) / n) * 10) / 10,
+        daysWithMeal: n,
+      };
+    }
+
+    return reply.send({
+      days,
+      avg,
+      mealAvg,
+      from: startDate.toISOString().split('T')[0],
+      to: endDate.toISOString().split('T')[0],
+    });
   });
 
   // GET /stats/monthly?year=2025&month=3 — havi adatok (PREMIUM)
