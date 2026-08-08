@@ -10,6 +10,7 @@ import {
   IconBolt,
   IconBrain,
   IconChevronRight,
+  IconClose,
   IconEarth,
   IconEdit,
   IconHeart,
@@ -392,6 +393,7 @@ export function FoodDetailModal({
   const [currentFood, setCurrentFood] = useState<Food | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [historyKey, setHistoryKey] = useState(0);
+  const [logAsPrepared, setLogAsPrepared] = useState(false);
 
   useEffect(() => {
     setCurrentFood(food);
@@ -406,6 +408,13 @@ export function FoodDetailModal({
       const initial = defaultQtyForUnit(unit, gpu);
       setAmount(String(Number.isInteger(initial) ? initial : Math.round(initial * 10) / 10));
       setEditOpen(false);
+      setLogAsPrepared(false);
+      // Load components for prepared foods if missing
+      if (food.isPrepared && !(food.components?.length) && isLocalFoodId(food.id)) {
+        foodApi.getById(food.id).then((full) => {
+          setCurrentFood(full);
+        }).catch(() => {});
+      }
     }
   }, [visible, initialMealType, food]);
 
@@ -499,20 +508,50 @@ export function FoodDetailModal({
         /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
           currentFood.id,
         );
-      await logApi.create({
-        ...(isUuid ? { foodId: currentFood.id } : {}),
-        foodName: displayName,
-        kcal: calc.kcal,
-        protein: calc.protein,
-        carbs: calc.carbs,
-        fat: calc.fat,
-        fiber: calc.fiber ?? undefined,
-        sugar: calc.sugar ?? undefined,
-        amount: g,
-        mealType,
-        source: logSource,
-        date: toLocalDateStr(selectedDate),
-      });
+      const components = currentFood.components ?? [];
+      const isPrepared = currentFood.isPrepared && components.length > 0;
+      const recipeG =
+        currentFood.servingSize && currentFood.servingSize > 0
+          ? currentFood.servingSize
+          : components.reduce((s, c) => s + (c.amountG || 0), 0) || 100;
+      const scale = g / recipeG;
+
+      if (isPrepared && !logAsPrepared) {
+        const logGroupId = crypto.randomUUID();
+        for (const c of components) {
+          await logApi.create({
+            foodName: c.name,
+            kcal: Math.round(c.kcal * scale * 10) / 10,
+            protein: Math.round(c.protein * scale * 10) / 10,
+            carbs: Math.round(c.carbs * scale * 10) / 10,
+            fat: Math.round(c.fat * scale * 10) / 10,
+            fiber: c.fiber != null ? Math.round(c.fiber * scale * 10) / 10 : undefined,
+            sugar: c.sugar != null ? Math.round(c.sugar * scale * 10) / 10 : undefined,
+            amount: Math.max(1, Math.round(c.amountG * scale * 10) / 10),
+            mealType,
+            source: logSource,
+            date: toLocalDateStr(selectedDate),
+            logGroupId,
+            sourcePreparedFoodId: isUuid ? currentFood.id : undefined,
+          });
+        }
+      } else {
+        await logApi.create({
+          ...(isUuid ? { foodId: currentFood.id } : {}),
+          foodName: displayName,
+          kcal: calc.kcal,
+          protein: calc.protein,
+          carbs: calc.carbs,
+          fat: calc.fat,
+          fiber: calc.fiber ?? undefined,
+          sugar: calc.sugar ?? undefined,
+          amount: g,
+          mealType,
+          source: logSource,
+          date: toLocalDateStr(selectedDate),
+          sourcePreparedFoodId: isPrepared && isUuid ? currentFood.id : undefined,
+        });
+      }
       onLogAdded?.();
       onClose();
     } catch (e: any) {
@@ -561,6 +600,24 @@ export function FoodDetailModal({
             </span>
             <h3 className={foodNameSizeClass(displayName)}>{displayName}</h3>
             {brandLabel ? <p className={styles.foodBrand}>{brandLabel}</p> : null}
+            {currentFood.isPrepared && (currentFood.components?.length ?? 0) > 0 && (
+              <label className={styles.preparedCheck}>
+                <span
+                  className={styles.preparedCheckBox}
+                  data-checked={logAsPrepared || undefined}
+                >
+                  <input
+                    type="checkbox"
+                    checked={logAsPrepared}
+                    onChange={(e) => setLogAsPrepared(e.target.checked)}
+                  />
+                  {logAsPrepared ? '✓' : null}
+                </span>
+                <span className={styles.preparedCheckText}>
+                  <strong>{t('food.logAsPrepared')}</strong>
+                </span>
+              </label>
+            )}
             <div className={styles.portionBadgeWrap}>
               <span className={styles.portionBadgeShadow} />
               <span className={styles.portionBadgeInner}>
@@ -569,6 +626,30 @@ export function FoodDetailModal({
             </div>
           </div>
         </div>
+
+        {currentFood.isPrepared && (currentFood.components?.length ?? 0) > 0 && (
+          <div className={styles.componentsCard}>
+            <div className={styles.sectionTitle}>{t('food.preparedIngredients')}</div>
+            {(currentFood.components ?? []).map((c, i) => {
+              const recipeG =
+                currentFood.servingSize && currentFood.servingSize > 0
+                  ? currentFood.servingSize
+                  : (currentFood.components ?? []).reduce((s, x) => s + (x.amountG || 0), 0) || 100;
+              const scale = g / recipeG;
+              return (
+                <div key={c.id ?? `${c.name}-${i}`} className={styles.componentRow}>
+                  <div className={styles.componentName}>{c.name}</div>
+                  <div className={styles.componentMeta}>
+                    {Math.round(c.amountG * scale)}g · {Math.round(c.kcal * scale)} kcal · F{' '}
+                    {Math.round(c.protein * scale * 10) / 10} · Sz{' '}
+                    {Math.round(c.carbs * scale * 10) / 10} · Zs{' '}
+                    {Math.round(c.fat * scale * 10) / 10}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         <div className={styles.sections}>
           <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
@@ -769,6 +850,9 @@ export type DailyLogItem = {
   fiber?: number | null;
   sugar?: number | null;
   mealType: MealType | string;
+  logGroupId?: string | null;
+  sourcePreparedFoodId?: string | null;
+  sourcePreparedFoodName?: string | null;
 };
 
 interface EditLogModalProps {
@@ -1423,6 +1507,18 @@ function FoodDataFormModal({
   const [unitFat, setUnitFat] = useState('');
   const [unitFiber, setUnitFiber] = useState('');
   const [unitSugar, setUnitSugar] = useState('');
+  const [isPreparedRecipe, setIsPreparedRecipe] = useState(false);
+  const [recipeComponents, setRecipeComponents] = useState<
+    Array<{
+      key: string;
+      name: string;
+      amountG: string;
+      kcal: string;
+      protein: string;
+      carbs: string;
+      fat: string;
+    }>
+  >([]);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -1457,6 +1553,19 @@ function FoodDataFormModal({
             : 100,
         ),
       );
+      const comps = initialFood.components ?? [];
+      setIsPreparedRecipe(!!initialFood.isPrepared && comps.length > 0);
+      setRecipeComponents(
+        comps.map((c, i) => ({
+          key: c.id ?? `c-${i}`,
+          name: c.name,
+          amountG: String(c.amountG),
+          kcal: String(c.kcal),
+          protein: String(c.protein),
+          carbs: String(c.carbs),
+          fat: String(c.fat),
+        })),
+      );
     } else {
       setName('');
       setBrand('');
@@ -1469,6 +1578,8 @@ function FoodDataFormModal({
       setSugar('');
       setServingUnit('g');
       setServingGrams('100');
+      setIsPreparedRecipe(false);
+      setRecipeComponents([]);
     }
     setServingEstimateBusy(false);
     setEstimateHint(false);
@@ -1617,16 +1728,79 @@ function FoodDataFormModal({
 
   const handleSubmit = async () => {
     const trimmed = name.trim();
-    const k = num(kcal);
-    const p = num(protein);
-    const c = num(carbs);
-    const f = num(fat);
     const missing: string[] = [];
     if (trimmed.length < 2) missing.push(t('food.foodName'));
-    if (!Number.isFinite(k) || k < 0) missing.push(t('food.caloriesPer100g'));
-    if (!Number.isFinite(p) || p < 0) missing.push(t('food.proteinPer100g'));
-    if (!Number.isFinite(c) || c < 0) missing.push(t('food.carbsPer100g'));
-    if (!Number.isFinite(f) || f < 0) missing.push(t('food.fatPer100g'));
+
+    let k = num(kcal);
+    let p = num(protein);
+    let c = num(carbs);
+    let f = num(fat);
+    let servingN = num(servingGrams);
+    let componentsPayload:
+      | Array<{
+          name: string;
+          amountG: number;
+          kcal: number;
+          protein: number;
+          carbs: number;
+          fat: number;
+          sortOrder: number;
+        }>
+      | undefined;
+
+    if (isPreparedRecipe) {
+      const parsedComps = recipeComponents.map((row, i) => ({
+        name: row.name.trim(),
+        amountG: num(row.amountG),
+        kcal: num(row.kcal),
+        protein: num(row.protein),
+        carbs: num(row.carbs),
+        fat: num(row.fat),
+        sortOrder: i,
+      }));
+      if (
+        parsedComps.length === 0 ||
+        parsedComps.some(
+          (x) =>
+            !x.name ||
+            ![x.amountG, x.kcal, x.protein, x.carbs, x.fat].every((n) => Number.isFinite(n) && n >= 0) ||
+            x.amountG <= 0,
+        )
+      ) {
+        showDialog(t('food.missingDataTitle'), t('food.preparedRecipeInvalid'));
+        return;
+      }
+      const totalG = parsedComps.reduce((s, x) => s + x.amountG, 0);
+      const totals = parsedComps.reduce(
+        (acc, x) => ({
+          kcal: acc.kcal + x.kcal,
+          protein: acc.protein + x.protein,
+          carbs: acc.carbs + x.carbs,
+          fat: acc.fat + x.fat,
+        }),
+        { kcal: 0, protein: 0, carbs: 0, fat: 0 },
+      );
+      const per100 = (n: number) => Math.round((n / totalG) * 100 * 10) / 10;
+      k = per100(totals.kcal);
+      p = per100(totals.protein);
+      c = per100(totals.carbs);
+      f = per100(totals.fat);
+      servingN = Math.round(totalG * 10) / 10;
+      componentsPayload = parsedComps;
+    } else {
+      if (!Number.isFinite(k) || k < 0) missing.push(t('food.caloriesPer100g'));
+      if (!Number.isFinite(p) || p < 0) missing.push(t('food.proteinPer100g'));
+      if (!Number.isFinite(c) || c < 0) missing.push(t('food.carbsPer100g'));
+      if (!Number.isFinite(f) || f < 0) missing.push(t('food.fatPer100g'));
+      if (!Number.isFinite(servingN) || servingN <= 0) {
+        showDialog(
+          t('food.missingDataTitle'),
+          t('food.servingGramsPerUnit', { unit: unitLabel(servingUnit) }),
+        );
+        return;
+      }
+    }
+
     if (missing.length) {
       showDialog(t('food.missingDataTitle'), t('food.fillFields', { fields: missing.join(', ') }));
       return;
@@ -1634,20 +1808,12 @@ function FoodDataFormModal({
 
     const fiberN = fiber.trim() ? num(fiber) : undefined;
     const sugarN = sugar.trim() ? num(sugar) : undefined;
-    const servingN = num(servingGrams);
     if (fiberN != null && (!Number.isFinite(fiberN) || fiberN < 0)) {
       showDialog(t('food.missingDataTitle'), t('food.fiberPer100g'));
       return;
     }
     if (sugarN != null && (!Number.isFinite(sugarN) || sugarN < 0)) {
       showDialog(t('food.missingDataTitle'), t('food.sugarPer100g'));
-      return;
-    }
-    if (!Number.isFinite(servingN) || servingN <= 0) {
-      showDialog(
-        t('food.missingDataTitle'),
-        t('food.servingGramsPerUnit', { unit: unitLabel(servingUnit) }),
-      );
       return;
     }
 
@@ -1668,18 +1834,24 @@ function FoodDataFormModal({
         fiber: fiberN ?? null,
         sugar: sugarN ?? null,
         servingSize: servingN,
-        servingUnit,
+        servingUnit: isPreparedRecipe ? ('adag' as const) : servingUnit,
         source: 'USER_SCAN' as const,
+        isPrepared: isPreparedRecipe,
+        ...(componentsPayload ? { components: componentsPayload } : {}),
       };
 
       const saved =
         mode === 'edit' && initialFood
           ? await foodApi.update(initialFood.id, payload as Partial<Food>)
-          : await foodApi.create({ ...payload, brand: brandTrim || undefined, barcode: barcodeTrim || undefined });
+          : await foodApi.create({
+              ...payload,
+              brand: brandTrim || undefined,
+              barcode: barcodeTrim || undefined,
+            });
 
       onSaved?.(saved);
     } catch (e: any) {
-      showDialog(t('food.errorTitle'), e?.message || t('food.errorTitle'));
+      showDialog(t('food.errorTitle'), getErrorMessage(e, t('food.errorTitle')));
     } finally {
       setSubmitting(false);
     }
@@ -1805,6 +1977,41 @@ function FoodDataFormModal({
                   placeholder={t('food.foodName')}
                   autoFocus
                 />
+                {mode === 'create' && (
+                  <label className={styles.preparedCheck}>
+                    <span
+                      className={styles.preparedCheckBox}
+                      data-checked={isPreparedRecipe || undefined}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isPreparedRecipe}
+                        onChange={(e) => {
+                          const on = e.target.checked;
+                          setIsPreparedRecipe(on);
+                          if (on && recipeComponents.length === 0) {
+                            setRecipeComponents([
+                              {
+                                key: `c-${Date.now()}`,
+                                name: '',
+                                amountG: '100',
+                                kcal: '',
+                                protein: '',
+                                carbs: '',
+                                fat: '',
+                              },
+                            ]);
+                          }
+                        }}
+                      />
+                      {isPreparedRecipe ? '✓' : null}
+                    </span>
+                    <span className={styles.preparedCheckText}>
+                      <strong>{t('food.createAsPrepared')}</strong>
+                      <small>{t('food.preparedRecipeHint')}</small>
+                    </span>
+                  </label>
+                )}
                 <label className={styles.formLabel}>{t('food.brandOptional')}</label>
                 <input
                   className={styles.formInput}
@@ -1821,6 +2028,125 @@ function FoodDataFormModal({
                   inputMode="numeric"
                 />
               </GlassCardSimple>
+
+              {isPreparedRecipe && (
+                <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
+                  <div className={styles.sectionHeaderSmall}>
+                    <IconRestaurantOutline size={24} color={Colors.dashboard.stroke} />
+                    <span className={styles.sectionTitle}>{t('food.preparedIngredients')}</span>
+                  </div>
+                  <p className={styles.recipeHint}>{t('food.preparedRecipeHint')}</p>
+                  {recipeComponents.map((row, index) => (
+                    <div key={row.key} className={styles.recipeCard}>
+                      <div className={styles.recipeCardHead}>
+                        <span className={styles.recipeIndex}>{index + 1}</span>
+                        <input
+                          className={styles.formInput}
+                          value={row.name}
+                          placeholder={t('food.ingredientName')}
+                          onChange={(e) =>
+                            setRecipeComponents((prev) =>
+                              prev.map((r) =>
+                                r.key === row.key ? { ...r, name: e.target.value } : r,
+                              ),
+                            )
+                          }
+                        />
+                        <button
+                          type="button"
+                          className={styles.recipeDeleteBtn}
+                          aria-label={t('common.delete', 'Törlés')}
+                          disabled={recipeComponents.length <= 1}
+                          onClick={() =>
+                            setRecipeComponents((prev) => prev.filter((r) => r.key !== row.key))
+                          }
+                        >
+                          <IconClose size={18} color="#B83B3B" />
+                        </button>
+                      </div>
+                      <div className={styles.recipeGrid}>
+                        {(
+                          [
+                            { field: 'amountG', label: t('food.ingredientAmountG') },
+                            { field: 'kcal', label: 'kcal' },
+                            { field: 'protein', label: t('food.protein') },
+                            { field: 'carbs', label: t('food.carbs') },
+                            { field: 'fat', label: t('food.fat') },
+                          ] as const
+                        ).map(({ field, label }) => (
+                          <label key={field} className={styles.recipeField}>
+                            <span>{label}</span>
+                            <input
+                              className={styles.formInput}
+                              inputMode="decimal"
+                              value={row[field]}
+                              onChange={(e) =>
+                                setRecipeComponents((prev) =>
+                                  prev.map((r) =>
+                                    r.key === row.key
+                                      ? { ...r, [field]: e.target.value.replace(/[^\d.,]/g, '') }
+                                      : r,
+                                  ),
+                                )
+                              }
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className={styles.recipeAddBtn}
+                    onClick={() =>
+                      setRecipeComponents((prev) => [
+                        ...prev,
+                        {
+                          key: `c-${Date.now()}`,
+                          name: '',
+                          amountG: '100',
+                          kcal: '',
+                          protein: '',
+                          carbs: '',
+                          fat: '',
+                        },
+                      ])
+                    }
+                  >
+                    <IconAdd size={18} color={Colors.dashboard.stroke} />
+                    {t('food.addIngredient')}
+                  </button>
+                  {(() => {
+                    const parse = (v: string) => {
+                      const n = Number(String(v).replace(',', '.'));
+                      return Number.isFinite(n) ? n : 0;
+                    };
+                    const tot = recipeComponents.reduce(
+                      (acc, r) => ({
+                        g: acc.g + parse(r.amountG),
+                        kcal: acc.kcal + parse(r.kcal),
+                        protein: acc.protein + parse(r.protein),
+                        carbs: acc.carbs + parse(r.carbs),
+                        fat: acc.fat + parse(r.fat),
+                      }),
+                      { g: 0, kcal: 0, protein: 0, carbs: 0, fat: 0 },
+                    );
+                    return (
+                      <div className={styles.recipeTotals}>
+                        <div className={styles.recipeTotalsTitle}>{t('food.recipeTotals')}</div>
+                        <div className={styles.recipeTotalsRow}>
+                          <span>{Math.round(tot.g * 10) / 10} g</span>
+                          <span>{Math.round(tot.kcal * 10) / 10} kcal</span>
+                        </div>
+                        <div className={styles.recipeTotalsMacros}>
+                          F {Math.round(tot.protein * 10) / 10}g · Sz{' '}
+                          {Math.round(tot.carbs * 10) / 10}g · Zs {Math.round(tot.fat * 10) / 10}g
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </GlassCardSimple>
+              )}
 
               <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
                 <div className={styles.sectionHeaderSmall}>

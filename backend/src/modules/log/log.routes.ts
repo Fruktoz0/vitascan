@@ -2,7 +2,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { authenticate } from '../../middleware/authenticate';
 import { dailyLogLimitGuard } from '../../middleware/tierGuard';
 import { CreateLogSchema, LogQuerySchema, UpdateLogSchema } from './log.schema';
-import { getLogs, createLog, updateLog, deleteLog } from './log.service';
+import { getLogs, createLog, updateLog, deleteLog, deleteLogGroup } from './log.service';
 
 const logRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /logs?date=2025-03-01 or ?from=...&to=...
@@ -30,8 +30,20 @@ const logRoutes: FastifyPluginAsync = async (fastify) => {
       } catch (err: any) {
         return reply.status(422).send({ error: err.message });
       }
-    }
+    },
   );
+
+  // DELETE /logs/group/:logGroupId — csoportos törlés
+  fastify.delete('/group/:logGroupId', { preHandler: authenticate }, async (request, reply) => {
+    const { logGroupId } = request.params as { logGroupId: string };
+    try {
+      await deleteLogGroup(fastify.prisma, logGroupId, request.user.userId);
+      return reply.send({ message: 'Csoport törölve.' });
+    } catch (err: any) {
+      const status = err.statusCode || 403;
+      return reply.status(status).send({ error: err.message });
+    }
+  });
 
   // PATCH /logs/:id — mennyiség / étkezés / makrók szerkesztése
   fastify.patch('/:id', { preHandler: authenticate }, async (request, reply) => {

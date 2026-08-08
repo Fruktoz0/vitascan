@@ -9,9 +9,10 @@ import {
   IconBrain,
   IconCalendarToday,
   IconLocalFire,
+  IconNoteOutline,
   IconPieChartOutline,
 } from '../components/ui/Icons';
-import { analysisApi, statsApi, ApiError, type DailyAnalysisResult, type Food } from '../services/api';
+import { analysisApi, dayNoteApi, logApi, statsApi, ApiError, type DailyAnalysisResult, type Food } from '../services/api';
 import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import { useProfileStore } from '../stores/profileStore';
 import { UserAvatar } from '../components/ui/AvatarPicker';
@@ -20,7 +21,8 @@ import { AnalysisResultView } from '../components/food/AnalysisResult';
 import { parseAnalysisContent } from '../utils/parseAnalysisContent';
 import { Colors } from '../design/tokens';
 import { MEAL_META, type MealType } from '../utils/mealMeta';
-import { mealKcalGoal } from '../utils/mealInsights';
+import { getNearestMealType, mealKcalGoal } from '../utils/mealInsights';
+import { groupDiaryLogs } from '../utils/groupDiaryLogs';
 import styles from './FoodLibraryPage.module.css';
 
 const VALID_MEALS: MealType[] = ['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK'];
@@ -46,11 +48,16 @@ export default function FoodLibraryPage() {
   const [mealForAdd, setMealForAdd] = useState<MealType>('SNACK');
   const [analysis, setAnalysis] = useState<DailyAnalysisResult | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [dayNoteDraft, setDayNoteDraft] = useState('');
+  const [dayNoteSaved, setDayNoteSaved] = useState('');
+  const [dayNoteSaving, setDayNoteSaving] = useState(false);
+  const [dayNoteJustSaved, setDayNoteJustSaved] = useState(false);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [notFoundDialog, setNotFoundDialog] = useState<{ barcode?: string } | null>(null);
   const [createFoodOpen, setCreateFoodOpen] = useState(false);
   const [createBarcode, setCreateBarcode] = useState<string | undefined>();
   const [highlightMeal, setHighlightMeal] = useState<MealType | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const notFoundChoiceRef = useRef<'add' | 'back' | null>(null);
   const mealRefs = useRef<Partial<Record<MealType, HTMLDivElement | null>>>({});
   const scrolledMealRef = useRef<string | null>(null);
@@ -60,12 +67,17 @@ export default function FoodLibraryPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [summary, analysisRes] = await Promise.all([
+      const [summary, analysisRes, noteRes] = await Promise.all([
         statsApi.day(dateStr),
         analysisApi.get(dateStr).catch(() => null),
+        dayNoteApi.getByDate(dateStr).catch(() => ({ note: null })),
       ]);
       setData(summary);
       setAnalysis(analysisRes);
+      const content = noteRes?.note?.content ?? '';
+      setDayNoteDraft(content);
+      setDayNoteSaved(content);
+      setDayNoteJustSaved(false);
     } catch {}
     setLoading(false);
   }, [dateStr]);
@@ -75,22 +87,28 @@ export default function FoodLibraryPage() {
   }, [fetchData]);
 
   useEffect(() => {
+    if (loading && !data) return;
     const params = new URLSearchParams(location.search);
     const mealParam = params.get('meal') as MealType | null;
-    if (!mealParam || !VALID_MEALS.includes(mealParam)) return;
-    if (loading && !data) return;
-    const key = `${dateStr}:${mealParam}`;
+    const fromQuery = mealParam && VALID_MEALS.includes(mealParam) ? mealParam : null;
+    const target = fromQuery ?? getNearestMealType();
+    const key = fromQuery ? `${dateStr}:${fromQuery}` : `${dateStr}:auto:${target}`;
     if (scrolledMealRef.current === key) return;
     scrolledMealRef.current = key;
-    setHighlightMeal(mealParam);
-    const el = mealRefs.current[mealParam];
+
+    const el = mealRefs.current[target];
     if (el) {
       requestAnimationFrame(() => {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     }
-    const timer = window.setTimeout(() => setHighlightMeal(null), 2200);
-    return () => window.clearTimeout(timer);
+    // Brief pulse without a second outer frame (BentoCard already has a border).
+    setHighlightMeal(target);
+    const timer = window.setTimeout(() => setHighlightMeal(null), 1600);
+    return () => {
+      window.clearTimeout(timer);
+      setHighlightMeal(null);
+    };
   }, [location.search, loading, data, dateStr]);
 
   useEffect(() => {
@@ -135,6 +153,33 @@ export default function FoodLibraryPage() {
   const hasLogs = (data?.logs?.length ?? 0) > 0 || meals.some((m) => (data?.byMealType?.[m]?.length ?? 0) > 0);
   const remaining = analysis?.remaining ?? 5;
   const canGenerate = hasLogs && remaining > 0 && !analysisLoading;
+  const dayNoteDirty = dayNoteDraft !== dayNoteSaved;
+  const canSaveDayNote = dayNoteDirty && !dayNoteSaving;
+
+  const handleSaveDayNote = async () => {
+    if (!canSaveDayNote) return;
+    setDayNoteSaving(true);
+    try {
+      const res = await dayNoteApi.save(dateStr, dayNoteDraft);
+      const content = res.note?.content ?? '';
+      setDayNoteDraft(content);
+      setDayNoteSaved(content);
+      setDayNoteJustSaved(true);
+      window.setTimeout(() => setDayNoteJustSaved(false), 2000);
+    } catch (e: any) {
+      const msg =
+        e instanceof ApiError
+          ? e.message
+          : e?.message || t('foodLibraryScreen.dayNoteError', 'A megjegyzés mentése sikertelen.');
+      setDialog({
+        mode: 'alert',
+        title: t('foodLibraryScreen.dayNote', 'Megjegyzés'),
+        message: msg,
+      });
+    } finally {
+      setDayNoteSaving(false);
+    }
+  };
 
   const runGenerate = async () => {
     setAnalysisLoading(true);
@@ -281,27 +326,104 @@ export default function FoodLibraryPage() {
                   </div>
                 </div>
 
-                {logs.map((log: any) => {
-                  const brand = distinctBrand(log.foodName, log.brand);
+                {groupDiaryLogs(logs).map((entry) => {
+                  if (entry.kind === 'single') {
+                    const log = entry.log;
+                    const brand = distinctBrand(log.foodName, log.brand);
+                    return (
+                      <button
+                        key={log.id}
+                        type="button"
+                        className={styles.mealItem}
+                        onClick={() => setSelectedLog(log as DailyLogItem)}
+                      >
+                        <div className={styles.itemLeft}>
+                          <div className={styles.itemName}>{log.foodName}</div>
+                          {brand ? <div className={styles.itemBrand}>{brand}</div> : null}
+                          <div className={styles.itemMeta}>{Math.round(log.amount ?? 100)}g</div>
+                        </div>
+                        <div className={styles.itemRight}>
+                          <div className={styles.itemKcal}>{Math.round(log.kcal ?? 0)} kcal</div>
+                          <div className={styles.itemMacros}>
+                            F {fmt(log.protein ?? 0)} · Sz {fmt(log.carbs ?? 0)} · Zs {fmt(log.fat ?? 0)}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  }
+
+                  const open = !!expandedGroups[entry.logGroupId];
                   return (
-                  <button
-                    key={log.id}
-                    type="button"
-                    className={styles.mealItem}
-                    onClick={() => setSelectedLog(log)}
-                  >
-                    <div className={styles.itemLeft}>
-                      <div className={styles.itemName}>{log.foodName}</div>
-                      {brand ? <div className={styles.itemBrand}>{brand}</div> : null}
-                      <div className={styles.itemMeta}>{Math.round(log.amount ?? 100)}g</div>
+                    <div key={entry.logGroupId} className={styles.logGroup}>
+                      <button
+                        type="button"
+                        className={styles.mealItem}
+                        onClick={() =>
+                          setExpandedGroups((prev) => ({
+                            ...prev,
+                            [entry.logGroupId]: !prev[entry.logGroupId],
+                          }))
+                        }
+                      >
+                        <div className={styles.itemLeft}>
+                          <div className={styles.itemName}>{entry.title}</div>
+                          <div className={styles.itemMeta}>
+                            {t('food.logGroupParts', { count: entry.logs.length })} ·{' '}
+                            {Math.round(entry.totals.amount)}g
+                          </div>
+                        </div>
+                        <div className={styles.itemRight}>
+                          <div className={styles.itemKcal}>{Math.round(entry.totals.kcal)} kcal</div>
+                          <div className={styles.itemMacros}>
+                            F {fmt(entry.totals.protein)} · Sz {fmt(entry.totals.carbs)} · Zs{' '}
+                            {fmt(entry.totals.fat)}
+                          </div>
+                        </div>
+                      </button>
+                      {open && (
+                        <div className={styles.logGroupBody}>
+                          {entry.logs.map((log) => (
+                            <button
+                              key={log.id}
+                              type="button"
+                              className={styles.mealItemNested}
+                              onClick={() => setSelectedLog(log as DailyLogItem)}
+                            >
+                              <div className={styles.itemLeft}>
+                                <div className={styles.itemName}>{log.foodName}</div>
+                                <div className={styles.itemMeta}>
+                                  {Math.round(log.amount ?? 100)}g
+                                </div>
+                              </div>
+                              <div className={styles.itemRight}>
+                                <div className={styles.itemKcal}>
+                                  {Math.round(log.kcal ?? 0)} kcal
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            className={styles.groupDeleteBtn}
+                            onClick={() => {
+                              setDialog({
+                                mode: 'confirm',
+                                title: t('food.deleteLogGroupTitle'),
+                                message: t('food.deleteLogGroupMessage'),
+                                onConfirm: () => {
+                                  void logApi
+                                    .deleteGroup(entry.logGroupId)
+                                    .then(() => fetchData())
+                                    .catch(() => {});
+                                },
+                              });
+                            }}
+                          >
+                            {t('food.deleteLogGroup')}
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <div className={styles.itemRight}>
-                      <div className={styles.itemKcal}>{Math.round(log.kcal ?? 0)} kcal</div>
-                      <div className={styles.itemMacros}>
-                        F {fmt(log.protein ?? 0)} · Sz {fmt(log.carbs ?? 0)} · Zs {fmt(log.fat ?? 0)}
-                      </div>
-                    </div>
-                  </button>
                   );
                 })}
 
@@ -340,6 +462,57 @@ export default function FoodLibraryPage() {
               </div>
             );
           })}
+
+          <BentoCard backgroundColor={Colors.dashboard.card} padding={16}>
+            <div className={styles.mealHead}>
+              <div className={styles.mealTitleRow}>
+                <span className={styles.iconCircle} style={{ background: Colors.dashboard.secondaryContainer }}>
+                  <IconNoteOutline size={24} color={Colors.dashboard.stroke} />
+                </span>
+                <div className={styles.mealTitleBlock}>
+                  <h2 className={styles.mealTitle}>{t('foodLibraryScreen.dayNote', 'Megjegyzés')}</h2>
+                  <div className={styles.mealSummaryMacros}>
+                    {t(
+                      'foodLibraryScreen.dayNoteHint',
+                      'Tünetek, közérzet — később összevetheted az aznapi étkezésekkel',
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <textarea
+              className={styles.dayNoteTextarea}
+              value={dayNoteDraft}
+              onChange={(e) => {
+                setDayNoteDraft(e.target.value);
+                setDayNoteJustSaved(false);
+              }}
+              placeholder={t(
+                'foodLibraryScreen.dayNotePlaceholder',
+                'Pl. fáj a hasam, puffadás, fejfájás…',
+              )}
+              maxLength={2000}
+              rows={4}
+              aria-label={t('foodLibraryScreen.dayNote', 'Megjegyzés')}
+            />
+
+            <button
+              type="button"
+              className={styles.analysisBtn}
+              onClick={handleSaveDayNote}
+              disabled={!canSaveDayNote}
+            >
+              <span className={styles.btnShadow} />
+              <span className={styles.analysisBtnFace}>
+                {dayNoteSaving
+                  ? t('common.loading', 'Betöltés...')
+                  : dayNoteJustSaved && !dayNoteDirty
+                    ? t('foodLibraryScreen.dayNoteSaved', 'Mentve')
+                    : t('foodLibraryScreen.dayNoteSave', 'Mentés')}
+              </span>
+            </button>
+          </BentoCard>
 
           <BentoCard backgroundColor={Colors.dashboard.card} padding={16}>
             <div className={styles.mealHead}>

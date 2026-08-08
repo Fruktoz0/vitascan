@@ -41,6 +41,23 @@ const CreateFoodSchema = z.object({
   servingSize: z.number().min(0).optional(),
   servingUnit: ServingUnitSchema.optional(),
   source: z.enum(['INTERNAL', 'USER_SCAN', 'EXTERNAL_API']).default('USER_SCAN'),
+  isPrepared: z.boolean().optional(),
+  components: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(120),
+        amountG: z.number().min(0.1),
+        kcal: z.number().min(0),
+        protein: z.number().min(0),
+        carbs: z.number().min(0),
+        fat: z.number().min(0),
+        fiber: z.number().min(0).nullable().optional(),
+        sugar: z.number().min(0).nullable().optional(),
+        sortOrder: z.number().int().min(0).optional(),
+      }),
+    )
+    .max(30)
+    .optional(),
 });
 
 const VoteSchema = z.object({
@@ -719,19 +736,61 @@ export default async function foodRoutes(fastify: FastifyInstance) {
 
     const prisma = (fastify as any).prisma;
     const creatorId = user.userId ?? user.id;
+    const barcode = typeof body.barcode === 'string' ? body.barcode.trim() || null : body.barcode ?? null;
+
+    if (barcode) {
+      const existing = await prisma.food.findUnique({ where: { barcode } });
+      if (existing) {
+        if (existing.creatorId === creatorId) {
+          return reply.status(409).send({
+            error: 'Ez az étel már a saját ételeid között szerepel.',
+          });
+        }
+        return reply.status(409).send({
+          error: `Már létezik étel ezzel a vonalkóddal (${barcode}).`,
+        });
+      }
+    }
 
     const food = await prisma.food.create({
       data: {
-        ...body,
+        name: body.name,
         nameHu: body.nameHu ?? body.name,
         nameEn: body.nameEn ?? body.name,
+        brand: body.brand,
+        barcode,
+        kcal: body.kcal,
+        protein: body.protein,
+        carbs: body.carbs,
+        fat: body.fat,
+        fiber: body.fiber,
+        sugar: body.sugar,
         servingSize: body.servingSize ?? 100,
         servingUnit: body.servingUnit ?? 'g',
+        isPrepared: body.isPrepared === true && (body.components?.length ?? 0) > 0,
         status: 'UNVERIFIED',
         tier: 'FREE',
         source: body.source ?? 'USER_SCAN',
         creatorId,
+        ...(body.isPrepared && body.components?.length
+          ? {
+              components: {
+                create: body.components.map((c, i) => ({
+                  name: c.name,
+                  amountG: c.amountG,
+                  kcal: c.kcal,
+                  protein: c.protein,
+                  carbs: c.carbs,
+                  fat: c.fat,
+                  fiber: c.fiber ?? undefined,
+                  sugar: c.sugar ?? undefined,
+                  sortOrder: c.sortOrder ?? i,
+                })),
+              },
+            }
+          : {}),
       },
+      include: { components: { orderBy: { sortOrder: 'asc' } } },
     });
 
     await seedCreatorUpvote(prisma, food.id, creatorId);
@@ -813,6 +872,25 @@ export default async function foodRoutes(fastify: FastifyInstance) {
     if (!food) return reply.status(404).send({ error: 'Nem található.' });
     const editorId = user.userId ?? user.id;
 
+    if (body.barcode !== undefined) {
+      const barcode =
+        typeof body.barcode === 'string' ? body.barcode.trim() || null : body.barcode;
+      if (barcode) {
+        const existing = await prisma.food.findUnique({ where: { barcode } });
+        if (existing && existing.id !== id) {
+          if (existing.creatorId === editorId) {
+            return reply.status(409).send({
+              error: 'Ez a vonalkód már egy saját ételedhez van rendelve.',
+            });
+          }
+          return reply.status(409).send({
+            error: `Már létezik étel ezzel a vonalkóddal (${barcode}).`,
+          });
+        }
+      }
+      (body as { barcode?: string | null }).barcode = barcode;
+    }
+
     const updated = await prisma.food.update({ where: { id }, data: body });
     await prisma.foodEditLog.create({ data: { foodId: id, userId: editorId } });
     return reply.send(updated);
@@ -879,6 +957,7 @@ export default async function foodRoutes(fastify: FastifyInstance) {
         creator: { select: { username: true, reputation: true } },
         _count: { select: { votes: true } },
         votes: { where: { userId }, select: { value: true } },
+        components: { orderBy: { sortOrder: 'asc' } },
       },
     });
 

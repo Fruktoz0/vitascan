@@ -117,6 +117,22 @@ export default function AiRecognizePage() {
   const returnPath =
     (location.state as { returnPath?: string } | null)?.returnPath || '/home';
 
+  type PrefillSuggestion = {
+    dishName?: string;
+    ingredients?: Array<{
+      name: string;
+      amountG?: number;
+      kcal: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+      note?: string;
+    }>;
+  };
+
+  const prefillSuggestion = (location.state as { prefillSuggestion?: PrefillSuggestion } | null)
+    ?.prefillSuggestion;
+
   const goToAddFood = () => {
     navigate(returnPath, { replace: true, state: { openAddFood: true } });
   };
@@ -130,6 +146,7 @@ export default function AiRecognizePage() {
   const [dishName, setDishName] = useState('');
   const [ingredients, setIngredients] = useState<IngredientDraft[]>([]);
   const [saveToLibrary, setSaveToLibrary] = useState(false);
+  const [logAsPrepared, setLogAsPrepared] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [dialog, setDialog] = useState<{ title: string; message: string; goBack?: boolean } | null>(
     null,
@@ -137,6 +154,36 @@ export default function AiRecognizePage() {
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  const prefillAppliedRef = useRef(false);
+
+  useEffect(() => {
+    if (prefillAppliedRef.current || !prefillSuggestion) return;
+    prefillAppliedRef.current = true;
+    const ings = (prefillSuggestion.ingredients ?? []).filter((i) => i?.name?.trim());
+    if (ings.length === 0) return;
+    setDishName(
+      (prefillSuggestion.dishName || ings[0]?.name || '').trim() || t('aiRecognize.dishName'),
+    );
+    setIngredients(
+      ings.map((ing) => {
+        const amountG =
+          ing.amountG != null && ing.amountG > 0
+            ? ing.amountG
+            : Math.max(50, Math.min(400, Math.round((ing.kcal || 100) / 1.5)));
+        return toDraft({
+          name: ing.name.trim(),
+          amountG,
+          kcal: ing.kcal,
+          protein: ing.protein,
+          carbs: ing.carbs,
+          fat: ing.fat,
+        });
+      }),
+    );
+    // Meal suggest → default as prepared dish (not ingredient breakdown).
+    setLogAsPrepared(true);
+    setMode('result');
+  }, [prefillSuggestion, t]);
 
   useEffect(() => {
     return () => {
@@ -239,6 +286,59 @@ export default function AiRecognizePage() {
     setIngredients((prev) => prev.filter((ing) => ing.id !== id));
   };
 
+  const scalePreparedTotal = (
+    field: 'amountG' | 'kcal' | 'protein' | 'carbs' | 'fat',
+    nextRaw: string,
+  ) => {
+    const cleaned = nextRaw.replace(/[^\d.,]/g, '');
+    if (ingredients.length === 1) {
+      const only = ingredients[0]!;
+      if (field === 'amountG') {
+        updateAmountG(only.id, cleaned);
+        return;
+      }
+      updateIng(only.id, { [field]: cleaned });
+      return;
+    }
+    const oldTotal =
+      field === 'amountG'
+        ? ingredients.reduce((s, i) => s + (parseNum(i.amountG) || 0), 0)
+        : totals[field];
+    const newTotal = parseNum(cleaned);
+    if (!Number.isFinite(oldTotal) || oldTotal <= 0 || !Number.isFinite(newTotal) || newTotal < 0) {
+      return;
+    }
+    const scale = newTotal / oldTotal;
+    setIngredients((prev) =>
+      prev.map((ing) => {
+        if (field === 'amountG') {
+          const oldG = parseNum(ing.amountG);
+          if (!Number.isFinite(oldG) || oldG <= 0) return ing;
+          const newG = Math.round(oldG * scale * 10) / 10;
+          const scaleField = (v: string) => {
+            if (!v.trim()) return v;
+            const n = parseNum(v);
+            if (!Number.isFinite(n)) return v;
+            return String(Math.round(n * scale * 10) / 10);
+          };
+          return {
+            ...ing,
+            amountG: String(newG),
+            kcal: scaleField(ing.kcal),
+            protein: scaleField(ing.protein),
+            carbs: scaleField(ing.carbs),
+            fat: scaleField(ing.fat),
+            fiber: scaleField(ing.fiber),
+            sugar: scaleField(ing.sugar),
+          };
+        }
+        const n = parseNum(ing[field]);
+        if (!Number.isFinite(n)) return ing;
+        return { ...ing, [field]: String(Math.round(n * scale * 10) / 10) };
+      }),
+    );
+  };
+
   const handleSave = async () => {
     if (!ingredients.length) {
       setDialog({ title: t('food.errorTitle'), message: t('aiRecognize.noIngredients') });
@@ -276,41 +376,88 @@ export default function AiRecognizePage() {
 
     setSaving(true);
     try {
-      for (const p of parsed) {
-        let foodId: string | undefined;
-        if (saveToLibrary) {
-          const per100 = (n: number) => Math.round((n / p.amountG) * 100 * 10) / 10;
-          const food = await foodApi.create({
-            name: p.name,
-            brand: p.brand,
-            barcode: p.barcode,
-            kcal: per100(p.kcal),
-            protein: per100(p.protein),
-            carbs: per100(p.carbs),
-            fat: per100(p.fat),
-            fiber: p.fiber != null ? per100(p.fiber) : undefined,
-            sugar: p.sugar != null ? per100(p.sugar) : undefined,
-            servingSize: p.servingSize,
-            servingUnit: p.servingUnit,
-            source: 'USER_SCAN',
-          });
-          foodId = food.id;
-        }
+      const round1 = (n: number) => Math.round(n * 10) / 10;
+      const totalG = parsed.reduce((s, p) => s + p.amountG, 0);
+      const totalMacros = parsed.reduce(
+        (acc, p) => ({
+          kcal: acc.kcal + p.kcal,
+          protein: acc.protein + p.protein,
+          carbs: acc.carbs + p.carbs,
+          fat: acc.fat + p.fat,
+          fiber: acc.fiber + (p.fiber ?? 0),
+          sugar: acc.sugar + (p.sugar ?? 0),
+        }),
+        { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 },
+      );
 
+      let preparedFoodId: string | undefined;
+      if (saveToLibrary) {
+        const per100 = (n: number) =>
+          totalG > 0 ? Math.round((n / totalG) * 100 * 10) / 10 : 0;
+        const food = await foodApi.create({
+          name: dishName.trim() || parsed[0]!.name,
+          kcal: per100(totalMacros.kcal),
+          protein: per100(totalMacros.protein),
+          carbs: per100(totalMacros.carbs),
+          fat: per100(totalMacros.fat),
+          fiber: totalMacros.fiber > 0 ? per100(totalMacros.fiber) : undefined,
+          sugar: totalMacros.sugar > 0 ? per100(totalMacros.sugar) : undefined,
+          servingSize: Math.round(totalG * 10) / 10,
+          servingUnit: 'adag',
+          source: 'USER_SCAN',
+          isPrepared: true,
+          components: parsed.map((p, i) => ({
+            name: p.name,
+            amountG: p.amountG,
+            kcal: p.kcal,
+            protein: p.protein,
+            carbs: p.carbs,
+            fat: p.fat,
+            fiber: p.fiber,
+            sugar: p.sugar,
+            sortOrder: i,
+          })),
+        });
+        preparedFoodId = food.id;
+      }
+
+      const date = toLocalDateStr(selectedDate);
+
+      if (logAsPrepared) {
         await logApi.create({
-          ...(foodId ? { foodId } : {}),
-          foodName: p.name,
-          kcal: p.kcal,
-          protein: p.protein,
-          carbs: p.carbs,
-          fat: p.fat,
-          fiber: p.fiber,
-          sugar: p.sugar,
-          amount: p.amountG,
+          ...(preparedFoodId ? { foodId: preparedFoodId } : {}),
+          foodName: dishName.trim() || parsed[0]!.name,
+          kcal: round1(totalMacros.kcal),
+          protein: round1(totalMacros.protein),
+          carbs: round1(totalMacros.carbs),
+          fat: round1(totalMacros.fat),
+          fiber: totalMacros.fiber > 0 ? round1(totalMacros.fiber) : undefined,
+          sugar: totalMacros.sugar > 0 ? round1(totalMacros.sugar) : undefined,
+          amount: Math.max(1, Math.round(totalG * 10) / 10),
           mealType,
           source: 'AI',
-          date: toLocalDateStr(selectedDate),
+          date,
+          sourcePreparedFoodId: preparedFoodId,
         });
+      } else {
+        const logGroupId = crypto.randomUUID();
+        for (const p of parsed) {
+          await logApi.create({
+            foodName: p.name,
+            kcal: p.kcal,
+            protein: p.protein,
+            carbs: p.carbs,
+            fat: p.fat,
+            fiber: p.fiber,
+            sugar: p.sugar,
+            amount: p.amountG,
+            mealType,
+            source: 'AI',
+            date,
+            logGroupId,
+            sourcePreparedFoodId: preparedFoodId,
+          });
+        }
       }
 
       setDialog({
@@ -460,52 +607,38 @@ export default function AiRecognizePage() {
                 value={dishName}
                 onChange={(e) => setDishName(e.target.value)}
               />
+              <label className={styles.preparedCheck}>
+                <span className={styles.preparedCheckBox} data-checked={logAsPrepared || undefined}>
+                  <input
+                    type="checkbox"
+                    checked={logAsPrepared}
+                    onChange={(e) => setLogAsPrepared(e.target.checked)}
+                  />
+                  {logAsPrepared ? '✓' : null}
+                </span>
+                <span className={styles.preparedCheckText}>
+                  <strong>{t('aiRecognize.logAsPrepared')}</strong>
+                  <small>{t('aiRecognize.logAsPreparedHint')}</small>
+                </span>
+              </label>
             </div>
 
             {remaining != null && (
               <p className={styles.hint}>{t('aiRecognize.remaining', { count: remaining })}</p>
             )}
 
-            <h2 className={styles.sectionTitle}>{t('aiRecognize.ingredients')}</h2>
-
-            {ingredients.map((ing) => (
-              <div key={ing.id} className={styles.ingCard}>
-                <div className={styles.ingHead}>
-                  <input
-                    className={styles.input}
-                    value={ing.name}
-                    onChange={(e) => updateIng(ing.id, { name: e.target.value })}
-                    placeholder={t('food.foodName')}
-                  />
-                  <button
-                    type="button"
-                    className={styles.deleteBtn}
-                    aria-label={t('common.delete', 'Delete')}
-                    onClick={() => removeIng(ing.id)}
-                  >
-                    <IconClose size={18} color="#B83B3B" />
-                  </button>
-                </div>
-                <div className={styles.metaRow}>
-                  <label>
-                    {t('food.brandOptional')}
-                    <input
-                      className={styles.input}
-                      value={ing.brand}
-                      onChange={(e) => updateIng(ing.id, { brand: e.target.value })}
-                      placeholder={t('food.brandOptional')}
-                    />
-                  </label>
-                  <label>
-                    {t('food.barcodeOptional')}
-                    <input
-                      className={styles.input}
-                      value={ing.barcode}
-                      onChange={(e) => updateIng(ing.id, { barcode: e.target.value })}
-                      placeholder={t('food.barcodeOptional')}
-                      inputMode="numeric"
-                    />
-                  </label>
+            {logAsPrepared ? (
+              <div className={styles.preparedDishCard}>
+                <div className={styles.preparedDishHead}>
+                  <span className={styles.preparedDishBadge}>{t('aiRecognize.preparedDishBadge')}</span>
+                  <p className={styles.preparedDishName}>
+                    {dishName.trim() || t('aiRecognize.dishName')}
+                  </p>
+                  {ingredients.length > 1 ? (
+                    <p className={styles.preparedDishMeta}>
+                      {t('aiRecognize.preparedPartsHint', { count: ingredients.length })}
+                    </p>
+                  ) : null}
                 </div>
                 <div className={styles.grid}>
                   <label>
@@ -513,31 +646,16 @@ export default function AiRecognizePage() {
                     <input
                       className={styles.input}
                       inputMode="decimal"
-                      value={ing.amountG}
-                      onChange={(e) => updateAmountG(ing.id, e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    {t('aiRecognize.servingUnit')}
-                    <select
-                      className={styles.input}
-                      value={ing.servingUnit}
-                      onChange={(e) => updateIng(ing.id, { servingUnit: e.target.value })}
-                    >
-                      <option value="g">{t('food.unitG')}</option>
-                      <option value="db">{t('food.unitDb')}</option>
-                      <option value="adag">{t('food.unitAdag')}</option>
-                      <option value="ek">{t('food.unitEk')}</option>
-                      <option value="szelet">{t('food.unitSzelet')}</option>
-                    </select>
-                  </label>
-                  <label>
-                    {t('aiRecognize.servingSizeG')}
-                    <input
-                      className={styles.input}
-                      inputMode="decimal"
-                      value={ing.servingSize}
-                      onChange={(e) => updateIng(ing.id, { servingSize: e.target.value })}
+                      value={
+                        ingredients.length === 1
+                          ? ingredients[0]!.amountG
+                          : String(
+                              Math.round(
+                                ingredients.reduce((s, i) => s + (parseNum(i.amountG) || 0), 0) * 10,
+                              ) / 10,
+                            )
+                      }
+                      onChange={(e) => scalePreparedTotal('amountG', e.target.value)}
                     />
                   </label>
                   <label>
@@ -545,8 +663,12 @@ export default function AiRecognizePage() {
                     <input
                       className={styles.input}
                       inputMode="decimal"
-                      value={ing.kcal}
-                      onChange={(e) => updateIng(ing.id, { kcal: e.target.value })}
+                      value={
+                        ingredients.length === 1
+                          ? ingredients[0]!.kcal
+                          : String(Math.round(totals.kcal * 10) / 10)
+                      }
+                      onChange={(e) => scalePreparedTotal('kcal', e.target.value)}
                     />
                   </label>
                   <label>
@@ -554,8 +676,12 @@ export default function AiRecognizePage() {
                     <input
                       className={styles.input}
                       inputMode="decimal"
-                      value={ing.protein}
-                      onChange={(e) => updateIng(ing.id, { protein: e.target.value })}
+                      value={
+                        ingredients.length === 1
+                          ? ingredients[0]!.protein
+                          : String(Math.round(totals.protein * 10) / 10)
+                      }
+                      onChange={(e) => scalePreparedTotal('protein', e.target.value)}
                     />
                   </label>
                   <label>
@@ -563,8 +689,12 @@ export default function AiRecognizePage() {
                     <input
                       className={styles.input}
                       inputMode="decimal"
-                      value={ing.carbs}
-                      onChange={(e) => updateIng(ing.id, { carbs: e.target.value })}
+                      value={
+                        ingredients.length === 1
+                          ? ingredients[0]!.carbs
+                          : String(Math.round(totals.carbs * 10) / 10)
+                      }
+                      onChange={(e) => scalePreparedTotal('carbs', e.target.value)}
                     />
                   </label>
                   <label>
@@ -572,32 +702,157 @@ export default function AiRecognizePage() {
                     <input
                       className={styles.input}
                       inputMode="decimal"
-                      value={ing.fat}
-                      onChange={(e) => updateIng(ing.id, { fat: e.target.value })}
+                      value={
+                        ingredients.length === 1
+                          ? ingredients[0]!.fat
+                          : String(Math.round(totals.fat * 10) / 10)
+                      }
+                      onChange={(e) => scalePreparedTotal('fat', e.target.value)}
                     />
                   </label>
                 </div>
               </div>
-            ))}
+            ) : (
+              <>
+                <h2 className={styles.sectionTitle}>{t('aiRecognize.ingredients')}</h2>
 
-            <div className={styles.summaryCard}>
-              <div className={styles.summaryTitle}>{t('aiRecognize.summary')}</div>
-              <div className={styles.summaryRow}>
-                <span>{Math.round(totals.kcal)} kcal</span>
-                <span>
-                  F {Math.round(totals.protein * 10) / 10}g · Sz {Math.round(totals.carbs * 10) / 10}g ·
-                  Zs {Math.round(totals.fat * 10) / 10}g
-                </span>
-              </div>
-            </div>
+                {ingredients.map((ing) => (
+                  <div key={ing.id} className={styles.ingCard}>
+                    <div className={styles.ingHead}>
+                      <input
+                        className={styles.input}
+                        value={ing.name}
+                        onChange={(e) => updateIng(ing.id, { name: e.target.value })}
+                        placeholder={t('food.foodName')}
+                      />
+                      <button
+                        type="button"
+                        className={styles.deleteBtn}
+                        aria-label={t('common.delete', 'Delete')}
+                        onClick={() => removeIng(ing.id)}
+                      >
+                        <IconClose size={18} color="#B83B3B" />
+                      </button>
+                    </div>
+                    <div className={styles.metaRow}>
+                      <label>
+                        {t('food.brandOptional')}
+                        <input
+                          className={styles.input}
+                          value={ing.brand}
+                          onChange={(e) => updateIng(ing.id, { brand: e.target.value })}
+                          placeholder={t('food.brandOptional')}
+                        />
+                      </label>
+                      <label>
+                        {t('food.barcodeOptional')}
+                        <input
+                          className={styles.input}
+                          value={ing.barcode}
+                          onChange={(e) => updateIng(ing.id, { barcode: e.target.value })}
+                          placeholder={t('food.barcodeOptional')}
+                          inputMode="numeric"
+                        />
+                      </label>
+                    </div>
+                    <div className={styles.grid}>
+                      <label>
+                        {t('aiRecognize.amountG')}
+                        <input
+                          className={styles.input}
+                          inputMode="decimal"
+                          value={ing.amountG}
+                          onChange={(e) => updateAmountG(ing.id, e.target.value)}
+                        />
+                      </label>
+                      <label>
+                        {t('aiRecognize.servingUnit')}
+                        <select
+                          className={styles.input}
+                          value={ing.servingUnit}
+                          onChange={(e) => updateIng(ing.id, { servingUnit: e.target.value })}
+                        >
+                          <option value="g">{t('food.unitG')}</option>
+                          <option value="db">{t('food.unitDb')}</option>
+                          <option value="adag">{t('food.unitAdag')}</option>
+                          <option value="ek">{t('food.unitEk')}</option>
+                          <option value="szelet">{t('food.unitSzelet')}</option>
+                        </select>
+                      </label>
+                      <label>
+                        {t('aiRecognize.servingSizeG')}
+                        <input
+                          className={styles.input}
+                          inputMode="decimal"
+                          value={ing.servingSize}
+                          onChange={(e) => updateIng(ing.id, { servingSize: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        kcal
+                        <input
+                          className={styles.input}
+                          inputMode="decimal"
+                          value={ing.kcal}
+                          onChange={(e) => updateIng(ing.id, { kcal: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        {t('food.protein')}
+                        <input
+                          className={styles.input}
+                          inputMode="decimal"
+                          value={ing.protein}
+                          onChange={(e) => updateIng(ing.id, { protein: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        {t('food.carbs')}
+                        <input
+                          className={styles.input}
+                          inputMode="decimal"
+                          value={ing.carbs}
+                          onChange={(e) => updateIng(ing.id, { carbs: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        {t('food.fat')}
+                        <input
+                          className={styles.input}
+                          inputMode="decimal"
+                          value={ing.fat}
+                          onChange={(e) => updateIng(ing.id, { fat: e.target.value })}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ))}
 
-            <label className={styles.checkRow}>
-              <input
-                type="checkbox"
-                checked={saveToLibrary}
-                onChange={(e) => setSaveToLibrary(e.target.checked)}
-              />
-              <span>{t('aiRecognize.saveToLibrary')}</span>
+                <div className={styles.summaryCard}>
+                  <div className={styles.summaryTitle}>{t('aiRecognize.summary')}</div>
+                  <div className={styles.summaryRow}>
+                    <span>{Math.round(totals.kcal)} kcal</span>
+                    <span>
+                      F {Math.round(totals.protein * 10) / 10}g · Sz{' '}
+                      {Math.round(totals.carbs * 10) / 10}g · Zs {Math.round(totals.fat * 10) / 10}g
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <label className={styles.preparedCheck}>
+              <span className={styles.preparedCheckBox} data-checked={saveToLibrary || undefined}>
+                <input
+                  type="checkbox"
+                  checked={saveToLibrary}
+                  onChange={(e) => setSaveToLibrary(e.target.checked)}
+                />
+                {saveToLibrary ? '✓' : null}
+              </span>
+              <span className={styles.preparedCheckText}>
+                <strong>{t('aiRecognize.saveToLibrary')}</strong>
+              </span>
             </label>
 
             <button

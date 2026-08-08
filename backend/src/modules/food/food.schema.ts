@@ -2,6 +2,18 @@ import { z } from 'zod';
 
 export const ServingUnitSchema = z.enum(['g', 'db', 'adag', 'ek', 'szelet']);
 
+export const FoodComponentInputSchema = z.object({
+  name: z.string().min(1).max(120),
+  amountG: z.number().min(0.1),
+  kcal: z.number().min(0),
+  protein: z.number().min(0),
+  carbs: z.number().min(0),
+  fat: z.number().min(0),
+  fiber: z.number().min(0).optional().nullable(),
+  sugar: z.number().min(0).optional().nullable(),
+  sortOrder: z.number().int().min(0).optional(),
+});
+
 export const CreateFoodSchema = z.object({
   name: z.string().min(2, 'Név min. 2 karakter').max(100),
   nameHu: z.string().min(2).max(100).optional(),
@@ -18,6 +30,8 @@ export const CreateFoodSchema = z.object({
   servingSize: z.number().min(0).optional(),
   servingUnit: ServingUnitSchema.optional(),
   source: z.enum(['INTERNAL', 'USER_SCAN', 'EXTERNAL_API']).optional(),
+  isPrepared: z.boolean().optional(),
+  components: z.array(FoodComponentInputSchema).max(30).optional(),
 });
 
 export const UpdateFoodSchema = CreateFoodSchema.partial();

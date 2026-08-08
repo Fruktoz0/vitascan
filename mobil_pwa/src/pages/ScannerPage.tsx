@@ -1,17 +1,69 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 import { useTranslation } from 'react-i18next';
-import { IconFlashlight, IconFlashlightOff, IconKeyboardOutline } from '../components/ui/Icons';
+import { IconFlashlight, IconFlashlightOff, IconKeyboardOutline, IconScreenRotation } from '../components/ui/Icons';
 import { FoodDetailModal } from '../components/food/FoodModals';
 import { ApiError, foodApi, type Food } from '../services/api';
 import styles from './ScannerPage.module.css';
 
 type ScanState = 'idle' | 'scanning' | 'found' | 'not_found' | 'error';
+type FrameOrientation = 'landscape' | 'portrait';
 
 type ScannerLocationState = {
   returnPath?: string;
 };
+
+type ExtendedCapabilities = MediaTrackCapabilities & {
+  torch?: boolean;
+  focusMode?: string[];
+  zoom?: { min: number; max: number; step?: number };
+  pointsOfInterest?: boolean;
+};
+
+type ExtendedConstraintSet = MediaTrackConstraintSet & {
+  torch?: boolean;
+  focusMode?: string;
+  zoom?: number;
+  pointsOfInterest?: { x: number; y: number }[];
+};
+
+async function applyCameraEnhancements(track: MediaStreamTrack): Promise<{
+  torchSupported: boolean;
+  tapFocusSupported: boolean;
+}> {
+  const caps = track.getCapabilities?.() as ExtendedCapabilities | undefined;
+  if (!caps) return { torchSupported: false, tapFocusSupported: false };
+
+  const advanced: ExtendedConstraintSet[] = [];
+
+  if (caps.focusMode?.includes('continuous')) {
+    advanced.push({ focusMode: 'continuous' });
+  }
+
+  if (caps.zoom) {
+    const { min, max } = caps.zoom;
+    const preferred = Math.min(max, Math.max(min, Math.min(2, min + (max - min) * 0.35)));
+    if (preferred > min) {
+      advanced.push({ zoom: preferred });
+    }
+  }
+
+  if (advanced.length > 0) {
+    try {
+      await track.applyConstraints({ advanced: advanced as MediaTrackConstraintSet[] });
+    } catch {
+      /* capability advertised but rejected */
+    }
+  }
+
+  const tapFocusSupported =
+    !!caps.pointsOfInterest ||
+    !!caps.focusMode?.includes('single-shot') ||
+    !!caps.focusMode?.includes('manual');
+
+  return { torchSupported: !!caps.torch, tapFocusSupported };
+}
 
 export default function ScannerPage() {
   const { t } = useTranslation();
@@ -25,6 +77,7 @@ export default function ScannerPage() {
   const detailVisibleRef = useRef(false);
   const busy = useRef(false);
   const navigatingAway = useRef(false);
+  const focusRestoreTimer = useRef<number | null>(null);
 
   const [permission, setPermission] = useState<'prompt' | 'granted' | 'denied'>('prompt');
   const [scanState, setScanState] = useState<ScanState>('idle');
@@ -33,11 +86,17 @@ export default function ScannerPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
+  const [tapFocusSupported, setTapFocusSupported] = useState(false);
+  const [frameOrientation, setFrameOrientation] = useState<FrameOrientation>('landscape');
 
   const returnPath =
     (location.state as ScannerLocationState | null)?.returnPath || '/home';
 
   const stopCamera = useCallback(() => {
+    if (focusRestoreTimer.current != null) {
+      window.clearTimeout(focusRestoreTimer.current);
+      focusRestoreTimer.current = null;
+    }
     try {
       controlsRef.current?.stop();
     } catch {
@@ -132,7 +191,11 @@ export default function ScannerPage() {
     const start = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } },
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
           audio: false,
         });
         if (!active) {
@@ -142,8 +205,12 @@ export default function ScannerPage() {
         streamRef.current = stream;
         setPermission('granted');
         const track = stream.getVideoTracks()[0];
-        const caps = track.getCapabilities?.() as MediaTrackCapabilities & { torch?: boolean };
-        setTorchSupported(!!caps?.torch);
+        if (track) {
+          const enhanced = await applyCameraEnhancements(track);
+          if (!active) return;
+          setTorchSupported(enhanced.torchSupported);
+          setTapFocusSupported(enhanced.tapFocusSupported);
+        }
 
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -181,12 +248,66 @@ export default function ScannerPage() {
     const track = stream?.getVideoTracks()[0];
     if (!track) return;
     try {
-      await track.applyConstraints({ advanced: [{ torch: !torchOn } as MediaTrackConstraintSet] });
+      await track.applyConstraints({
+        advanced: [{ torch: !torchOn } as ExtendedConstraintSet as MediaTrackConstraintSet],
+      });
       setTorchOn(!torchOn);
     } catch {
       /* torch unsupported */
     }
   };
+
+  const handleTapFocus = useCallback(
+    async (e: ReactPointerEvent<HTMLDivElement>) => {
+      if (!tapFocusSupported) return;
+      const stream = streamRef.current ?? (videoRef.current?.srcObject as MediaStream | null);
+      const track = stream?.getVideoTracks()[0];
+      const video = videoRef.current;
+      if (!track || !video) return;
+
+      const rect = video.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+      const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+
+      if (focusRestoreTimer.current != null) {
+        window.clearTimeout(focusRestoreTimer.current);
+        focusRestoreTimer.current = null;
+      }
+
+      try {
+        await track.applyConstraints({
+          advanced: [
+            {
+              pointsOfInterest: [{ x, y }],
+              focusMode: 'single-shot',
+            } as ExtendedConstraintSet as MediaTrackConstraintSet,
+          ],
+        });
+      } catch {
+        try {
+          await track.applyConstraints({
+            advanced: [{ focusMode: 'continuous' } as ExtendedConstraintSet as MediaTrackConstraintSet],
+          });
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+
+      focusRestoreTimer.current = window.setTimeout(() => {
+        focusRestoreTimer.current = null;
+        void track
+          .applyConstraints({
+            advanced: [{ focusMode: 'continuous' } as ExtendedConstraintSet as MediaTrackConstraintSet],
+          })
+          .catch(() => {
+            /* ignore */
+          });
+      }, 2000);
+    },
+    [tapFocusSupported],
+  );
 
   if (permission === 'denied') {
     return (
@@ -207,6 +328,20 @@ export default function ScannerPage() {
       <video ref={videoRef} className={styles.video} playsInline muted />
       <div className={styles.overlay}>
         <div className={styles.topBar}>
+          <button
+            type="button"
+            className={styles.torchBtn}
+            onClick={() =>
+              setFrameOrientation((prev) => (prev === 'landscape' ? 'portrait' : 'landscape'))
+            }
+            aria-label={
+              frameOrientation === 'landscape'
+                ? t('scannerScreen.switchToPortrait')
+                : t('scannerScreen.switchToLandscape')
+            }
+          >
+            <IconScreenRotation size={22} />
+          </button>
           {torchSupported ? (
             <button
               type="button"
@@ -218,8 +353,15 @@ export default function ScannerPage() {
           ) : null}
         </div>
 
-        <div className={styles.frame}>
-          <div className={styles.scanLine} />
+        <div
+          className={`${styles.frame} ${frameOrientation === 'portrait' ? styles.framePortrait : ''} ${tapFocusSupported ? styles.frameTap : ''}`}
+          onPointerDown={handleTapFocus}
+          role={tapFocusSupported ? 'button' : undefined}
+          aria-label={tapFocusSupported ? t('scannerScreen.tapToFocus') : undefined}
+        >
+          <div
+            className={`${styles.scanLine} ${frameOrientation === 'portrait' ? styles.scanLineVertical : ''}`}
+          />
         </div>
 
         <p className={styles.hint}>

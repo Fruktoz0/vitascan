@@ -30,6 +30,7 @@ model User {
   refreshTokens RefreshToken[]
   waterLogs     WaterLog[]
   weightLogs    WeightLog[]
+  dayNotes      DayNote[]
   dailyAnalyses DailyAnalysis[]
   aiFoodRecognitions AiFoodRecognition[]
   bodyMeasurementLogs BodyMeasurementLog[]
@@ -154,6 +155,9 @@ model Food {
   servingSize Float? // pl. 30 (gramm)
   servingUnit String? // pl. 'adag', 'db', 'ek'
 
+  /** Több hozzávalóból álló kész étel / recept. */
+  isPrepared Boolean @default(false)
+
   status Status @default(UNVERIFIED)
   tier   Tier   @default(FREE) // Freemium
   source FoodSource @default(USER_SCAN)
@@ -164,8 +168,28 @@ model Food {
   favorites FoodFavorite[]
   logs      DailyLog[]
   editLogs  FoodEditLog[]
+  components FoodComponent[]
+  sourcedLogs DailyLog[] @relation("PreparedFoodSource")
 
   createdAt DateTime @default(now())
+}
+
+/** Kész étel / recept hozzávalója (abszolút makrók az amountG-re). */
+model FoodComponent {
+  id        String @id @default(uuid())
+  foodId    String
+  food      Food   @relation(fields: [foodId], references: [id], onDelete: Cascade)
+  name      String
+  amountG   Float
+  kcal      Float
+  protein   Float
+  carbs     Float
+  fat       Float
+  fiber     Float?
+  sugar     Float?
+  sortOrder Int    @default(0)
+
+  @@index([foodId])
 }
 
 /** Közösségi termékadat-szerkesztés naplója (ki + mikor). */
@@ -222,8 +246,17 @@ model DailyLog {
   mealType MealType @default(OTHER)
   source   String   @default("MANUAL") // MANUAL | SCAN | SEARCH
 
+  /** Azonos UUID = egy „Hozzáadás” / egy tál (hozzávalónkénti logok). */
+  logGroupId String?
+  /** Melyik prepared Food receptből jött (ha van). */
+  sourcePreparedFoodId String?
+  sourcePreparedFood   Food?   @relation("PreparedFoodSource", fields: [sourcePreparedFoodId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, logGroupId])
+  @@index([sourcePreparedFoodId])
 }
 
 model RefreshToken {
@@ -270,6 +303,21 @@ model WeightLog {
   loggedDate DateTime @db.Date
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([userId, loggedDate])
+  @@index([userId, loggedDate])
+}
+
+/** Napi megjegyzés — egy sor / user / nap (tünetek, közérzet). */
+model DayNote {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  content    String   @db.Text
+  loggedDate DateTime @db.Date
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@unique([userId, loggedDate])
   @@index([userId, loggedDate])

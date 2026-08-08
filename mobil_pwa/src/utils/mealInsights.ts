@@ -97,6 +97,39 @@ const MISSING_AFTER_HOUR: Partial<Record<MealType, number>> = {
   DINNER: 21,
 };
 
+/** Representative midpoints (minutes from midnight) for nearest-meal scroll. */
+const MEAL_MIDPOINT_MINUTES: { meal: MealType; minutes: number }[] = [
+  { meal: 'BREAKFAST', minutes: 8 * 60 },
+  { meal: 'TIZORAI', minutes: 10 * 60 },
+  { meal: 'LUNCH', minutes: 12 * 60 + 30 },
+  { meal: 'UZSONNA', minutes: 15 * 60 + 30 },
+  { meal: 'DINNER', minutes: 19 * 60 },
+  { meal: 'SNACK', minutes: 21 * 60 + 30 },
+];
+
+const MINUTES_PER_DAY = 24 * 60;
+
+function circularMinuteDistance(a: number, b: number): number {
+  const diff = Math.abs(a - b);
+  return Math.min(diff, MINUTES_PER_DAY - diff);
+}
+
+/** Meal whose typical time is closest to `date` (local clock, wraps around midnight). */
+export function getNearestMealType(date: Date = new Date()): MealType {
+  const nowMinutes = date.getHours() * 60 + date.getMinutes();
+  let best = MEAL_MIDPOINT_MINUTES[0]!;
+  let bestDist = circularMinuteDistance(nowMinutes, best.minutes);
+  for (let i = 1; i < MEAL_MIDPOINT_MINUTES.length; i++) {
+    const entry = MEAL_MIDPOINT_MINUTES[i]!;
+    const dist = circularMinuteDistance(nowMinutes, entry.minutes);
+    if (dist < bestDist) {
+      best = entry;
+      bestDist = dist;
+    }
+  }
+  return best.meal;
+}
+
 export type InsightKind =
   | 'empty'
   | 'missingMeal'

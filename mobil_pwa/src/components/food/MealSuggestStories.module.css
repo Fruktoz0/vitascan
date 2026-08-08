@@ -1,0 +1,237 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.emptyFace {
+  position: relative;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1.5px solid var(--stroke, #1c1b1b);
+  border-radius: 18px 14px 20px 14px;
+  box-shadow: 2px 2px 0 rgba(28, 27, 27, 0.1);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: rgba(28, 27, 27, 0.62);
+}
+
+.scroller {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  padding: 4px 2px 8px;
+  margin: 0 -4px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.scroller::-webkit-scrollbar {
+  display: none;
+}
+
+.card {
+  position: relative;
+  flex: 0 0 86%;
+  max-width: 320px;
+  scroll-snap-align: center;
+  display: flex;
+}
+
+.cardFace {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  min-height: 210px;
+  padding: 16px 16px 14px;
+  background: #fff;
+  border: 1.5px solid var(--stroke, #1c1b1b);
+  border-radius: 22px 16px 24px 16px;
+  box-shadow: 3px 3px 0 rgba(28, 27, 27, 0.12);
+}
+
+.cardTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.labelRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mealIcon {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid var(--stroke, #1c1b1b);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.45;
+}
+
+.refreshBtn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1.5px solid var(--stroke, #1c1b1b);
+  background: #fff8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.refreshBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.refreshBtnPremium {
+  background: #f5f5f5;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  width: auto;
+  padding: 0 8px;
+  color: rgba(28, 27, 27, 0.55);
+}
+
+.refreshUsed {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.4;
+  padding-top: 6px;
+}
+
+.cardTitle {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.25px;
+  line-height: 1.2;
+}
+
+.idea {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  background: #faf8f6;
+  border-radius: 12px;
+  border: 1px solid rgba(28, 27, 27, 0.08);
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+}
+
+.idea:active {
+  background: #f3eee8;
+}
+
+.ideaName {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.15px;
+}
+
+.ideaMacros {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(28, 27, 27, 0.5);
+}
+
+.ideaNote {
+  font-size: 11px;
+  font-weight: 600;
+  font-style: italic;
+  color: rgba(28, 27, 27, 0.55);
+  margin-top: 2px;
+}
+
+.addBtn {
+  margin-top: auto;
+  border: 1.5px solid var(--stroke, #1c1b1b);
+  background: #ffb77d;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  color: var(--stroke, #1c1b1b);
+}
+
+.addBtn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 rgba(28, 27, 27, 0.12);
+}
+
+.loadingWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 80px;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.55;
+}
+
+.errorText {
+  font-size: 12px;
+  font-weight: 600;
+  color: #b33;
+  padding: 0 2px;
+}
+
+.dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e5e2e1;
+  border: 1px solid rgba(28, 27, 27, 0.2);
+}
+
+.dotActive {
+  background: #ffb77d;
+  border-color: var(--stroke, #1c1b1b);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroller {
+    scroll-behavior: auto;
+  }
+
+  .addBtn:active {
+    transform: none;
+  }
+}

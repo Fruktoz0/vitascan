@@ -34,7 +34,8 @@ export async function getLogs(
     where,
     orderBy: { createdAt: 'asc' },
     include: {
-      food: { select: { brand: true } },
+      food: { select: { brand: true, isPrepared: true, name: true, nameHu: true } },
+      sourcePreparedFood: { select: { id: true, name: true, nameHu: true, nameEn: true } },
     },
   });
 
@@ -51,9 +52,11 @@ export async function getLogs(
     { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 }
   );
 
-  const mapped = logs.map(({ food, ...log }) => ({
+  const mapped = logs.map(({ food, sourcePreparedFood, ...log }) => ({
     ...log,
     brand: food?.brand ?? null,
+    sourcePreparedFoodName:
+      sourcePreparedFood?.nameHu ?? sourcePreparedFood?.nameEn ?? sourcePreparedFood?.name ?? null,
   }));
 
   return { logs: mapped, summary };
@@ -93,6 +96,8 @@ export async function createLog(
           amount: data.amount,
           mealType: data.mealType,
           source: data.source,
+          logGroupId: data.logGroupId ?? undefined,
+          sourcePreparedFoodId: data.sourcePreparedFoodId ?? (food.isPrepared ? food.id : undefined),
           ...(createdAt ? { createdAt } : {}),
         },
       });
@@ -114,6 +119,8 @@ export async function createLog(
       amount: data.amount,
       mealType: data.mealType,
       source: data.source,
+      logGroupId: data.logGroupId ?? undefined,
+      sourcePreparedFoodId: data.sourcePreparedFoodId ?? undefined,
       ...(createdAt ? { createdAt } : {}),
     },
   });
@@ -168,4 +175,14 @@ export async function deleteLog(prisma: PrismaClient, logId: string, userId: str
   if (log.userId !== userId) throw new Error('Nincs jogosultsága törölni ezt a bejegyzést.');
 
   return prisma.dailyLog.delete({ where: { id: logId } });
+}
+
+export async function deleteLogGroup(prisma: PrismaClient, logGroupId: string, userId: string) {
+  const result = await prisma.dailyLog.deleteMany({
+    where: { userId, logGroupId },
+  });
+  if (result.count === 0) {
+    throw Object.assign(new Error('Naplócsoport nem található.'), { statusCode: 404 });
+  }
+  return result;
 }

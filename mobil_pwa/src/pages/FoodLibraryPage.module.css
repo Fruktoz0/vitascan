@@ -200,10 +200,7 @@
 }
 
 .mealHighlight {
-  border-radius: 20px;
-  outline: 2px solid var(--stroke);
-  outline-offset: 2px;
-  transition: outline-color 0.3s ease;
+  /* Intentionally empty — scroll-into-view only; no extra outer frame. */
 }
 
 .mealItem {
@@ -222,6 +219,43 @@
 
 .mealItem:active {
   opacity: 0.85;
+}
+
+.logGroup {
+  display: flex;
+  flex-direction: column;
+}
+
+.logGroupBody {
+  padding: 0 0 8px 12px;
+  border-left: 2px solid rgba(28, 27, 27, 0.12);
+  margin: 0 0 4px 8px;
+}
+
+.mealItemNested {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  padding: 8px 0;
+  border: none;
+  border-bottom: 0.8px dashed var(--outline-variant);
+  background: transparent;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.groupDeleteBtn {
+  margin-top: 6px;
+  border: 1.5px solid var(--stroke);
+  background: #fff;
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  color: #b33;
 }
 
 .itemLeft {
@@ -388,4 +422,33 @@
 
 .analysisBtn .btnShadow {
   border-radius: 999px;
+}
+
+.dayNoteTextarea {
+  display: block;
+  width: 100%;
+  min-height: 96px;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--stroke);
+  border-radius: 18px;
+  background: var(--surface, #fff);
+  color: var(--stroke);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.dayNoteTextarea::placeholder {
+  color: var(--tab-inactive);
+  font-weight: 500;
+}
+
+.dayNoteTextarea:focus {
+  outline: none;
+  border-color: var(--stroke);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.06);
 }

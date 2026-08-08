@@ -30,6 +30,7 @@
   justify-content: flex-end;
   min-height: 44px;
   margin-bottom: auto;
+  gap: 12px;
 }
 
 .torchBtn {
@@ -42,6 +43,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .torchOn {
@@ -58,6 +60,17 @@
   border-radius: 20px;
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
   overflow: hidden;
+  transition: width 0.2s ease, height 0.2s ease;
+}
+
+.framePortrait {
+  width: 180px;
+  height: min(320px, 52vh);
+}
+
+.frameTap {
+  cursor: pointer;
+  touch-action: manipulation;
 }
 
 .scanLine {
@@ -67,15 +80,34 @@
   height: 2px;
   background: #ffb77d;
   box-shadow: 0 0 8px #ffb77d;
-  animation: scan 2s linear infinite;
+  animation: scanH 2s linear infinite;
 }
 
-@keyframes scan {
+.scanLineVertical {
+  left: auto;
+  right: auto;
+  top: 8%;
+  bottom: 8%;
+  width: 2px;
+  height: auto;
+  animation: scanV 2s linear infinite;
+}
+
+@keyframes scanH {
   from {
     top: 8px;
   }
   to {
     top: calc(100% - 10px);
+  }
+}
+
+@keyframes scanV {
+  from {
+    left: 8px;
+  }
+  to {
+    left: calc(100% - 10px);
   }
 }
 

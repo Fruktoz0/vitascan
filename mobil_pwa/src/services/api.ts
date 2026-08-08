@@ -163,20 +163,33 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
     }
 
     if (!response.ok) {
+      const rawError = typeof data?.error === 'string' ? data.error.trim() : '';
+      const rawMessage = typeof data?.message === 'string' ? data.message.trim() : '';
+      const isGenericEnglish =
+        /^internal server error$/i.test(rawError) ||
+        /^bad request$/i.test(rawError) ||
+        /^unauthorized$/i.test(rawError) ||
+        /^forbidden$/i.test(rawError) ||
+        /^not found$/i.test(rawError);
+      const preferred =
+        (rawError && !isGenericEnglish ? rawError : '') ||
+        (rawMessage && !isGenericEnglish ? rawMessage : '') ||
+        '';
       const msg =
-        (typeof data?.error === 'string' && data.error) ||
-        (typeof data?.message === 'string' && data.message) ||
+        preferred ||
         (response.status === 401
           ? 'Hibás email vagy jelszó.'
           : response.status === 403
             ? 'Nincs jogosultság ehhez a művelethez.'
             : response.status === 404
               ? 'A kért erőforrás nem található.'
-              : response.status === 429
-                ? 'Túl sok kérés. Várj egy percet, majd próbáld újra.'
-                : response.status >= 500
-                  ? `Szerverhiba (HTTP ${response.status}).`
-                  : `A kérés sikertelen (HTTP ${response.status}).`);
+              : response.status === 409
+                ? 'Ez az adat már létezik.'
+                : response.status === 429
+                  ? 'Túl sok kérés. Várj egy percet, majd próbáld újra.'
+                  : response.status >= 500
+                    ? `Szerverhiba (HTTP ${response.status}).`
+                    : `A kérés sikertelen (HTTP ${response.status}).`);
       throw new ApiError(response.status, msg);
     }
     return data as T;
@@ -217,6 +230,19 @@ export type FoodStatus = 'UNVERIFIED' | 'VERIFIED' | 'BANNED';
 
 export type FoodOrigin = 'local' | 'off' | 'usda' | 'external';
 
+export interface FoodComponent {
+  id?: string;
+  name: string;
+  amountG: number;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber?: number | null;
+  sugar?: number | null;
+  sortOrder?: number;
+}
+
 export interface Food {
   id: string;
   name: string;
@@ -234,6 +260,8 @@ export interface Food {
   sugar?: number;
   servingSize?: number;
   servingUnit?: string;
+  isPrepared?: boolean;
+  components?: FoodComponent[];
   status: FoodStatus;
   tier: 'FREE' | 'PREMIUM';
   score?: number;
@@ -356,6 +384,8 @@ export const logApi = {
   update: (id: string, data: unknown) =>
     request(`/logs/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: (id: string) => request(`/logs/${id}`, { method: 'DELETE' }),
+  deleteGroup: (logGroupId: string) =>
+    request(`/logs/group/${logGroupId}`, { method: 'DELETE' }),
 };
 
 export type DailyAnalysisResult = {
@@ -366,10 +396,18 @@ export type DailyAnalysisResult = {
   updatedAt: string | null;
 };
 
+export type AnalysisKind = 'nutrition' | 'fitness' | 'coach' | 'mealSuggest';
+
 export const analysisApi = {
-  get: (date: string, kind: 'nutrition' | 'fitness' = 'nutrition') =>
+  get: (date: string, kind: AnalysisKind = 'nutrition') =>
     request<DailyAnalysisResult>(`/analysis?date=${date}&kind=${kind}`),
-  generate: (date: string, locale?: 'hu' | 'en', kind: 'nutrition' | 'fitness' = 'nutrition') => {
+  generate: (
+    date: string,
+    locale?: 'hu' | 'en',
+    kind: AnalysisKind = 'nutrition',
+    mealType?: string,
+    opts?: { force?: boolean },
+  ) => {
     const d = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     const offMin = -d.getTimezoneOffset();
@@ -379,7 +417,14 @@ export const analysisApi = {
     const localTime = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${oh}:${om}`;
     return request<DailyAnalysisResult>('/analysis', {
       method: 'POST',
-      body: JSON.stringify({ date, localTime, kind, ...(locale ? { locale } : {}) }),
+      body: JSON.stringify({
+        date,
+        localTime,
+        kind,
+        ...(locale ? { locale } : {}),
+        ...(mealType ? { mealType } : {}),
+        ...(opts?.force ? { force: true } : {}),
+      }),
     });
   },
 };
@@ -427,6 +472,23 @@ export const waterApi = {
   update: (id: string, data: { totalMl?: number; date?: string }) =>
     request(`/water/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: (id: string) => request(`/water/${id}`, { method: 'DELETE' }),
+};
+
+export type DayNote = {
+  id: string;
+  content: string;
+  loggedDate: string;
+  updatedAt: string;
+};
+
+export const dayNoteApi = {
+  getByDate: (date: string) =>
+    request<{ note: DayNote | null }>(`/day-notes?date=${encodeURIComponent(date)}`),
+  save: (date: string, content: string) =>
+    request<{ note: DayNote | null }>('/day-notes', {
+      method: 'PUT',
+      body: JSON.stringify({ date, content }),
+    }),
 };
 
 export const weightApi = {

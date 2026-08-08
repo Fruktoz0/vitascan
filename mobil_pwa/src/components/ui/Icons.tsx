@@ -54,6 +54,7 @@ import {
   MdRemove,
   MdRestaurant,
   MdScience,
+  MdScreenRotation,
   MdSearch,
   MdShield,
   MdStar,
@@ -191,6 +192,7 @@ export const IconExpandMore = wrap(MdExpandMore);
 export const IconExpandLess = wrap(MdExpandLess);
 export const IconContentCopy = wrap(MdContentCopy);
 export const IconRefresh = wrap(MdRefresh);
+export const IconScreenRotation = wrap(MdScreenRotation);
 
 export const TAB_ICONS = {
   home: { outline: IconHomeOutline, filled: IconHome },

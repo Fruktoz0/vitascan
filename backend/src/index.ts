@@ -17,10 +17,12 @@ import statsRoutes from './modules/stats/stats.routes';
 import onboardingRoutes from './modules/onboarding/onboarding.routes';
 import exportRoutes from './modules/export/export.routes';
 import weightRoutes from './modules/weight/weight.routes';
+import dayNoteRoutes from './modules/dayNote/dayNote.routes';
 import analysisRoutes from './modules/analysis/analysis.routes';
 import bodyRoutes from './modules/body/body.routes';
 import fitnessRoutes from './modules/fitness/fitness.routes';
 import { startRefreshTokenCleanupScheduler } from './jobs/refresh-token-cleanup.scheduler';
+import { mapErrorToHttp } from './utils/httpErrors';
 
 const fastify = Fastify({
   logger: {
@@ -30,6 +32,16 @@ const fastify = Fastify({
 });
 
 async function bootstrap() {
+  fastify.setErrorHandler((error, request, reply) => {
+    const mapped = mapErrorToHttp(error);
+    if (mapped.status >= 500) {
+      request.log.error({ err: error }, mapped.error);
+    } else {
+      request.log.warn({ err: error, status: mapped.status }, mapped.error);
+    }
+    return reply.status(mapped.status).send({ error: mapped.error });
+  });
+
   // ─── Security plugins ────────────────────────────────────────────────────
   await fastify.register(helmet, { contentSecurityPolicy: false });
 
@@ -80,6 +92,7 @@ async function bootstrap() {
     await api.register(logRoutes, { prefix: '/logs' });
     await api.register(waterRoutes, { prefix: '/water' });
     await api.register(weightRoutes, { prefix: '/weight' });
+    await api.register(dayNoteRoutes, { prefix: '/day-notes' });
     await api.register(analysisRoutes, { prefix: '/analysis' });
     await api.register(bodyRoutes, { prefix: '/body' });
     await api.register(fitnessRoutes, { prefix: '/fitness' });

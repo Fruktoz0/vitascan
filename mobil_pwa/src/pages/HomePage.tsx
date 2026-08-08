@@ -12,6 +12,7 @@ import {
   FoodDetailModal,
 } from '../components/food/FoodModals';
 import MealInsightsCard from '../components/food/MealInsightsCard';
+import MealSuggestStories from '../components/food/MealSuggestStories';
 import WeeklyKcalChart, { type WeeklyDay } from '../components/food/WeeklyKcalChart';
 import StreakCard from '../components/food/StreakCard';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -99,6 +100,7 @@ export default function HomePage() {
     setLoading(true);
     try {
       const dateStr = toLocalDateStr(selectedDate);
+
       const [summary, waterData, weightData, weekly, streakData] = await Promise.all([
         statsApi.day(dateStr),
         waterApi.getByDate(dateStr),
@@ -171,6 +173,7 @@ export default function HomePage() {
   const todayStr = toLocalDateStr();
   const selectedDateStr = toLocalDateStr(selectedDate);
   const isToday = selectedDateStr === todayStr;
+
   const hasDayWeight = typeof weight?.weightKg === 'number';
   const lastMeasuredText = !hasDayWeight
     ? t('homeScreen.weightNoMeasurement')
@@ -253,6 +256,14 @@ export default function HomePage() {
           isToday={isToday}
           onOpenDiary={openDiary}
           onAddMeal={openAddFood}
+        />
+
+        <MealSuggestStories
+          dateStr={selectedDateStr}
+          isToday={isToday}
+          totals={totals}
+          goals={goals}
+          byMealType={byMealType}
         />
 
         {weeklyDays.length > 0 && (

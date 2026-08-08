@@ -4,7 +4,7 @@ import { AnalysisQuerySchema, GenerateAnalysisSchema } from './analysis.schema';
 import { getDailyAnalysis, createOrRefreshDailyAnalysis } from './analysis.service';
 
 const analysisRoutes: FastifyPluginAsync = async (fastify) => {
-  // GET /analysis?date=YYYY-MM-DD&kind=nutrition|fitness
+  // GET /analysis?date=YYYY-MM-DD&kind=nutrition|fitness|coach|mealSuggest
   fastify.get('/', { preHandler: authenticate }, async (request, reply) => {
     const parsed = AnalysisQuerySchema.safeParse(request.query);
     if (!parsed.success) {
@@ -15,6 +15,7 @@ const analysisRoutes: FastifyPluginAsync = async (fastify) => {
       request.user.userId,
       parsed.data.date,
       parsed.data.kind ?? 'nutrition',
+      request.user.role,
     );
     return reply.send(result);
   });
@@ -29,12 +30,20 @@ const analysisRoutes: FastifyPluginAsync = async (fastify) => {
       const result = await createOrRefreshDailyAnalysis(
         fastify.prisma,
         request.user.userId,
-        parsed.data,
+        {
+          ...parsed.data,
+          role: request.user.role,
+        },
       );
       return reply.send(result);
     } catch (err: any) {
       const status = err.statusCode || 500;
-      return reply.status(status).send({ error: err.message || 'Elemzés sikertelen.' });
+      return reply.status(status).send({
+        error: err.message || 'Elemzés sikertelen.',
+        ...(err.upgradeRequired ? { upgradeRequired: true } : {}),
+        ...(err.feature ? { feature: err.feature } : {}),
+        ...(err.code ? { code: err.code } : {}),
+      });
     }
   });
 };

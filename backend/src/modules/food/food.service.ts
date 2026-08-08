@@ -89,14 +89,36 @@ export async function createFood(
     if (exists) throw new Error('Ez a vonalkód már szerepel az adatbázisban.');
   }
 
+  const { components, isPrepared, ...rest } = data;
+  const prepared = isPrepared === true && (components?.length ?? 0) > 0;
+
   return prisma.food.create({
     data: {
-      ...data,
+      ...rest,
       nameHu: data.nameHu ?? data.name,
       nameEn: data.nameEn ?? data.name,
       source: data.source ?? 'USER_SCAN',
       creatorId: userId,
+      isPrepared: prepared,
+      ...(prepared && components
+        ? {
+            components: {
+              create: components.map((c, i) => ({
+                name: c.name,
+                amountG: c.amountG,
+                kcal: c.kcal,
+                protein: c.protein,
+                carbs: c.carbs,
+                fat: c.fat,
+                fiber: c.fiber ?? undefined,
+                sugar: c.sugar ?? undefined,
+                sortOrder: c.sortOrder ?? i,
+              })),
+            },
+          }
+        : {}),
     },
+    include: { components: { orderBy: { sortOrder: 'asc' } } },
   });
 }
 
@@ -112,9 +134,38 @@ export async function updateFood(
 
   if (data.name) assertNoProfanity(data.name, 'Étel neve');
 
-  const updated = await prisma.food.update({ where: { id: foodId }, data });
+  const { components, isPrepared, ...rest } = data;
+  const updated = await prisma.food.update({
+    where: { id: foodId },
+    data: {
+      ...rest,
+      ...(isPrepared !== undefined ? { isPrepared } : {}),
+    },
+  });
+
+  if (components && isPrepared) {
+    await prisma.foodComponent.deleteMany({ where: { foodId } });
+    await prisma.foodComponent.createMany({
+      data: components.map((c, i) => ({
+        foodId,
+        name: c.name,
+        amountG: c.amountG,
+        kcal: c.kcal,
+        protein: c.protein,
+        carbs: c.carbs,
+        fat: c.fat,
+        fiber: c.fiber ?? undefined,
+        sugar: c.sugar ?? undefined,
+        sortOrder: c.sortOrder ?? i,
+      })),
+    });
+  }
+
   await prisma.foodEditLog.create({ data: { foodId, userId } });
-  return updated;
+  return prisma.food.findUnique({
+    where: { id: foodId },
+    include: { components: { orderBy: { sortOrder: 'asc' } } },
+  }) ?? updated;
 }
 
 export async function voteOnFood(

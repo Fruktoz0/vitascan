@@ -426,6 +426,277 @@ async function callGeminiModel(
   return { ok: false, rateLimited: false, error: lastError };
 }
 
+export type CoachNudgePayload = {
+  locale: 'hu' | 'en';
+  date: string;
+  totals: { kcal: number; protein: number; carbs: number; fat: number };
+  goals: {
+    dailyKcalGoal: number;
+    dailyProteinGoal: number | null;
+    dailyCarbsGoal: number | null;
+    dailyFatGoal: number | null;
+  };
+  deltas: { kcal: number };
+  filledMeals: string[];
+  emptyMainMeals: string[];
+  nearestMealHint?: string;
+};
+
+export type CoachNudgeResult = {
+  line: string;
+  mood: 'curious' | 'calm' | 'warn' | 'celebrate';
+};
+
+function parseCoachNudgeJson(text: string): CoachNudgeResult {
+  let cleaned = text.trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+  }
+  const parsed = JSON.parse(cleaned) as Partial<CoachNudgeResult>;
+  const moods = new Set(['curious', 'calm', 'warn', 'celebrate']);
+  const line = typeof parsed.line === 'string' ? parsed.line.trim() : '';
+  if (!line) throw new Error('Missing coach line');
+  const mood =
+    typeof parsed.mood === 'string' && moods.has(parsed.mood)
+      ? (parsed.mood as CoachNudgeResult['mood'])
+      : 'calm';
+  return { line: line.slice(0, 160), mood };
+}
+
+/** Short one-line home coach nudge — not a full daily analysis. */
+export async function generateCoachNudge(payload: CoachNudgePayload): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  if (!apiKey) {
+    throw Object.assign(new Error('Gemini API kulcs nincs beállítva.'), { statusCode: 503 });
+  }
+
+  const primary = process.env.GEMINI_MODEL?.trim() || 'gemini-3.6-flash';
+  const fallback =
+    process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-3.5-flash-lite';
+
+  const system =
+    payload.locale === 'en'
+      ? `You are VitaScan's friendly nutrition coach on the home screen.
+Return ONLY JSON: {"line": string, "mood": "curious"|"calm"|"warn"|"celebrate"}.
+Rules: one short sentence (max ~20 words). Actionable tip for what to eat or watch next. No medical claims. No clock/time narration. mood must match the tip tone.`
+      : `Te a VitaScan barátságos táplálkozási coach-a vagy a főképernyőn.
+CSAK JSON: {"line": string, "mood": "curious"|"calm"|"warn"|"celebrate"}.
+Szabályok: egy rövid mondat (max ~20 szó). Konkrét tipp mit egyen / mire figyeljen. Nincs orvosi diagnózis. Ne említs órát. A mood illeszkedjen a hangulathoz.`;
+
+  const userText = [
+    payload.locale === 'en' ? 'Context (JSON):' : 'Kontextus (JSON):',
+    JSON.stringify(payload),
+    payload.locale === 'en'
+      ? 'Return ONLY the coach nudge JSON.'
+      : 'Csak a coach nudge JSON.',
+  ].join('\n');
+
+  const models = [primary, fallback].filter((m, i, arr) => m && arr.indexOf(m) === i);
+  let lastError = payload.locale === 'en' ? 'Gemini request failed.' : 'A Gemini kérés sikertelen.';
+
+  for (const model of models) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: 'user', parts: [{ text: userText }] }],
+        generationConfig: {
+          temperature: 0.6,
+          maxOutputTokens: 256,
+          responseMimeType: 'application/json',
+        },
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      lastError = body?.error?.message || lastError;
+      continue;
+    }
+    try {
+      const text = extractText(body, payload.locale);
+      const nudge = parseCoachNudgeJson(text);
+      return JSON.stringify(nudge);
+    } catch (err: any) {
+      lastError = err?.message || lastError;
+    }
+  }
+
+  throw Object.assign(new Error(lastError), { statusCode: 502 });
+}
+
+export type MealSuggestIdea = {
+  name: string;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  note?: string;
+};
+
+export type MealSuggestSlot = {
+  mealType: MealTypeKey;
+  title: string;
+  ideas: MealSuggestIdea[];
+};
+
+export type MealSuggestPayload = {
+  locale: 'hu' | 'en';
+  date: string;
+  queryLocalHour: number;
+  remaining: { kcal: number; protein: number; carbs: number; fat: number };
+  goals: {
+    dailyKcalGoal: number;
+    dailyProteinGoal: number | null;
+    dailyCarbsGoal: number | null;
+    dailyFatGoal: number | null;
+  };
+  totals: { kcal: number; protein: number; carbs: number; fat: number };
+  emptyMeals: MealTypeKey[];
+  filledMeals: MealTypeKey[];
+  /** Per-slot kcal/macro budget hint (share of remaining) */
+  slotBudgets: Array<{
+    mealType: MealTypeKey;
+    kcal: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  }>;
+  /** If set, only regenerate this one meal */
+  targetMeal?: MealTypeKey;
+};
+
+function parseMealSuggestJson(text: string, allowed: Set<string>): MealSuggestSlot[] {
+  let cleaned = text.trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+  }
+  const parsed = JSON.parse(cleaned) as { suggestions?: unknown };
+  const raw = Array.isArray(parsed.suggestions) ? parsed.suggestions : [];
+  const out: MealSuggestSlot[] = [];
+
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue;
+    const mealType = String((row as any).mealType ?? '');
+    if (!allowed.has(mealType)) continue;
+    const title = typeof (row as any).title === 'string' ? (row as any).title.trim() : '';
+    const ideasRaw = Array.isArray((row as any).ideas) ? (row as any).ideas : [];
+    const ideas: MealSuggestIdea[] = [];
+    for (const idea of ideasRaw.slice(0, 2)) {
+      if (!idea || typeof idea !== 'object') continue;
+      const name = typeof idea.name === 'string' ? idea.name.trim() : '';
+      if (!name) continue;
+      const n = (v: unknown) => {
+        const x = typeof v === 'number' ? v : Number(v);
+        return Number.isFinite(x) ? Math.max(0, Math.round(x * 10) / 10) : 0;
+      };
+      ideas.push({
+        name: name.slice(0, 80),
+        kcal: Math.round(n(idea.kcal)),
+        protein: n(idea.protein),
+        carbs: n(idea.carbs),
+        fat: n(idea.fat),
+        ...(typeof idea.note === 'string' && idea.note.trim()
+          ? { note: idea.note.trim().slice(0, 100) }
+          : {}),
+      });
+    }
+    if (ideas.length === 0) continue;
+    out.push({
+      mealType: mealType as MealTypeKey,
+      title: (title || mealType).slice(0, 60),
+      ideas,
+    });
+  }
+
+  return out.slice(0, 4);
+}
+
+/** Food ideas for remaining empty meal slots — stored as DailyAnalysis kind=mealSuggest. */
+export async function generateMealSuggestions(payload: MealSuggestPayload): Promise<MealSuggestSlot[]> {
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  if (!apiKey) {
+    throw Object.assign(new Error('Gemini API kulcs nincs beállítva.'), { statusCode: 503 });
+  }
+
+  const primary = process.env.GEMINI_MODEL?.trim() || 'gemini-3.6-flash';
+  const fallback =
+    process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-3.5-flash-lite';
+
+  const targetSet = new Set(
+    payload.targetMeal
+      ? [payload.targetMeal]
+      : payload.slotBudgets.map((s) => s.mealType),
+  );
+
+  const system =
+    payload.locale === 'en'
+      ? `You are VitaScan's meal suggestion helper.
+Return ONLY JSON: {"suggestions":[{"mealType":string,"title":string,"ideas":[{"name":string,"kcal":number,"protein":number,"carbs":number,"fat":number,"note":string}]}]}.
+Rules:
+- Suggest ONLY for the given empty meal slots (mealType enum). Max 4 suggestions.
+- Each suggestion: 1–2 realistic food ideas that fit the slot budget (kcal/macros) approximately.
+- Simple everyday foods or easy combos. No medical claims. No recipes longer than a name + optional short note.
+- Prefer variety; do not repeat the same idea across slots.
+- If remaining kcal is very low, suggest light options under the budget.
+- Do NOT invent mealTypes outside slotBudgets. Respect queryLocalHour: only upcoming meals for that time of day.`
+      : `Te a VitaScan étkezés-javasló segédje vagy.
+CSAK JSON: {"suggestions":[{"mealType":string,"title":string,"ideas":[{"name":string,"kcal":number,"protein":number,"carbs":number,"fat":number,"note":string}]}]}.
+Szabályok:
+- CSAK a megadott üres étkezés-slotokra javasolj (mealType enum). Max 4 javaslat.
+- Slotonként 1–2 reális ételötlet, ami kb. belefér a slot kcal/makró keretébe.
+- Egyszerű, hétköznapi ételek / könnyű kombinációk. Nincs orvosi diagnózis. Nincs hosszú recept — név + opcionális rövid note.
+- Variáld az ötleteket; ne ismételd ugyanazt több sloton.
+- Ha kevés a fennmaradó kcal, könnyű, alacsony kcal tippeket adj.
+- Ne találj ki mealType-ot a slotBudgets-en kívül. Figyeld a queryLocalHour-t: csak a napszakhoz még illő étkezések.`;
+
+  const userText = [
+    payload.locale === 'en' ? 'Context (JSON):' : 'Kontextus (JSON):',
+    JSON.stringify(payload),
+    payload.locale === 'en'
+      ? 'Return ONLY the meal suggestions JSON for the requested slots.'
+      : 'Csak a kért slotokra vonatkozó ételjavaslat JSON.',
+  ].join('\n');
+
+  const models = [primary, fallback].filter((m, i, arr) => m && arr.indexOf(m) === i);
+  let lastError = payload.locale === 'en' ? 'Gemini request failed.' : 'A Gemini kérés sikertelen.';
+
+  for (const model of models) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: 'user', parts: [{ text: userText }] }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 1024,
+          responseMimeType: 'application/json',
+        },
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      lastError = body?.error?.message || lastError;
+      continue;
+    }
+    try {
+      const text = extractText(body, payload.locale);
+      const slots = parseMealSuggestJson(text, targetSet);
+      if (slots.length === 0) {
+        throw new Error(payload.locale === 'en' ? 'No suggestions.' : 'Nincs javaslat.');
+      }
+      return slots;
+    } catch (err: any) {
+      lastError = err?.message || lastError;
+    }
+  }
+
+  throw Object.assign(new Error(lastError), { statusCode: 502 });
+}
+
 /** Returns canonical JSON string to store in DB */
 export async function generateDailyAnalysis(payload: GeminiUserPayload): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
