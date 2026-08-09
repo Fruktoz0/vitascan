@@ -3,7 +3,11 @@ import { authenticate } from '../../middleware/authenticate';
 import { weeklyStatsGuard } from '../../middleware/tierGuard';
 
 type LogWithFoodBrand = {
-  food: { brand: string | null } | null;
+  food: {
+    brand: string | null;
+    servingSize?: number | null;
+    servingUnit?: string | null;
+  } | null;
   sourcePreparedFood?: { id: string; name: string; nameHu: string | null; nameEn: string | null } | null;
   [key: string]: unknown;
 };
@@ -12,6 +16,8 @@ function flattenLogsWithBrand<T extends LogWithFoodBrand>(logs: T[]) {
   return logs.map(({ food, sourcePreparedFood, ...log }) => ({
     ...log,
     brand: food?.brand ?? null,
+    servingSize: food?.servingSize ?? null,
+    servingUnit: food?.servingUnit ?? null,
     sourcePreparedFoodName:
       sourcePreparedFood?.nameHu ?? sourcePreparedFood?.nameEn ?? sourcePreparedFood?.name ?? null,
   }));
@@ -32,7 +38,7 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       fastify.prisma.dailyLog.findMany({
         where: { userId, createdAt: { gte: today, lt: tomorrow } },
         include: {
-          food: { select: { brand: true } },
+          food: { select: { brand: true, servingSize: true, servingUnit: true } },
           sourcePreparedFood: { select: { id: true, name: true, nameHu: true, nameEn: true } },
         },
         orderBy: { createdAt: 'asc' },
@@ -91,7 +97,7 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       fastify.prisma.dailyLog.findMany({
         where: { userId, createdAt: { gte: day, lt: nextDay } },
         include: {
-          food: { select: { brand: true } },
+          food: { select: { brand: true, servingSize: true, servingUnit: true } },
           sourcePreparedFood: { select: { id: true, name: true, nameHu: true, nameEn: true } },
         },
         orderBy: { createdAt: 'asc' },

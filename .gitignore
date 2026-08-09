@@ -3,9 +3,13 @@
 .env.*
 !.env.example
 
-# Függőségek és build kimenetek (gyökér szintű másolatok / eszközök)
+# Függőségek és build kimenetek
 node_modules/
 **/node_modules/
+dist/
+**/dist/
+build/
+**/build/
 
 # Naplók
 *.log
@@ -19,8 +23,13 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+*.swp
+*.tmp
 
-# Docker / lokális mentések (ha nincs almappa .gitignore)
+# Docker / lokális mentések
 web/db-admin-stack/backups/*.dump
 web/db-admin-stack/backups/*.sql
 web/db-admin-stack/backups/*.backup
+
+# Runner / CI/CD temp
+.actions-runner/

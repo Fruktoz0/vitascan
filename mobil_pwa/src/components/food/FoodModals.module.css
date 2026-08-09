@@ -614,6 +614,214 @@
   padding-bottom: 2px;
 }
 
+.portionRow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.portionInfoBtn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid var(--stroke);
+  border-radius: 14px;
+  background: #fff8f0;
+  box-shadow: 2px 2px 0 rgba(28, 27, 27, 0.1);
+  cursor: pointer;
+}
+
+.portionInfoBtn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 rgba(28, 27, 27, 0.1);
+}
+
+.servingHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.servingUnitHint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--tab-inactive);
+}
+
+.unitChipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.unitChip {
+  flex: 1 1 calc(33.33% - 8px);
+  min-width: 64px;
+  padding: 10px 8px;
+  border: 1.5px solid var(--stroke);
+  border-radius: 16px;
+  background: #eef4f8;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--tab-inactive);
+  cursor: pointer;
+  box-shadow: 2px 2px 0 rgba(28, 27, 27, 0.08);
+}
+
+.unitChipActive {
+  background: #dbead0;
+  color: var(--stroke);
+  box-shadow: 2px 2px 0 rgba(28, 27, 27, 0.14);
+}
+
+.unitChip:active {
+  transform: translate(1px, 1px);
+}
+
+.servingGramsInputWrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1.5px solid var(--stroke);
+  border-radius: 16px;
+  background: #fff;
+  padding: 0 14px;
+  min-height: 48px;
+  box-shadow: 2px 2px 0 rgba(28, 27, 27, 0.08);
+}
+
+.servingGramsInput {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--stroke);
+  padding: 10px 0;
+}
+
+.servingGramsSuffix {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--tab-inactive);
+}
+
+.servingInfoCard {
+  width: min(100%, 360px);
+  background: var(--page, #faf9f6);
+  border: 1.5px solid var(--stroke);
+  border-radius: 24px;
+  box-shadow: 4px 4px 0 var(--shadow-hard, #1c1b1b);
+  padding: 20px 18px 16px;
+}
+
+.servingInfoHead {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.servingInfoTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--stroke);
+  text-align: center;
+}
+
+.servingInfoSub {
+  margin: 0 0 14px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tab-inactive);
+}
+
+.servingInfoGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.servingInfoKcal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1.5px solid var(--stroke);
+  background: #fff8f0;
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--stroke);
+}
+
+.servingInfoMacro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(28, 27, 27, 0.12);
+  background: #fff;
+}
+
+.servingInfoMacroLabel {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--tab-inactive);
+}
+
+.servingInfoMacroValue {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--stroke);
+  font-variant-numeric: tabular-nums;
+}
+
+.servingInfoEmpty {
+  margin: 0 0 16px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--tab-inactive);
+}
+
+.servingInfoClose {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 999px;
+  border: 1.5px solid var(--stroke);
+  background: var(--soft-green, #e8f5e9);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--stroke);
+  cursor: pointer;
+}
+
 .portionBadgeShadow {
   position: absolute;
   top: 2px;

@@ -34,7 +34,16 @@ export async function getLogs(
     where,
     orderBy: { createdAt: 'asc' },
     include: {
-      food: { select: { brand: true, isPrepared: true, name: true, nameHu: true } },
+      food: {
+        select: {
+          brand: true,
+          isPrepared: true,
+          name: true,
+          nameHu: true,
+          servingSize: true,
+          servingUnit: true,
+        },
+      },
       sourcePreparedFood: { select: { id: true, name: true, nameHu: true, nameEn: true } },
     },
   });
@@ -55,6 +64,8 @@ export async function getLogs(
   const mapped = logs.map(({ food, sourcePreparedFood, ...log }) => ({
     ...log,
     brand: food?.brand ?? null,
+    servingSize: food?.servingSize ?? null,
+    servingUnit: food?.servingUnit ?? null,
     sourcePreparedFoodName:
       sourcePreparedFood?.nameHu ?? sourcePreparedFood?.nameEn ?? sourcePreparedFood?.name ?? null,
   }));

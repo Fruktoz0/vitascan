@@ -15,6 +15,7 @@ import {
   IconEdit,
   IconHeart,
   IconHeartOutline,
+  IconInfoOutline,
   IconLeaf,
   IconPeopleOutline,
   IconPhotoCamera,
@@ -68,6 +69,102 @@ function defaultQtyForUnit(unit: ServingUnitCode, gramsPerUnit: number): number 
 function qtyToGrams(qty: number, displayUnit: ServingUnitCode, gramsPerUnit: number): number {
   if (!Number.isFinite(qty) || qty <= 0) return 0;
   return displayUnit === 'g' ? qty : qty * gramsPerUnit;
+}
+
+function macrosForGrams(
+  per100: { kcal: number; protein: number; carbs: number; fat: number; sugar?: number | null; fiber?: number | null },
+  grams: number,
+) {
+  const scale = grams / 100;
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+  return {
+    kcal: Math.round(per100.kcal * scale),
+    protein: round1(per100.protein * scale),
+    carbs: round1(per100.carbs * scale),
+    fat: round1(per100.fat * scale),
+    sugar: per100.sugar != null ? round1(per100.sugar * scale) : null,
+    fiber: per100.fiber != null ? round1(per100.fiber * scale) : null,
+  };
+}
+
+function ServingUnitInfoPopup({
+  open,
+  onClose,
+  title,
+  subtitle,
+  macros,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  subtitle?: string;
+  macros: {
+    kcal: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    sugar?: number | null;
+    fiber?: number | null;
+  } | null;
+}) {
+  const { t } = useTranslation();
+  if (!open) return null;
+  return (
+    <div className={styles.unitMacrosOverlay} role="presentation" onClick={onClose}>
+      <div
+        className={styles.servingInfoCard}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="serving-info-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className={styles.servingInfoHead}>
+          <IconInfoOutline size={22} color={Colors.dashboard.stroke} />
+          <h2 id="serving-info-title" className={styles.servingInfoTitle}>
+            {title}
+          </h2>
+        </div>
+        {subtitle ? <p className={styles.servingInfoSub}>{subtitle}</p> : null}
+        {macros ? (
+          <div className={styles.servingInfoGrid}>
+            <div className={styles.servingInfoKcal}>
+              <IconBolt size={18} color={Colors.dashboard.nutritionIcon} />
+              <span>{macros.kcal} kcal</span>
+            </div>
+            <div className={styles.servingInfoMacro}>
+              <span className={styles.servingInfoMacroLabel}>{t('food.protein')}</span>
+              <span className={styles.servingInfoMacroValue}>{macros.protein}g</span>
+            </div>
+            <div className={styles.servingInfoMacro}>
+              <span className={styles.servingInfoMacroLabel}>{t('food.carbs')}</span>
+              <span className={styles.servingInfoMacroValue}>{macros.carbs}g</span>
+            </div>
+            <div className={styles.servingInfoMacro}>
+              <span className={styles.servingInfoMacroLabel}>{t('food.fat')}</span>
+              <span className={styles.servingInfoMacroValue}>{macros.fat}g</span>
+            </div>
+            {macros.fiber != null ? (
+              <div className={styles.servingInfoMacro}>
+                <span className={styles.servingInfoMacroLabel}>{t('food.fiber')}</span>
+                <span className={styles.servingInfoMacroValue}>{macros.fiber}g</span>
+              </div>
+            ) : null}
+            {macros.sugar != null ? (
+              <div className={styles.servingInfoMacro}>
+                <span className={styles.servingInfoMacroLabel}>{t('food.sugar')}</span>
+                <span className={styles.servingInfoMacroValue}>{macros.sugar}g</span>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <p className={styles.servingInfoEmpty}>{t('food.servingInfoNeedMacros')}</p>
+        )}
+        <button type="button" className={styles.servingInfoClose} onClick={onClose}>
+          {t('common.ok', 'OK')}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function foodNameSizeClass(name: string): string {
@@ -394,6 +491,7 @@ export function FoodDetailModal({
   const [editOpen, setEditOpen] = useState(false);
   const [historyKey, setHistoryKey] = useState(0);
   const [logAsPrepared, setLogAsPrepared] = useState(false);
+  const [servingInfoOpen, setServingInfoOpen] = useState(false);
 
   useEffect(() => {
     setCurrentFood(food);
@@ -409,6 +507,7 @@ export function FoodDetailModal({
       setAmount(String(Number.isInteger(initial) ? initial : Math.round(initial * 10) / 10));
       setEditOpen(false);
       setLogAsPrepared(false);
+      setServingInfoOpen(false);
       // Load components for prepared foods if missing
       if (food.isPrepared && !(food.components?.length) && isLocalFoodId(food.id)) {
         foodApi.getById(food.id).then((full) => {
@@ -443,6 +542,8 @@ export function FoodDetailModal({
           unit: unitLabel(foodUnit),
           grams: Math.round(gramsPerUnit * 10) / 10,
         });
+
+  const servingUnitMacros = macrosForGrams(currentFood, gramsPerUnit);
 
   const qty = parseFloat(amount.replace(',', '.')) || 0;
   const g = qtyToGrams(qty, displayUnit, gramsPerUnit);
@@ -618,11 +719,21 @@ export function FoodDetailModal({
                 </span>
               </label>
             )}
-            <div className={styles.portionBadgeWrap}>
-              <span className={styles.portionBadgeShadow} />
-              <span className={styles.portionBadgeInner}>
-                <span className={styles.portionText}>{portionLabel}</span>
-              </span>
+            <div className={styles.portionRow}>
+              <div className={styles.portionBadgeWrap}>
+                <span className={styles.portionBadgeShadow} />
+                <span className={styles.portionBadgeInner}>
+                  <span className={styles.portionText}>{portionLabel}</span>
+                </span>
+              </div>
+              <button
+                type="button"
+                className={styles.portionInfoBtn}
+                aria-label={t('food.servingInfoAria')}
+                onClick={() => setServingInfoOpen(true)}
+              >
+                <IconInfoOutline size={18} color={Colors.dashboard.stroke} />
+              </button>
             </div>
           </div>
         </div>
@@ -833,6 +944,14 @@ export function FoodDetailModal({
           setHistoryKey((k) => k + 1);
         }}
       />
+
+      <ServingUnitInfoPopup
+        open={servingInfoOpen}
+        onClose={() => setServingInfoOpen(false)}
+        title={t('food.unitMacrosTitle', { unit: unitLabel(foodUnit) })}
+        subtitle={portionLabel}
+        macros={servingUnitMacros}
+      />
     </div>,
     document.body,
   );
@@ -853,6 +972,9 @@ export type DailyLogItem = {
   logGroupId?: string | null;
   sourcePreparedFoodId?: string | null;
   sourcePreparedFoodName?: string | null;
+  foodId?: string | null;
+  servingSize?: number | null;
+  servingUnit?: string | null;
 };
 
 interface EditLogModalProps {
@@ -865,20 +987,33 @@ interface EditLogModalProps {
 export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalProps) {
   const { t } = useTranslation();
   const [amount, setAmount] = useState('100');
+  const [displayUnit, setDisplayUnit] = useState<ServingUnitCode>('g');
   const [mealType, setMealType] = useState<MealType>('SNACK');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [base, setBase] = useState<DailyLogItem | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [dialog, setDialog] = useState<{ title: string; message: string } | null>(null);
+  const [servingInfoOpen, setServingInfoOpen] = useState(false);
 
   useEffect(() => {
     if (visible && log) {
       setBase(log);
-      setAmount(String(Math.round(log.amount || 100)));
+      const unit = normalizeServingUnit(log.servingUnit);
+      const gpu =
+        log.servingSize != null && log.servingSize > 0 ? log.servingSize : 100;
+      setDisplayUnit(unit);
+      const grams = log.amount > 0 ? log.amount : 100;
+      if (unit === 'g') {
+        setAmount(String(Math.round(grams * 10) / 10));
+      } else {
+        const pieces = gpu > 0 ? grams / gpu : 1;
+        setAmount(String(Number.isInteger(pieces) ? pieces : Math.round(pieces * 10) / 10));
+      }
       setMealType((log.mealType as MealType) || 'SNACK');
       setConfirmDelete(false);
       setDialog(null);
+      setServingInfoOpen(false);
     }
   }, [visible, log]);
 
@@ -886,7 +1021,31 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
 
   const baseAmount = base.amount > 0 ? base.amount : 100;
   const brandLabel = distinctBrand(base.foodName, base.brand);
-  const g = parseFloat(amount) || 0;
+  const foodUnit = normalizeServingUnit(base.servingUnit);
+  const gramsPerUnit =
+    base.servingSize != null && base.servingSize > 0 ? base.servingSize : 100;
+
+  const unitLabel = (u: ServingUnitCode) => {
+    if (u === 'g') return t('food.unitG');
+    if (u === 'db') return t('food.unitDb');
+    if (u === 'adag') return t('food.unitAdag');
+    if (u === 'ek') return t('food.unitEk');
+    return t('food.unitSzelet');
+  };
+
+  const portionLabel =
+    foodUnit === 'g'
+      ? t('food.portionBadgeGrams', { grams: Math.round(gramsPerUnit) })
+      : t('food.portionBadgeUnit', {
+          unit: unitLabel(foodUnit),
+          grams: Math.round(gramsPerUnit * 10) / 10,
+        });
+
+  const formatQty = (n: number) =>
+    String(Number.isInteger(n) ? n : Math.round(n * 10) / 10);
+
+  const qty = parseFloat(amount.replace(',', '.')) || 0;
+  const g = qtyToGrams(qty, displayUnit, gramsPerUnit);
   const ratio = g / baseAmount;
   const round1 = (n: number) => Math.round(n * 10) / 10;
   const calc = {
@@ -899,12 +1058,14 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
   };
 
   const per100 = {
+    kcal: (base.kcal / baseAmount) * 100,
     protein: (base.protein / baseAmount) * 100,
     carbs: (base.carbs / baseAmount) * 100,
     fat: (base.fat / baseAmount) * 100,
     sugar: base.sugar != null ? (base.sugar / baseAmount) * 100 : null,
     fiber: base.fiber != null ? (base.fiber / baseAmount) * 100 : null,
   };
+  const servingUnitMacros = macrosForGrams(per100, gramsPerUnit);
   const totalMacro = Math.max(0.1, per100.carbs + per100.protein + per100.fat);
   const carbsPct = (per100.carbs / totalMacro) * 100;
   const proteinPct = (per100.protein / totalMacro) * 100;
@@ -919,9 +1080,25 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
     return t('food.snack');
   };
 
-  const adjustAmount = (delta: number) => {
-    const next = Math.max(0, Math.round((parseFloat(amount) || 0) + delta));
-    setAmount(String(next));
+  const switchDisplayUnit = (next: ServingUnitCode) => {
+    if (next === displayUnit) return;
+    const grams = qtyToGrams(qty, displayUnit, gramsPerUnit);
+    if (next === 'g') {
+      setAmount(formatQty(Math.max(1, Math.round(grams))));
+    } else {
+      const pieces = gramsPerUnit > 0 ? grams / gramsPerUnit : 1;
+      setAmount(formatQty(Math.max(0.1, Math.round(pieces * 10) / 10)));
+    }
+    setDisplayUnit(next);
+  };
+
+  const adjustAmount = (dir: -1 | 1) => {
+    if (displayUnit === 'g') {
+      setAmount(String(Math.max(0, Math.round(qty + dir * 10))));
+      return;
+    }
+    const next = Math.max(0, Math.round((qty + dir * 1) * 10) / 10);
+    setAmount(formatQty(next));
   };
 
   const handleSave = async () => {
@@ -982,11 +1159,21 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
             </span>
             <h3 className={foodNameSizeClass(base.foodName)}>{base.foodName}</h3>
             {brandLabel ? <p className={styles.foodBrand}>{brandLabel}</p> : null}
-            <div className={styles.portionBadgeWrap}>
-              <span className={styles.portionBadgeShadow} />
-              <span className={styles.portionBadgeInner}>
-                <span className={styles.portionText}>{Math.round(baseAmount)}g</span>
-              </span>
+            <div className={styles.portionRow}>
+              <div className={styles.portionBadgeWrap}>
+                <span className={styles.portionBadgeShadow} />
+                <span className={styles.portionBadgeInner}>
+                  <span className={styles.portionText}>{portionLabel}</span>
+                </span>
+              </div>
+              <button
+                type="button"
+                className={styles.portionInfoBtn}
+                aria-label={t('food.servingInfoAria')}
+                onClick={() => setServingInfoOpen(true)}
+              >
+                <IconInfoOutline size={18} color={Colors.dashboard.stroke} />
+              </button>
             </div>
           </div>
         </div>
@@ -994,7 +1181,7 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
         <div className={styles.sections}>
           <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
             <div className={styles.amountStepper}>
-              <button type="button" className={styles.amountStepBtn} onClick={() => adjustAmount(-10)}>
+              <button type="button" className={styles.amountStepBtn} onClick={() => adjustAmount(-1)}>
                 <span className={styles.amountStepShadow} />
                 <span className={styles.amountStepFace}>
                   <IconRemove size={22} color={Colors.dashboard.stroke} />
@@ -1004,19 +1191,45 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
                 <input
                   className={styles.amountInputCompact}
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))}
+                  onChange={(e) => setAmount(e.target.value.replace(/[^\d.,]/g, ''))}
                   inputMode="decimal"
-                  placeholder="100"
+                  placeholder={displayUnit === 'g' ? '100' : '1'}
                 />
-                <span className={styles.amountUnit}>g</span>
+                <span className={styles.amountUnit}>{unitLabel(displayUnit)}</span>
               </div>
-              <button type="button" className={styles.amountStepBtn} onClick={() => adjustAmount(10)}>
+              <button type="button" className={styles.amountStepBtn} onClick={() => adjustAmount(1)}>
                 <span className={styles.amountStepShadow} />
                 <span className={styles.amountStepFace}>
                   <IconAdd size={22} color={Colors.dashboard.stroke} />
                 </span>
               </button>
             </div>
+            {foodUnit !== 'g' ? (
+              <div className={styles.unitSegment} role="group" aria-label={t('food.servingUnit')}>
+                <button
+                  type="button"
+                  className={`${styles.unitSegmentBtn} ${displayUnit === foodUnit ? styles.unitSegmentBtnActive : ''}`}
+                  onClick={() => switchDisplayUnit(foodUnit)}
+                >
+                  {unitLabel(foodUnit)}
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.unitSegmentBtn} ${displayUnit === 'g' ? styles.unitSegmentBtnActive : ''}`}
+                  onClick={() => switchDisplayUnit('g')}
+                >
+                  {t('food.unitG')}
+                </button>
+              </div>
+            ) : null}
+            {displayUnit !== 'g' ? (
+              <div className={styles.amountMetaRow}>
+                <span className={styles.amountMetaLabel}>{t('food.amount')}</span>
+                <span className={styles.amountMetaValue}>
+                  {t('food.amountEqualsGrams', { grams: Math.round(g * 10) / 10 })}
+                </span>
+              </div>
+            ) : null}
           </GlassCardSimple>
 
           <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
@@ -1138,6 +1351,14 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
         message={dialog?.message ?? ''}
         confirmLabel={t('common.ok', 'OK')}
         onClose={() => setDialog(null)}
+      />
+
+      <ServingUnitInfoPopup
+        open={servingInfoOpen}
+        onClose={() => setServingInfoOpen(false)}
+        title={t('food.unitMacrosTitle', { unit: unitLabel(foodUnit) })}
+        subtitle={portionLabel}
+        macros={servingUnitMacros}
       />
     </div>,
     document.body,
@@ -1501,6 +1722,7 @@ function FoodDataFormModal({
   const [aiImageFile, setAiImageFile] = useState<File | null>(null);
   const [approxNote, setApproxNote] = useState<string | null>(null);
   const [unitMacrosOpen, setUnitMacrosOpen] = useState(false);
+  const [servingInfoOpen, setServingInfoOpen] = useState(false);
   const [unitKcal, setUnitKcal] = useState('');
   const [unitProtein, setUnitProtein] = useState('');
   const [unitCarbs, setUnitCarbs] = useState('');
@@ -1587,6 +1809,7 @@ function FoodDataFormModal({
     setApproxNote(null);
     setAiView(false);
     setUnitMacrosOpen(false);
+    setServingInfoOpen(false);
     resetAiCapture();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, mode, initialFood, initialBarcode]);
@@ -1630,6 +1853,10 @@ function FoodDataFormModal({
     return fmtNum(n * factor);
   };
 
+  const openServingInfo = () => {
+    setServingInfoOpen(true);
+  };
+
   const openUnitMacros = () => {
     const grams = num(servingGrams);
     if (!Number.isFinite(grams) || grams <= 0) {
@@ -1645,6 +1872,30 @@ function FoodDataFormModal({
     setUnitSugar(scaleOptional(sugar, factor));
     setUnitMacrosOpen(true);
   };
+
+  const previewServingMacros = (() => {
+    const grams = num(servingGrams);
+    const k = num(kcal);
+    const p = num(protein);
+    const c = num(carbs);
+    const f = num(fat);
+    if (![grams, k, p, c, f].every((n) => Number.isFinite(n) && n >= 0) || grams <= 0) {
+      return null;
+    }
+    const fiberN = fiber.trim() ? num(fiber) : null;
+    const sugarN = sugar.trim() ? num(sugar) : null;
+    return macrosForGrams(
+      {
+        kcal: k,
+        protein: p,
+        carbs: c,
+        fat: f,
+        fiber: fiberN != null && Number.isFinite(fiberN) ? fiberN : null,
+        sugar: sugarN != null && Number.isFinite(sugarN) ? sugarN : null,
+      },
+      grams,
+    );
+  })();
 
   const applyUnitMacros = () => {
     const grams = num(servingGrams);
@@ -2152,38 +2403,55 @@ function FoodDataFormModal({
                 <div className={styles.sectionHeaderSmall}>
                   <IconScaleOutline size={24} color={Colors.dashboard.stroke} />
                   <span className={styles.sectionTitle}>{t('food.servingUnit')}</span>
-                  <button
-                    type="button"
-                    className={styles.unitMacrosBtn}
-                    aria-label={t('food.unitMacrosAria')}
-                    onClick={openUnitMacros}
-                  >
-                    <IconPieChartOutline size={20} color={Colors.dashboard.stroke} />
-                  </button>
+                  <div className={styles.servingHeaderActions}>
+                    <button
+                      type="button"
+                      className={styles.portionInfoBtn}
+                      aria-label={t('food.servingInfoAria')}
+                      onClick={openServingInfo}
+                    >
+                      <IconInfoOutline size={18} color={Colors.dashboard.stroke} />
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.unitMacrosBtn}
+                      aria-label={t('food.unitMacrosAria')}
+                      onClick={openUnitMacros}
+                    >
+                      <IconPieChartOutline size={18} color={Colors.dashboard.stroke} />
+                    </button>
+                  </div>
                 </div>
-                <label className={styles.formLabel}>{t('food.servingUnit')}</label>
-                <select
-                  className={styles.formInput}
-                  value={servingUnit}
-                  onChange={(e) => setServingUnit(normalizeServingUnit(e.target.value))}
-                >
-                  <option value="g">{t('food.unitG')}</option>
-                  <option value="db">{t('food.unitDb')}</option>
-                  <option value="adag">{t('food.unitAdag')}</option>
-                  <option value="ek">{t('food.unitEk')}</option>
-                  <option value="szelet">{t('food.unitSzelet')}</option>
-                </select>
+                <p className={styles.servingUnitHint}>{t('food.servingUnitHint')}</p>
+                <div className={styles.unitChipRow} role="group" aria-label={t('food.servingUnit')}>
+                  {SERVING_UNITS.map((u) => {
+                    const active = servingUnit === u;
+                    return (
+                      <button
+                        key={u}
+                        type="button"
+                        className={`${styles.unitChip} ${active ? styles.unitChipActive : ''}`}
+                        onClick={() => setServingUnit(u)}
+                      >
+                        {unitLabel(u)}
+                      </button>
+                    );
+                  })}
+                </div>
                 <label className={styles.formLabel}>
                   {t('food.servingGramsPerUnit', { unit: unitLabel(servingUnit) })}
                 </label>
                 <div className={styles.servingGramsRow}>
-                  <input
-                    className={styles.formInput}
-                    value={servingGrams}
-                    onChange={(e) => setServingGrams(e.target.value.replace(/[^\d.,]/g, ''))}
-                    inputMode="decimal"
-                    placeholder="100"
-                  />
+                  <div className={styles.servingGramsInputWrap}>
+                    <input
+                      className={styles.servingGramsInput}
+                      value={servingGrams}
+                      onChange={(e) => setServingGrams(e.target.value.replace(/[^\d.,]/g, ''))}
+                      inputMode="decimal"
+                      placeholder="100"
+                    />
+                    <span className={styles.servingGramsSuffix}>g</span>
+                  </div>
                   {servingUnit !== 'g' ? (
                     <button
                       type="button"
@@ -2431,6 +2699,22 @@ function FoodDataFormModal({
           </div>
         </div>
       ) : null}
+      <ServingUnitInfoPopup
+        open={servingInfoOpen}
+        onClose={() => setServingInfoOpen(false)}
+        title={t('food.unitMacrosTitle', { unit: unitLabel(servingUnit) })}
+        subtitle={
+          Number.isFinite(num(servingGrams)) && num(servingGrams) > 0
+            ? servingUnit === 'g'
+              ? t('food.portionBadgeGrams', { grams: Math.round(num(servingGrams)) })
+              : t('food.portionBadgeUnit', {
+                  unit: unitLabel(servingUnit),
+                  grams: Math.round(num(servingGrams) * 10) / 10,
+                })
+            : undefined
+        }
+        macros={previewServingMacros}
+      />
       <ConfirmDialog
         visible={!!dialog}
         title={dialog?.title ?? ''}

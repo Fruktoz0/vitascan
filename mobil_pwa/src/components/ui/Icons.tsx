@@ -29,6 +29,7 @@ import {
   MdGrain,
   MdHeight,
   MdIcecream,
+  MdInfoOutline,
   MdLocalFireDepartment,
   MdLockOutline,
   MdLogout,
@@ -127,6 +128,7 @@ export const IconEmailOutline = wrap(MdOutlineEmail);
 export const IconEvent = wrap(MdEvent);
 export const IconFire = wrap(MdLocalFireDepartment);
 export const IconHeight = wrap(MdHeight);
+export const IconInfoOutline = wrap(MdInfoOutline);
 export const IconLocalFire = wrap(MdLocalFireDepartment);
 export const IconLockOutline = wrap(MdLockOutline);
 export const IconLogout = wrap(MdLogout);
