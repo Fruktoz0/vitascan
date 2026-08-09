@@ -4,7 +4,7 @@ import { AnalysisQuerySchema, GenerateAnalysisSchema } from './analysis.schema';
 import { getDailyAnalysis, createOrRefreshDailyAnalysis } from './analysis.service';
 
 const analysisRoutes: FastifyPluginAsync = async (fastify) => {
-  // GET /analysis?date=YYYY-MM-DD&kind=nutrition|fitness|coach|mealSuggest
+  // GET /analysis?date=YYYY-MM-DD&kind=nutrition|fitness|coach|mealSuggest|weeklyNutrition
   fastify.get('/', { preHandler: authenticate }, async (request, reply) => {
     const parsed = AnalysisQuerySchema.safeParse(request.query);
     if (!parsed.success) {

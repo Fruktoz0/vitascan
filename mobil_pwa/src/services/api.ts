@@ -221,9 +221,52 @@ interface UserDto {
 export const statsApi = {
   today: () => request<any>('/stats/today'),
   day: (date: string) => request<any>(`/stats/day?date=${date}`),
-  weekly: () => request<any>('/stats/weekly'),
+  weekly: () => request<WeeklyStatsResult>('/stats/weekly'),
   monthly: (year: number, month: number) => request<any>(`/stats/monthly?year=${year}&month=${month}`),
   streak: () => request<{ streak: number; message: string }>('/stats/streak'),
+};
+
+export type WeeklyDayStats = {
+  date: string;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  logCount: number;
+};
+
+export type WeeklyStatsSummary = {
+  avgKcal: number;
+  avgProtein: number;
+  avgCarbs: number;
+  avgFat: number;
+  totalKcal: number;
+  loggedDays: number;
+  daysOnTarget: number;
+  avgDeltaVsGoal: number;
+  highestDay: { date: string; kcal: number } | null;
+  lowestDay: { date: string; kcal: number } | null;
+  kcalRange: number | null;
+  mostLoggedDay: { date: string; logCount: number } | null;
+};
+
+export type WeeklyStatsResult = {
+  days: WeeklyDayStats[];
+  avg: { kcal: number; protein: number; carbs: number; fat: number };
+  mealAvg: Record<
+    string,
+    { kcal: number; protein: number; carbs: number; fat: number; daysWithMeal: number }
+  >;
+  from: string;
+  to: string;
+  goals?: {
+    dailyKcalGoal: number;
+    dailyProteinGoal: number;
+    dailyCarbsGoal: number;
+    dailyFatGoal: number;
+    goal: string | null;
+  };
+  summary?: WeeklyStatsSummary;
 };
 
 export type FoodStatus = 'UNVERIFIED' | 'VERIFIED' | 'BANNED';
@@ -396,7 +439,7 @@ export type DailyAnalysisResult = {
   updatedAt: string | null;
 };
 
-export type AnalysisKind = 'nutrition' | 'fitness' | 'coach' | 'mealSuggest';
+export type AnalysisKind = 'nutrition' | 'fitness' | 'coach' | 'mealSuggest' | 'weeklyNutrition';
 
 export const analysisApi = {
   get: (date: string, kind: AnalysisKind = 'nutrition') =>

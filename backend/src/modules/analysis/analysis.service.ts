@@ -4,11 +4,13 @@ import {
   MAX_COACH_GENERATIONS_PER_DAY,
   MAX_GENERATIONS_PER_DAY,
   MAX_MEAL_SUGGEST_REFRESH_PREMIUM,
+  MAX_WEEKLY_NUTRITION_GENERATIONS,
 } from './analysis.schema';
 import {
   generateCoachNudge,
   generateDailyAnalysis,
   generateMealSuggestions,
+  generateWeeklyNutritionAnalysis,
   MEAL_ORDER,
   type GeminiUserPayload,
   type MealSuggestSlot,
@@ -189,7 +191,7 @@ export async function getDailyAnalysis(
   prisma: PrismaClient,
   userId: string,
   dateStr?: string,
-  kind: 'nutrition' | 'fitness' | 'coach' | 'mealSuggest' = 'nutrition',
+  kind: 'nutrition' | 'fitness' | 'coach' | 'mealSuggest' | 'weeklyNutrition' = 'nutrition',
   role = 'USER',
 ) {
   const { day, dateKey } = parseDay(dateStr);
@@ -230,6 +232,17 @@ export async function getDailyAnalysis(
     };
   }
 
+  if (kind === 'weeklyNutrition') {
+    const weeklyCount = row?.generationCount ?? 0;
+    return {
+      date: dateKey,
+      content: row?.content ?? null,
+      generationCount: weeklyCount,
+      remaining: Math.max(0, MAX_WEEKLY_NUTRITION_GENERATIONS - weeklyCount),
+      updatedAt: row?.updatedAt ?? null,
+    };
+  }
+
   const generationCount = analysisQuotaCount(dayRows);
   return {
     date: dateKey,
@@ -247,7 +260,7 @@ export async function createOrRefreshDailyAnalysis(
     date?: string;
     locale?: 'hu' | 'en';
     localTime?: string;
-    kind?: 'nutrition' | 'fitness' | 'coach' | 'mealSuggest';
+    kind?: 'nutrition' | 'fitness' | 'coach' | 'mealSuggest' | 'weeklyNutrition';
     mealType?: MealTypeKey;
     role?: string;
     force?: boolean;
@@ -286,6 +299,15 @@ export async function createOrRefreshDailyAnalysis(
       mealType: opts.mealType,
       role,
       force: opts.force === true,
+    });
+  }
+
+  if (kind === 'weeklyNutrition') {
+    return createOrRefreshWeeklyNutrition(prisma, userId, {
+      day,
+      dateKey,
+      locale,
+      dayRows,
     });
   }
 
@@ -496,6 +518,194 @@ export async function createOrRefreshDailyAnalysis(
     content: saved.content,
     generationCount: nextTotal,
     remaining: Math.max(0, MAX_GENERATIONS_PER_DAY - nextTotal),
+    updatedAt: saved.updatedAt,
+  };
+}
+
+async function createOrRefreshWeeklyNutrition(
+  prisma: PrismaClient,
+  userId: string,
+  opts: {
+    day: Date;
+    dateKey: string;
+    locale: 'hu' | 'en';
+    dayRows: Array<{ kind: string; generationCount: number; content: string }>;
+  },
+) {
+  const { day, dateKey, locale, dayRows } = opts;
+  const existing = dayRows.find((r) => r.kind === 'weeklyNutrition') ?? null;
+  const weeklyCount = existing?.generationCount ?? 0;
+
+  if (weeklyCount >= MAX_WEEKLY_NUTRITION_GENERATIONS) {
+    throw Object.assign(
+      new Error(
+        `Ezen a héten már elértéd a ${MAX_WEEKLY_NUTRITION_GENERATIONS} heti értékelés limitet.`,
+      ),
+      { statusCode: 429 },
+    );
+  }
+
+  const endDate = new Date(dateKey + 'T23:59:59.999');
+  if (Number.isNaN(endDate.getTime())) {
+    throw Object.assign(new Error('Érvénytelen dátum.'), { statusCode: 400 });
+  }
+  const startDate = new Date(endDate);
+  startDate.setDate(startDate.getDate() - 6);
+  startDate.setHours(0, 0, 0, 0);
+
+  const [logs, profile, weightLogs] = await Promise.all([
+    prisma.dailyLog.findMany({
+      where: { userId, createdAt: { gte: startDate, lte: endDate } },
+      orderBy: { createdAt: 'asc' },
+    }),
+    prisma.userProfile.findUnique({ where: { userId } }),
+    prisma.weightLog.findMany({
+      where: {
+        userId,
+        loggedDate: { gte: startDate, lte: endDate },
+      },
+      orderBy: { loggedDate: 'asc' },
+    }),
+  ]);
+
+  if (logs.length === 0) {
+    throw Object.assign(new Error('Nincs elég naplóadat a heti értékeléshez.'), {
+      statusCode: 400,
+    });
+  }
+
+  const days: Array<{
+    date: string;
+    kcal: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    logCount: number;
+  }> = [];
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + i);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${y}-${m}-${dd}`;
+
+    const dayLogs = logs.filter((l) => {
+      const ld = l.createdAt;
+      const key = `${ld.getFullYear()}-${String(ld.getMonth() + 1).padStart(2, '0')}-${String(ld.getDate()).padStart(2, '0')}`;
+      return key === dateStr;
+    });
+
+    days.push({
+      date: dateStr,
+      kcal: Math.round(dayLogs.reduce((s, l) => s + l.kcal, 0) * 10) / 10,
+      protein: Math.round(dayLogs.reduce((s, l) => s + l.protein, 0) * 10) / 10,
+      carbs: Math.round(dayLogs.reduce((s, l) => s + l.carbs, 0) * 10) / 10,
+      fat: Math.round(dayLogs.reduce((s, l) => s + l.fat, 0) * 10) / 10,
+      logCount: dayLogs.length,
+    });
+  }
+
+  const dailyKcalGoal = profile?.dailyKcalGoal ?? 2000;
+  const dailyProteinGoal = profile?.dailyProteinGoal ?? null;
+  const dailyCarbsGoal = profile?.dailyCarbsGoal ?? null;
+  const dailyFatGoal = profile?.dailyFatGoal ?? null;
+
+  const loggedDaysList = days.filter((d) => d.logCount > 0);
+  if (loggedDaysList.length < 2) {
+    throw Object.assign(
+      new Error('Legalább 2 naplózott nap kell a heti értékeléshez.'),
+      { statusCode: 400 },
+    );
+  }
+
+  const avgKcal = Math.round(days.reduce((s, d) => s + d.kcal, 0) / 7);
+  const avgProtein = Math.round((days.reduce((s, d) => s + d.protein, 0) / 7) * 10) / 10;
+  const avgCarbs = Math.round((days.reduce((s, d) => s + d.carbs, 0) / 7) * 10) / 10;
+  const avgFat = Math.round((days.reduce((s, d) => s + d.fat, 0) / 7) * 10) / 10;
+  const totalKcal = Math.round(days.reduce((s, d) => s + d.kcal, 0));
+  const onTargetBand = dailyKcalGoal * 0.1;
+  const daysOnTarget = loggedDaysList.filter(
+    (d) => Math.abs(d.kcal - dailyKcalGoal) <= onTargetBand,
+  ).length;
+  const avgDeltaVsGoal = Math.round(avgKcal - dailyKcalGoal);
+
+  const highestDay = loggedDaysList.reduce(
+    (best, d) => (d.kcal > best.kcal ? { date: d.date, kcal: Math.round(d.kcal) } : best),
+    { date: loggedDaysList[0].date, kcal: Math.round(loggedDaysList[0].kcal) },
+  );
+  const lowestDay = loggedDaysList.reduce(
+    (best, d) => (d.kcal < best.kcal ? { date: d.date, kcal: Math.round(d.kcal) } : best),
+    { date: loggedDaysList[0].date, kcal: Math.round(loggedDaysList[0].kcal) },
+  );
+  const kcalRange =
+    loggedDaysList.length >= 2 ? Math.round(highestDay.kcal - lowestDay.kcal) : null;
+
+  let weightDeltaKg: number | null = null;
+  if (weightLogs.length >= 2) {
+    const first = weightLogs[0].weightKg;
+    const last = weightLogs[weightLogs.length - 1].weightKg;
+    weightDeltaKg = Math.round((last - first) * 10) / 10;
+  }
+
+  const fromKey = days[0]?.date ?? dateKey;
+  const content = await generateWeeklyNutritionAnalysis({
+    locale,
+    from: fromKey,
+    to: dateKey,
+    profile: {
+      gender: profile?.gender,
+      birthYear: profile?.birthYear,
+      heightCm: profile?.heightCm,
+      weightKg: profile?.weightKg,
+      activityLevel: profile?.activityLevel,
+      goal: profile?.goal,
+    },
+    goals: {
+      dailyKcalGoal,
+      dailyProteinGoal,
+      dailyCarbsGoal,
+      dailyFatGoal,
+    },
+    days,
+    summary: {
+      avgKcal,
+      avgProtein,
+      avgCarbs,
+      avgFat,
+      totalKcal,
+      loggedDays: loggedDaysList.length,
+      daysOnTarget,
+      avgDeltaVsGoal,
+      highestDay,
+      lowestDay,
+      kcalRange,
+    },
+    weightDeltaKg,
+  });
+
+  const nextKindCount = weeklyCount + 1;
+  const saved = await prisma.dailyAnalysis.upsert({
+    where: { userId_loggedDate_kind: { userId, loggedDate: day, kind: 'weeklyNutrition' } },
+    create: {
+      userId,
+      loggedDate: day,
+      kind: 'weeklyNutrition',
+      content,
+      generationCount: nextKindCount,
+    },
+    update: {
+      content,
+      generationCount: nextKindCount,
+    },
+  });
+
+  return {
+    date: dateKey,
+    content: saved.content,
+    generationCount: nextKindCount,
+    remaining: Math.max(0, MAX_WEEKLY_NUTRITION_GENERATIONS - nextKindCount),
     updatedAt: saved.updatedAt,
   };
 }

@@ -329,7 +329,7 @@ model DailyAnalysis {
   userId          String
   user            User     @relation(fields: [userId], references: [id])
   loggedDate      DateTime @db.Date
-  /** nutrition | fitness */
+  /** nutrition | fitness | coach | mealSuggest | weeklyNutrition */
   kind            String   @default("nutrition")
   content         String
   generationCount Int      @default(1)

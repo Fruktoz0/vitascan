@@ -156,10 +156,13 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     startDate.setDate(startDate.getDate() - 6);
     startDate.setHours(0, 0, 0, 0);
 
-    const logs = await fastify.prisma.dailyLog.findMany({
-      where: { userId, createdAt: { gte: startDate, lte: endDate } },
-      orderBy: { createdAt: 'asc' },
-    });
+    const [logs, profile] = await Promise.all([
+      fastify.prisma.dailyLog.findMany({
+        where: { userId, createdAt: { gte: startDate, lte: endDate } },
+        orderBy: { createdAt: 'asc' },
+      }),
+      fastify.prisma.userProfile.findUnique({ where: { userId } }),
+    ]);
 
     // Napi bontás generálása (üres napok is legyenek benne)
     const days: { date: string; kcal: number; protein: number; carbs: number; fat: number; logCount: number }[] = [];
@@ -189,6 +192,44 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       carbs:   Math.round(days.reduce((s, d) => s + d.carbs, 0) / 7 * 10) / 10,
       fat:     Math.round(days.reduce((s, d) => s + d.fat, 0) / 7 * 10) / 10,
     };
+
+    const dailyKcalGoal = profile?.dailyKcalGoal ?? 2000;
+    const dailyProteinGoal = profile?.dailyProteinGoal ?? 140;
+    const dailyCarbsGoal = profile?.dailyCarbsGoal ?? 250;
+    const dailyFatGoal = profile?.dailyFatGoal ?? 65;
+
+    const loggedDaysList = days.filter((d) => d.logCount > 0);
+    const loggedDays = loggedDaysList.length;
+    const totalKcal = Math.round(days.reduce((s, d) => s + d.kcal, 0));
+    const onTargetBand = dailyKcalGoal * 0.1;
+    const daysOnTarget = loggedDaysList.filter(
+      (d) => Math.abs(d.kcal - dailyKcalGoal) <= onTargetBand,
+    ).length;
+    const avgDeltaVsGoal = Math.round(avg.kcal - dailyKcalGoal);
+
+    let highestDay: { date: string; kcal: number } | null = null;
+    let lowestDay: { date: string; kcal: number } | null = null;
+    let mostLoggedDay: { date: string; logCount: number } | null = null;
+    let kcalRange: number | null = null;
+
+    if (loggedDaysList.length > 0) {
+      highestDay = loggedDaysList.reduce(
+        (best, d) => (d.kcal > best.kcal ? { date: d.date, kcal: Math.round(d.kcal) } : best),
+        { date: loggedDaysList[0].date, kcal: Math.round(loggedDaysList[0].kcal) },
+      );
+      lowestDay = loggedDaysList.reduce(
+        (best, d) => (d.kcal < best.kcal ? { date: d.date, kcal: Math.round(d.kcal) } : best),
+        { date: loggedDaysList[0].date, kcal: Math.round(loggedDaysList[0].kcal) },
+      );
+      mostLoggedDay = loggedDaysList.reduce(
+        (best, d) =>
+          d.logCount > best.logCount ? { date: d.date, logCount: d.logCount } : best,
+        { date: loggedDaysList[0].date, logCount: loggedDaysList[0].logCount },
+      );
+      if (loggedDaysList.length >= 2 && highestDay && lowestDay) {
+        kcalRange = Math.round(highestDay.kcal - lowestDay.kcal);
+      }
+    }
 
     // Étkezéstípus átlag: csak azokra a napokra, ahol volt log az adott étkezésnél
     type MealAgg = { kcal: number; protein: number; carbs: number; fat: number; daysWithMeal: number };
@@ -228,6 +269,27 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       mealAvg,
       from: startDate.toISOString().split('T')[0],
       to: endDate.toISOString().split('T')[0],
+      goals: {
+        dailyKcalGoal,
+        dailyProteinGoal,
+        dailyCarbsGoal,
+        dailyFatGoal,
+        goal: profile?.goal ?? null,
+      },
+      summary: {
+        avgKcal: avg.kcal,
+        avgProtein: avg.protein,
+        avgCarbs: avg.carbs,
+        avgFat: avg.fat,
+        totalKcal,
+        loggedDays,
+        daysOnTarget,
+        avgDeltaVsGoal,
+        highestDay,
+        lowestDay,
+        kcalRange,
+        mostLoggedDay,
+      },
     });
   });
 

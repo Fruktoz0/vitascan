@@ -38,10 +38,14 @@ function BulletList({
 export function AnalysisResultView({
   data,
   hideMeals = false,
+  summaryTitle,
+  suggestionsTitle,
 }: {
   data: StructuredDailyAnalysis;
   /** Fitness coach overview: skip per-meal blocks */
   hideMeals?: boolean;
+  summaryTitle?: string;
+  suggestionsTitle?: string;
 }) {
   const { t } = useTranslation();
   const meals = hideMeals ? [] : data.meals.filter((m) => m.status === 'evaluated');
@@ -74,9 +78,10 @@ export function AnalysisResultView({
       <div className={styles.dayPanel}>
         <section className={styles.daySection}>
           <h3 className={styles.dayTitle}>
-            {hideMeals
-              ? t('fitness.aiOverview', 'Napi edzői összkép')
-              : t('foodLibraryScreen.analysisSummary', 'Napi összegzés')}
+            {summaryTitle ??
+              (hideMeals
+                ? t('fitness.aiOverview', 'Napi edzői összkép')
+                : t('foodLibraryScreen.analysisSummary', 'Napi összegzés'))}
           </h3>
           <BulletList
             items={data.summary.positives}
@@ -93,9 +98,10 @@ export function AnalysisResultView({
         {data.suggestions.length > 0 && (
           <section className={styles.daySection}>
             <h3 className={styles.dayTitle}>
-              {hideMeals
-                ? t('fitness.aiCoachTips', 'Edzői javaslatok')
-                : t('foodLibraryScreen.analysisSuggestions', 'Javaslatok')}
+              {suggestionsTitle ??
+                (hideMeals
+                  ? t('fitness.aiCoachTips', 'Edzői javaslatok')
+                  : t('foodLibraryScreen.analysisSuggestions', 'Javaslatok'))}
             </h3>
             <ul className={styles.list}>
               {data.suggestions.map((item, i) => (

@@ -87,6 +87,34 @@ Output rules:
 - Use HR (avg/max) when present; if no workouts, judge steps vs goals.
 - Do not invent numbers. No medical diagnoses.`;
 
+const WEEKLY_NUTRITION_PROMPT_HU = `Te a VitaScan tapasztalt táplálkozási szakértője vagy.
+Feladat: a HETI (7 napos) kalória/makró mintázat értékelése JSON-ben a felhasználó terve (célok) alapján.
+
+Bemenet: days[] (napi kcal/makró/logCount), summary (átlag, delta a célhoz, naplózott napok, célban töltött napok, highest/lowest), goals, profile.goal (LOSE/MAINTAIN/GAIN), opcionális weightDeltaKg.
+
+Kimeneti szabályok:
+- CSAK érvényes JSON a sémával. Semmi más szöveg.
+- Magyar, rövid bullet-mondatok (max ~18 szó). TILOS regény, motivációs lózung.
+- meals: MINDIG üres tömb ([]). Nincs étkezésenkénti bontás.
+- summary: max 4 positives, max 4 negatives — heti összkép vs terv (kcal átlag, deficit/surplus, következetesség, makrók).
+- suggestions: max 3 KONKRÉT, kivitelezhető tipp számokkal (pl. „~−150 kcal/nap”, „+15 g fehérje átlag”).
+- Ne ismételd szó szerint a „legtöbb/legkevesebb nap” címkéket — értelmezd a tervhez viszonyítva.
+- Ne inventálj számot. Nincs orvosi diagnózis.`;
+
+const WEEKLY_NUTRITION_PROMPT_EN = `You are VitaScan's experienced nutrition expert.
+Task: evaluate the WEEKLY (7-day) calorie/macro pattern in JSON against the user's plan (goals).
+
+Input: days[] (daily kcal/macros/logCount), summary (averages, delta vs goal, logged days, days on target, highest/lowest), goals, profile.goal (LOSE/MAINTAIN/GAIN), optional weightDeltaKg.
+
+Output rules:
+- ONLY valid JSON matching the schema. No other text.
+- English, short bullets (max ~18 words). FORBIDDEN: novels, hype speeches.
+- meals: ALWAYS an empty array ([]). No per-meal breakdown.
+- summary: max 4 positives, max 4 negatives — week overview vs plan (avg kcal, deficit/surplus, consistency, macros).
+- suggestions: max 3 CONCRETE actionable tips with numbers (e.g. "~−150 kcal/day", "+15 g protein avg").
+- Do not literally restate "highest/lowest day" labels — interpret vs the plan.
+- Do not invent numbers. No medical diagnoses.`;
+
 const RESPONSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
@@ -750,6 +778,100 @@ export async function generateDailyAnalysis(payload: GeminiUserPayload): Promise
       payload.locale,
       payload.filledMeals,
       kind,
+    );
+    if (fallbackResult.ok) return fallbackResult.content;
+    throw Object.assign(new Error(fallbackResult.error), { statusCode: 502 });
+  }
+
+  throw Object.assign(new Error(primaryResult.error), { statusCode: 502 });
+}
+
+export type WeeklyNutritionGeminiPayload = {
+  locale: 'hu' | 'en';
+  from: string;
+  to: string;
+  profile: {
+    gender?: string | null;
+    birthYear?: number | null;
+    heightCm?: number | null;
+    weightKg?: number | null;
+    activityLevel?: string | null;
+    goal?: string | null;
+  };
+  goals: {
+    dailyKcalGoal: number;
+    dailyProteinGoal: number | null;
+    dailyCarbsGoal: number | null;
+    dailyFatGoal: number | null;
+  };
+  days: Array<{
+    date: string;
+    kcal: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    logCount: number;
+  }>;
+  summary: {
+    avgKcal: number;
+    avgProtein: number;
+    avgCarbs: number;
+    avgFat: number;
+    totalKcal: number;
+    loggedDays: number;
+    daysOnTarget: number;
+    avgDeltaVsGoal: number;
+    highestDay: { date: string; kcal: number } | null;
+    lowestDay: { date: string; kcal: number } | null;
+    kcalRange: number | null;
+  };
+  weightDeltaKg: number | null;
+};
+
+/** Returns canonical JSON string to store in DB (overview-only schema). */
+export async function generateWeeklyNutritionAnalysis(
+  payload: WeeklyNutritionGeminiPayload,
+): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  if (!apiKey) {
+    throw Object.assign(new Error('Gemini API kulcs nincs beállítva.'), { statusCode: 503 });
+  }
+
+  const primary = process.env.GEMINI_MODEL?.trim() || 'gemini-3.6-flash';
+  const fallback =
+    process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-3.5-flash-lite';
+
+  const system =
+    payload.locale === 'en' ? WEEKLY_NUTRITION_PROMPT_EN : WEEKLY_NUTRITION_PROMPT_HU;
+
+  const userText = [
+    payload.locale === 'en' ? 'Weekly context (JSON):' : 'Heti kontextus (JSON):',
+    JSON.stringify(payload, null, 2),
+    payload.locale === 'en'
+      ? 'Return ONLY overview JSON. meals MUST be []. Put all evaluation in summary + suggestions vs the plan.'
+      : 'Csak heti összkép JSON. meals MINDIG []. Minden értékelés a summary-ban + javaslatok a tervhez képest.',
+  ].join('\n');
+
+  const primaryResult = await callGeminiModel(
+    primary,
+    apiKey,
+    system,
+    userText,
+    payload.locale,
+    [],
+    'fitness',
+  );
+  if (primaryResult.ok) return primaryResult.content;
+
+  if (primaryResult.rateLimited && fallback && fallback !== primary) {
+    const fallbackResult = await callGeminiModel(
+      fallback,
+      apiKey,
+      system,
+      userText,
+      payload.locale,
+      [],
+      'fitness',
     );
     if (fallbackResult.ok) return fallbackResult.content;
     throw Object.assign(new Error(fallbackResult.error), { statusCode: 502 });

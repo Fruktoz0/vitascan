@@ -14,16 +14,27 @@ import {
 import MealInsightsCard from '../components/food/MealInsightsCard';
 import MealSuggestStories from '../components/food/MealSuggestStories';
 import WeeklyKcalChart, { type WeeklyDay } from '../components/food/WeeklyKcalChart';
+import WeeklyCalorieEvalCard from '../components/food/WeeklyCalorieEvalCard';
+import WeeklyInsightsSheet from '../components/food/WeeklyInsightsSheet';
 import StreakCard from '../components/food/StreakCard';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { IconAddCircle, IconCalendarToday, IconWeight } from '../components/ui/Icons';
 import { Colors } from '../design/tokens';
-import { statsApi, waterApi, weightApi, type Food } from '../services/api';
+import {
+  analysisApi,
+  statsApi,
+  waterApi,
+  weightApi,
+  type DailyAnalysisResult,
+  type Food,
+  type WeeklyStatsResult,
+} from '../services/api';
 import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import { useProfileStore } from '../stores/profileStore';
 import { UserAvatar } from '../components/ui/AvatarPicker';
 import type { MealType } from '../utils/mealMeta';
 import type { MealAvgEntry } from '../utils/mealInsights';
+import { parseAnalysisContent } from '../utils/parseAnalysisContent';
 import styles from './HomePage.module.css';
 
 export default function HomePage() {
@@ -37,6 +48,10 @@ export default function HomePage() {
   const [weight, setWeight] = useState<any>(null);
   const [weeklyDays, setWeeklyDays] = useState<WeeklyDay[]>([]);
   const [weekAvgKcal, setWeekAvgKcal] = useState<number | null>(null);
+  const [weeklyStats, setWeeklyStats] = useState<WeeklyStatsResult | null>(null);
+  const [weeklyAnalysis, setWeeklyAnalysis] = useState<DailyAnalysisResult | null>(null);
+  const [weeklyAnalysisLoading, setWeeklyAnalysisLoading] = useState(false);
+  const [weeklySheetOpen, setWeeklySheetOpen] = useState(false);
   const [mealAvg, setMealAvg] = useState<Record<string, MealAvgEntry> | null>(null);
   const [streak, setStreak] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -115,10 +130,24 @@ export default function HomePage() {
         setWeeklyDays(weekly.days);
         setWeekAvgKcal(typeof weekly.avg?.kcal === 'number' ? weekly.avg.kcal : null);
         setMealAvg(weekly.mealAvg ?? null);
+        setWeeklyStats(weekly);
+        if (weekly.to) {
+          setWeeklyAnalysisLoading(true);
+          try {
+            const wa = await analysisApi.get(weekly.to, 'weeklyNutrition').catch(() => null);
+            setWeeklyAnalysis(wa);
+          } finally {
+            setWeeklyAnalysisLoading(false);
+          }
+        } else {
+          setWeeklyAnalysis(null);
+        }
       } else {
         setWeeklyDays([]);
         setWeekAvgKcal(null);
         setMealAvg(null);
+        setWeeklyStats(null);
+        setWeeklyAnalysis(null);
       }
       setStreak(typeof streakData?.streak === 'number' ? streakData.streak : 0);
     } catch {}
@@ -275,6 +304,22 @@ export default function HomePage() {
           />
         )}
 
+        {weeklyStats?.summary && weeklyStats.goals && (
+          <WeeklyCalorieEvalCard
+            summary={weeklyStats.summary}
+            goalKcal={weeklyStats.goals.dailyKcalGoal}
+            teaser={(() => {
+              const parsed = parseAnalysisContent(weeklyAnalysis?.content);
+              if (parsed?.kind === 'structured') {
+                return parsed.data.summary.positives[0] ?? parsed.data.suggestions[0] ?? null;
+              }
+              if (parsed?.kind === 'plain') return parsed.text;
+              return null;
+            })()}
+            onOpen={() => setWeeklySheetOpen(true)}
+          />
+        )}
+
         <StreakCard streak={streak} />
 
         <WaterProgressBar
@@ -366,6 +411,17 @@ export default function HomePage() {
         logSource="SEARCH"
         initialMealType={mealForAdd}
       />
+      {weeklyStats?.summary && weeklyStats.goals && (
+        <WeeklyInsightsSheet
+          open={weeklySheetOpen}
+          weekly={weeklyStats}
+          analysis={weeklyAnalysis}
+          analysisLoading={weeklyAnalysisLoading}
+          onClose={() => setWeeklySheetOpen(false)}
+          onSelectDate={setDate}
+          onAnalysisChange={setWeeklyAnalysis}
+        />
+      )}
       <ConfirmDialog
         visible={!!notFoundDialog}
         title={t('scannerScreen.notFoundTitle')}

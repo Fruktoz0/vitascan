@@ -491,7 +491,6 @@ export function FoodDetailModal({
   const [editOpen, setEditOpen] = useState(false);
   const [historyKey, setHistoryKey] = useState(0);
   const [logAsPrepared, setLogAsPrepared] = useState(false);
-  const [servingInfoOpen, setServingInfoOpen] = useState(false);
 
   useEffect(() => {
     setCurrentFood(food);
@@ -507,7 +506,6 @@ export function FoodDetailModal({
       setAmount(String(Number.isInteger(initial) ? initial : Math.round(initial * 10) / 10));
       setEditOpen(false);
       setLogAsPrepared(false);
-      setServingInfoOpen(false);
       // Load components for prepared foods if missing
       if (food.isPrepared && !(food.components?.length) && isLocalFoodId(food.id)) {
         foodApi.getById(food.id).then((full) => {
@@ -542,8 +540,6 @@ export function FoodDetailModal({
           unit: unitLabel(foodUnit),
           grams: Math.round(gramsPerUnit * 10) / 10,
         });
-
-  const servingUnitMacros = macrosForGrams(currentFood, gramsPerUnit);
 
   const qty = parseFloat(amount.replace(',', '.')) || 0;
   const g = qtyToGrams(qty, displayUnit, gramsPerUnit);
@@ -719,21 +715,11 @@ export function FoodDetailModal({
                 </span>
               </label>
             )}
-            <div className={styles.portionRow}>
-              <div className={styles.portionBadgeWrap}>
-                <span className={styles.portionBadgeShadow} />
-                <span className={styles.portionBadgeInner}>
-                  <span className={styles.portionText}>{portionLabel}</span>
-                </span>
-              </div>
-              <button
-                type="button"
-                className={styles.portionInfoBtn}
-                aria-label={t('food.servingInfoAria')}
-                onClick={() => setServingInfoOpen(true)}
-              >
-                <IconInfoOutline size={18} color={Colors.dashboard.stroke} />
-              </button>
+            <div className={styles.portionBadgeWrap}>
+              <span className={styles.portionBadgeShadow} />
+              <span className={styles.portionBadgeInner}>
+                <span className={styles.portionText}>{portionLabel}</span>
+              </span>
             </div>
           </div>
         </div>
@@ -944,14 +930,6 @@ export function FoodDetailModal({
           setHistoryKey((k) => k + 1);
         }}
       />
-
-      <ServingUnitInfoPopup
-        open={servingInfoOpen}
-        onClose={() => setServingInfoOpen(false)}
-        title={t('food.unitMacrosTitle', { unit: unitLabel(foodUnit) })}
-        subtitle={portionLabel}
-        macros={servingUnitMacros}
-      />
     </div>,
     document.body,
   );
@@ -994,7 +972,6 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
   const [base, setBase] = useState<DailyLogItem | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [dialog, setDialog] = useState<{ title: string; message: string } | null>(null);
-  const [servingInfoOpen, setServingInfoOpen] = useState(false);
 
   useEffect(() => {
     if (visible && log) {
@@ -1013,7 +990,6 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
       setMealType((log.mealType as MealType) || 'SNACK');
       setConfirmDelete(false);
       setDialog(null);
-      setServingInfoOpen(false);
     }
   }, [visible, log]);
 
@@ -1058,14 +1034,12 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
   };
 
   const per100 = {
-    kcal: (base.kcal / baseAmount) * 100,
     protein: (base.protein / baseAmount) * 100,
     carbs: (base.carbs / baseAmount) * 100,
     fat: (base.fat / baseAmount) * 100,
     sugar: base.sugar != null ? (base.sugar / baseAmount) * 100 : null,
     fiber: base.fiber != null ? (base.fiber / baseAmount) * 100 : null,
   };
-  const servingUnitMacros = macrosForGrams(per100, gramsPerUnit);
   const totalMacro = Math.max(0.1, per100.carbs + per100.protein + per100.fat);
   const carbsPct = (per100.carbs / totalMacro) * 100;
   const proteinPct = (per100.protein / totalMacro) * 100;
@@ -1159,21 +1133,11 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
             </span>
             <h3 className={foodNameSizeClass(base.foodName)}>{base.foodName}</h3>
             {brandLabel ? <p className={styles.foodBrand}>{brandLabel}</p> : null}
-            <div className={styles.portionRow}>
-              <div className={styles.portionBadgeWrap}>
-                <span className={styles.portionBadgeShadow} />
-                <span className={styles.portionBadgeInner}>
-                  <span className={styles.portionText}>{portionLabel}</span>
-                </span>
-              </div>
-              <button
-                type="button"
-                className={styles.portionInfoBtn}
-                aria-label={t('food.servingInfoAria')}
-                onClick={() => setServingInfoOpen(true)}
-              >
-                <IconInfoOutline size={18} color={Colors.dashboard.stroke} />
-              </button>
+            <div className={styles.portionBadgeWrap}>
+              <span className={styles.portionBadgeShadow} />
+              <span className={styles.portionBadgeInner}>
+                <span className={styles.portionText}>{portionLabel}</span>
+              </span>
             </div>
           </div>
         </div>
@@ -1351,14 +1315,6 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
         message={dialog?.message ?? ''}
         confirmLabel={t('common.ok', 'OK')}
         onClose={() => setDialog(null)}
-      />
-
-      <ServingUnitInfoPopup
-        open={servingInfoOpen}
-        onClose={() => setServingInfoOpen(false)}
-        title={t('food.unitMacrosTitle', { unit: unitLabel(foodUnit) })}
-        subtitle={portionLabel}
-        macros={servingUnitMacros}
       />
     </div>,
     document.body,
