@@ -79,29 +79,40 @@ function MacroMiniGrid({
   fat: number;
 }) {
   const { t } = useTranslation();
+  const cells = [
+    {
+      key: 'protein',
+      value: protein,
+      label: t('food.protein'),
+      Icon: IconEggAlt,
+      iconColor: Colors.dashboard.proteinFill,
+    },
+    {
+      key: 'carbs',
+      value: carbs,
+      label: t('food.carbs'),
+      Icon: IconGrain,
+      iconColor: Colors.dashboard.carbsFill,
+    },
+    {
+      key: 'fat',
+      value: fat,
+      label: t('food.fat'),
+      Icon: IconOpacity,
+      iconColor: Colors.dashboard.fatFill,
+    },
+  ] as const;
+
   return (
     <div className={styles.macroGrid}>
-      <div className={styles.macroCell} style={{ background: `${Colors.dashboard.proteinFill}55` }}>
-        <span className={styles.macroCellHead}>
-          <IconEggAlt size={12} color={Colors.dashboard.stroke} />
-          {t('food.proteinShort')}
-        </span>
-        <span className={styles.macroCellValue}>{Math.round(protein)}g</span>
-      </div>
-      <div className={styles.macroCell} style={{ background: `${Colors.dashboard.carbsFill}55` }}>
-        <span className={styles.macroCellHead}>
-          <IconGrain size={12} color={Colors.dashboard.stroke} />
-          {t('food.carbsShort')}
-        </span>
-        <span className={styles.macroCellValue}>{Math.round(carbs)}g</span>
-      </div>
-      <div className={styles.macroCell} style={{ background: `${Colors.dashboard.fatFill}55` }}>
-        <span className={styles.macroCellHead}>
-          <IconOpacity size={12} color={Colors.dashboard.stroke} />
-          {t('food.fatShort')}
-        </span>
-        <span className={styles.macroCellValue}>{Math.round(fat)}g</span>
-      </div>
+      {cells.map(({ key, value, label, Icon, iconColor }) => (
+        <div key={key} className={styles.macroCell} aria-label={`${label}: ${Math.round(value)}g`}>
+          <span className={styles.macroCellIcon} aria-hidden>
+            <Icon size={14} color={iconColor} />
+          </span>
+          <span className={styles.macroCellValue}>{Math.round(value)}g</span>
+        </div>
+      ))}
     </div>
   );
 }

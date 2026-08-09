@@ -204,37 +204,44 @@
 .macroGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  margin-top: 6px;
+  gap: 5px;
+  margin-top: 8px;
+  width: 100%;
 }
 
 .macroCell {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 6px 4px;
-  border-radius: 10px;
-  border: 1.5px solid rgba(28, 27, 27, 0.2);
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 7px 4px;
+  border-radius: 12px;
+  border: 1.5px solid var(--stroke, #1c1b1b);
+  background: #fff;
+  box-shadow: 1px 1px 0 var(--shadow-hard, #1c1b1b);
   min-width: 0;
   box-sizing: border-box;
 }
 
-.macroCellHead {
-  display: flex;
+.macroCellIcon {
+  display: inline-flex;
   align-items: center;
-  gap: 2px;
-  font-size: 9px;
-  font-weight: 800;
-  opacity: 0.7;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  justify-content: center;
+  line-height: 0;
+}
+
+.macroCellIcon svg {
+  display: block;
+  overflow: visible;
 }
 
 .macroCellValue {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 900;
   letter-spacing: -0.2px;
+  color: var(--stroke, #1c1b1b);
+  line-height: 1;
 }
 
 .statsRow {
