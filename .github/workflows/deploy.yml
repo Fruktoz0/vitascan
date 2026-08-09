@@ -27,9 +27,10 @@ jobs:
           echo "$CHANGED_FILES"
 
           # 5. Konténerek frissítése
+          # web/ lefedi a web appot és a web/db-admin-stack (db-tools) forrást is.
           if echo "$CHANGED_FILES" | grep -E -q 'Dockerfile|docker-compose|package\.json|web/|mobil_pwa/'; then
-            echo "--> Infra / Frontend változott: Rebuild..."
-            docker compose up -d --build web mobil_pwa api
+            echo "--> Infra / Frontend / db-tools változott: Rebuild..."
+            docker compose up -d --build web mobil_pwa api db-tools
           else
             echo "--> Csak backend változott: API restart..."
             docker compose restart api

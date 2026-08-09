@@ -168,10 +168,11 @@ export function DatabaseRestorePage() {
             <h2 className="admin-panel-title">Mentések a szerveren</h2>
             <p className="admin-muted">
               Teljes adatbázis-visszaállítás (felülírás). Csak megbízható <code>.dump</code> / <code>.sql</code> fájl.
-              Régi mentés felülírhatja / eltüntetheti az újabb táblákat és oszlopokat (pl. <code>FoodEditLog</code>,
-              étel <code>fiber</code>/<code>sugar</code>). Restore után indítsd újra a stacket, hogy a compose{' '}
-              <code>prisma db push</code> lépése visszaállítsa a hiányzó sémát — óvatosan, adatvesztés nélkül
-              ellenőrizd.
+              Régi mentés felülírhatja / eltüntetheti az újabb táblákat és oszlopokat (pl. <code>FoodComponent</code>,{' '}
+              <code>DayNote</code>, <code>WorkoutLog</code>, <code>DailyStepLog</code>, étel <code>isPrepared</code> /{' '}
+              <code>fiber</code>/<code>sugar</code>, DailyLog <code>logGroupId</code>). Restore után indítsd újra a
+              stacket, hogy a compose <code>prisma db push</code> (és a WaterLog napi migráció) visszaállítsa a
+              hiányzó sémát — óvatosan, adatvesztés nélkül ellenőrizd.
             </p>
             <div className="admin-table-wrap">
               <table className="admin-table">

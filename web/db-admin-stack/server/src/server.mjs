@@ -123,8 +123,9 @@ async function filterPgRestoreSqlFile(srcPath, destPath) {
 }
 
 /**
- * Preferált merge sorrend (FK-barát). A cél séma egyéb public táblái
- * (kivéve _prisma_migrations) a lista végére kerülnek, ha a dumpban is megvannak.
+ * Preferált merge sorrend (FK-barát) — igazítva a Prisma schema.prisma modellekhez.
+ * A cél séma egyéb public táblái (kivéve _prisma_migrations) a lista végére kerülnek,
+ * ha a dumpban is megvannak.
  */
 const MERGE_TABLE_ORDER = [
   'User',
@@ -132,18 +133,88 @@ const MERGE_TABLE_ORDER = [
   'SystemSetting',
   'RefreshToken',
   'Food',
+  'FoodComponent',
   'Vote',
   'FoodFavorite',
   'FoodEditLog',
   'DailyLog',
   'WaterLog',
   'WeightLog',
+  'DayNote',
   'DailyAnalysis',
   'AiFoodRecognition',
   'BodyMeasurementLog',
   'BodyMeasurementGoal',
   'AiBodyAnalysis',
+  'WorkoutLog',
+  'DailyStepLog',
 ];
+
+/**
+ * Régi mentések WaterLog sémája (amountMl event sorok) → napi összesítő (totalMl + loggedDate).
+ * Ugyanaz a logika, mint backend/prisma/sql/migrate_water_to_daily.sql — a merge DB-n
+ * kell lefuttatni, különben a cél NOT NULL loggedDate miatt a teljes WaterLog kihagyódik.
+ */
+const NORMALIZE_WATER_LOG_SQL = `
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'WaterLog'
+      AND column_name = 'amountMl'
+  ) THEN
+    CREATE TABLE "WaterLog_daily" (
+      "id" TEXT NOT NULL,
+      "userId" TEXT NOT NULL,
+      "totalMl" INTEGER NOT NULL DEFAULT 0,
+      "loggedDate" DATE NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL,
+      CONSTRAINT "WaterLog_daily_pkey" PRIMARY KEY ("id")
+    );
+
+    INSERT INTO "WaterLog_daily" ("id", "userId", "totalMl", "loggedDate", "createdAt", "updatedAt")
+    SELECT
+      (array_agg(w."id" ORDER BY w."createdAt" ASC))[1],
+      w."userId",
+      SUM(w."amountMl")::INTEGER,
+      (timezone('UTC', w."createdAt"))::date,
+      MIN(w."createdAt"),
+      MAX(w."createdAt")
+    FROM "WaterLog" w
+    GROUP BY w."userId", (timezone('UTC', w."createdAt"))::date;
+
+    ALTER TABLE "WaterLog" DROP CONSTRAINT IF EXISTS "WaterLog_userId_fkey";
+    DROP TABLE "WaterLog";
+    ALTER TABLE "WaterLog_daily" RENAME TO "WaterLog";
+
+    ALTER TABLE "WaterLog"
+      ADD CONSTRAINT "WaterLog_userId_fkey"
+      FOREIGN KEY ("userId") REFERENCES "User"("id")
+      ON DELETE RESTRICT ON UPDATE CASCADE;
+
+    CREATE UNIQUE INDEX "WaterLog_userId_loggedDate_key"
+      ON "WaterLog"("userId", "loggedDate");
+    CREATE INDEX "WaterLog_userId_loggedDate_idx"
+      ON "WaterLog"("userId", "loggedDate");
+  END IF;
+END $$;
+`;
+
+/** Régi dump sémáját a merge DB-n a jelenlegi app-séma felé közelíti (oszlop-metszet előtt). */
+async function normalizeLegacySchemaInMergeDb(psql, mergeDb, log) {
+  try {
+    await psql(mergeDb, ['-v', 'ON_ERROR_STOP=1', '-c', NORMALIZE_WATER_LOG_SQL]);
+    log.info('[db-tools] merge DB: WaterLog legacy normalizálás lefutott (ha kellett).');
+  } catch (e) {
+    const msg = e?.stderr?.toString?.() || e?.message || String(e);
+    log.warn({ err: msg }, '[db-tools] merge DB WaterLog normalizálás figyelmeztetés');
+    // Ne állítsuk le a merge-t: ha nincs WaterLog / már új séma, a DO blokk no-op.
+    // Valódi hiba esetén a későbbi FDW merge WaterLog-ot kihagyhatja.
+  }
+}
 
 /**
  * Szelektív adatbetöltés: üres ideiglenes DB-be restore, majd FDW-n keresztül
@@ -214,6 +285,7 @@ async function mergeDataFromCustomFormat(dumpPath, log) {
     });
     await filterPgRestoreSqlFile(sqlRaw, sqlFiltered);
     await psql(mergeDb, ['-v', 'ON_ERROR_STOP=1', '-f', sqlFiltered]);
+    await normalizeLegacySchemaInMergeDb(psql, mergeDb, log);
 
     let pgVer = 0;
     try {

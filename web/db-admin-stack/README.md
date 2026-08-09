@@ -78,7 +78,8 @@ Az admin webfelület **Adatbázis** lapja az API `/admin/database/*` végpontjai
 ### Szelektív adatfrissítés (`POST /data-update`)
 
 - `.dump` / `.backup`: ideiglenes DB + `postgres_fdw` merge a célba.
-- A cél `public` tábláit dinamikusan fésüli össze (preferált sorrend: User → Food → kapcsolódó naplók / favoritok / edit log stb.).
+- Preferált FK-sorrend (Prisma modellek): User → UserProfile → SystemSetting → RefreshToken → Food → FoodComponent → Vote → FoodFavorite → FoodEditLog → DailyLog → WaterLog → WeightLog → DayNote → DailyAnalysis → AiFoodRecognition → BodyMeasurement* → AiBodyAnalysis → WorkoutLog → DailyStepLog (egyéb közös táblák ABC-ben a végén).
+- Merge előtt a dump oldali legacy **WaterLog** (`amountMl`) napi `totalMl` + `loggedDate` formára konvertálódik, ha kell.
 - Csak **közös oszlopok** kerülnek át (séma-drift nem bontja el az importot).
 - `INSERT … ON CONFLICT DO NOTHING` — meglévő PK / unique (pl. Food `barcode`, `externalId`) **nem frissül**.
 - Hiányzó FK-jú sorok (pl. étel creator nélkül) kimaradnak; az import folytatódik.

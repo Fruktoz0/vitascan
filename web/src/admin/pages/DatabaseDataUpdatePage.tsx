@@ -107,12 +107,14 @@ export function DatabaseDataUpdatePage() {
                 <div>
                   <strong>Ami történik</strong>
                   <p>
-                    A cél séma összes releváns táblájára (User, Food, FoodFavorite, FoodEditLog, naplók stb.)
-                    csak az új sorok kerülnek be. Meglévő elsődleges / egyedi kulcsok (pl. étel <code>id</code>,{' '}
-                    <code>barcode</code>, <code>externalId</code>) <strong>nem frissülnek</strong> — a mentésbeli
-                    értékük kimarad. Oszlopeltérésnél csak a közös mezők mennek át; hiányzó creator / FK miatt
-                    árva sorok kimaradnak (az import nem áll le). A <code>_prisma_migrations</code> táblát nem
-                    módosítjuk.
+                    A cél séma tábláira (User, UserProfile, Food, FoodComponent, Vote, FoodFavorite, FoodEditLog,
+                    DailyLog, WaterLog, WeightLog, DayNote, DailyAnalysis, AiFoodRecognition, testmérések,
+                    WorkoutLog, DailyStepLog stb.) csak az új sorok kerülnek be. Meglévő elsődleges / egyedi
+                    kulcsok (pl. étel <code>id</code>, <code>barcode</code>, <code>externalId</code>){' '}
+                    <strong>nem frissülnek</strong> — a mentésbeli értékük kimarad. Oszlopeltérésnél csak a
+                    közös mezők mennek át; hiányzó creator / FK miatt árva sorok kimaradnak (az import nem áll
+                    le). Régi WaterLog (<code>amountMl</code>) mentésből napi <code>totalMl</code>/<code>loggedDate</code>{' '}
+                    formára konvertálódik import előtt. A <code>_prisma_migrations</code> táblát nem módosítjuk.
                   </p>
                 </div>
               </div>
