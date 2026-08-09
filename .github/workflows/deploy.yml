@@ -1,0 +1,33 @@
+name: Deploy VitaScan
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Deploy to mini PC local directory
+        run: |
+          # 1. Belépünk a szerveren lévő felcsatolt mappa könyvtárába
+          cd /home/fruktoz/projects/vitascan
+
+          # 2. Lehúzzuk a legfrissebb kódváltozásokat
+          git fetch origin main
+          git reset --hard origin/main
+
+          # 3. Ellenőrizzük az utolsó commitban megváltozott fájlokat
+          CHANGED_FILES=$(git diff --name-only HEAD@{1} HEAD || true)
+          echo "Megváltozott fájlok:"
+          echo "$CHANGED_FILES"
+
+          # 4. Ha Docker vagy függőség fájlok változtak, újraépítjük, különben csak frissítünk/újraindítunk
+          if echo "$CHANGED_FILES" | grep -E -q 'Dockerfile|docker-compose|package\.json|package-lock\.json'; then
+            echo "--> Docker infra vagy függőség változott: Teljes Rebuild indítása..."
+            docker compose up -d --build
+          else
+            echo "--> Csak alkalmazáskód változott: Gyors frissítés/újraindítás..."
+            docker compose restart
+          fi
