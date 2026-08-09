@@ -11,26 +11,26 @@ jobs:
     steps:
       - name: Deploy VitaScan Services
         run: |
-          # 1. Beállítjuk a safe.directory-t a konténer belső útjára
-          git config --global --add safe.directory /home/runner/projects/vitascan
+          # 1. Beállítjuk a safe.directory-t a valódi útvonalra
+          git config --global --add safe.directory /home/fruktoz/projects/vitascan
 
-          # 2. Belépünk a felcsatolt projekt mappájába
-          cd /home/runner/projects/vitascan
+          # 2. Belépünk a projekt mappájába
+          cd /home/fruktoz/projects/vitascan
 
           # 3. Kód frissítése a GitHubról
           git fetch origin main
           git reset --hard origin/main
 
-          # 4. Ellenőrizzük a változásokat
+          # 4. Változások ellenőrzése
           CHANGED_FILES=$(git diff --name-only HEAD@{1} HEAD || true)
           echo "Megváltozott fájlok:"
           echo "$CHANGED_FILES"
 
           # 5. Konténerek frissítése
           if echo "$CHANGED_FILES" | grep -E -q 'Dockerfile|docker-compose|package\.json|web/|mobil_pwa/'; then
-            echo "--> Infra / Frontend változott: Rebuild indítása..."
-            docker compose --project-directory /home/runner/projects/vitascan up -d --build web mobil_pwa api
+            echo "--> Infra / Frontend változott: Rebuild..."
+            docker compose up -d --build web mobil_pwa api
           else
-            echo "--> Csak backend változott: API újraindítása..."
-            docker compose --project-directory /home/runner/projects/vitascan restart api
+            echo "--> Csak backend változott: API restart..."
+            docker compose restart api
           fi
