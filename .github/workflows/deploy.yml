@@ -12,7 +12,7 @@ jobs:
       - name: Deploy to mini PC local directory
         run: |
           # 1. Belépünk a felcsatolt mappa könyvtárába
-          cd /home/runner/projects/vitascan
+          cd /home/fruktoz/projects/vitascan
 
           # 2. Lehúzzuk a legfrissebb kódváltozásokat
           git fetch origin main
