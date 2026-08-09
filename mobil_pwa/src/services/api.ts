@@ -242,12 +242,43 @@ export type WeeklyStatsSummary = {
   avgFat: number;
   totalKcal: number;
   loggedDays: number;
+  emptyDays?: number;
   daysOnTarget: number;
   avgDeltaVsGoal: number;
   highestDay: { date: string; kcal: number } | null;
   lowestDay: { date: string; kcal: number } | null;
   kcalRange: number | null;
   mostLoggedDay: { date: string; logCount: number } | null;
+  bestDayVsGoal?: { date: string; kcal: number; delta: number } | null;
+  worstDayVsGoal?: { date: string; kcal: number; delta: number } | null;
+  macroAdherence?: {
+    protein: number | null;
+    carbs: number | null;
+    fat: number | null;
+  };
+  dominantMeal?: { mealType: string; avgKcal: number; sharePct: number } | null;
+  prevWeek?: {
+    avgKcal: number;
+    loggedDays: number;
+    avgDeltaVsGoal: number;
+    avgProtein: number;
+    avgCarbs: number;
+    avgFat: number;
+    deltaAvgKcal: number;
+  };
+  body?: {
+    weightDeltaKg: number | null;
+    firstWeightKg: number | null;
+    lastWeightKg: number | null;
+    firstWeightDate: string | null;
+    lastWeightDate: string | null;
+    measurements: Array<{
+      bodyPart: string;
+      firstCm: number;
+      lastCm: number;
+      deltaCm: number;
+    }>;
+  } | null;
 };
 
 export type WeeklyStatsResult = {
@@ -436,6 +467,7 @@ export type DailyAnalysisResult = {
   content: string | null;
   generationCount: number;
   remaining: number;
+  max?: number;
   updatedAt: string | null;
 };
 

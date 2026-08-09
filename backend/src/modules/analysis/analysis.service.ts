@@ -4,7 +4,7 @@ import {
   MAX_COACH_GENERATIONS_PER_DAY,
   MAX_GENERATIONS_PER_DAY,
   MAX_MEAL_SUGGEST_REFRESH_PREMIUM,
-  MAX_WEEKLY_NUTRITION_GENERATIONS,
+  weeklyNutritionQuotaCap,
 } from './analysis.schema';
 import {
   generateCoachNudge,
@@ -234,11 +234,13 @@ export async function getDailyAnalysis(
 
   if (kind === 'weeklyNutrition') {
     const weeklyCount = row?.generationCount ?? 0;
+    const cap = weeklyNutritionQuotaCap(role);
     return {
       date: dateKey,
       content: row?.content ?? null,
       generationCount: weeklyCount,
-      remaining: Math.max(0, MAX_WEEKLY_NUTRITION_GENERATIONS - weeklyCount),
+      remaining: Math.max(0, cap - weeklyCount),
+      max: cap,
       updatedAt: row?.updatedAt ?? null,
     };
   }
@@ -308,6 +310,7 @@ export async function createOrRefreshDailyAnalysis(
       dateKey,
       locale,
       dayRows,
+      role,
     });
   }
 
@@ -530,17 +533,18 @@ async function createOrRefreshWeeklyNutrition(
     dateKey: string;
     locale: 'hu' | 'en';
     dayRows: Array<{ kind: string; generationCount: number; content: string }>;
+    role?: string;
   },
 ) {
   const { day, dateKey, locale, dayRows } = opts;
+  const role = opts.role ?? 'USER';
+  const cap = weeklyNutritionQuotaCap(role);
   const existing = dayRows.find((r) => r.kind === 'weeklyNutrition') ?? null;
   const weeklyCount = existing?.generationCount ?? 0;
 
-  if (weeklyCount >= MAX_WEEKLY_NUTRITION_GENERATIONS) {
+  if (weeklyCount >= cap) {
     throw Object.assign(
-      new Error(
-        `Ezen a héten már elértéd a ${MAX_WEEKLY_NUTRITION_GENERATIONS} heti értékelés limitet.`,
-      ),
+      new Error(`Ezen a héten már elértéd a ${cap} heti értékelés limitet.`),
       { statusCode: 429 },
     );
   }
@@ -553,7 +557,10 @@ async function createOrRefreshWeeklyNutrition(
   startDate.setDate(startDate.getDate() - 6);
   startDate.setHours(0, 0, 0, 0);
 
-  const [logs, profile, weightLogs] = await Promise.all([
+  const prevStart = new Date(startDate);
+  prevStart.setDate(prevStart.getDate() - 7);
+
+  const [logs, profile, weightLogs, bodyLogs, prevLogs] = await Promise.all([
     prisma.dailyLog.findMany({
       where: { userId, createdAt: { gte: startDate, lte: endDate } },
       orderBy: { createdAt: 'asc' },
@@ -566,6 +573,20 @@ async function createOrRefreshWeeklyNutrition(
       },
       orderBy: { loggedDate: 'asc' },
     }),
+    prisma.bodyMeasurementLog.findMany({
+      where: {
+        userId,
+        loggedDate: { gte: startDate, lte: endDate },
+      },
+      orderBy: { loggedDate: 'asc' },
+    }),
+    prisma.dailyLog.findMany({
+      where: {
+        userId,
+        createdAt: { gte: prevStart, lt: startDate },
+      },
+      orderBy: { createdAt: 'asc' },
+    }),
   ]);
 
   if (logs.length === 0) {
@@ -574,38 +595,41 @@ async function createOrRefreshWeeklyNutrition(
     });
   }
 
-  const days: Array<{
-    date: string;
-    kcal: number;
-    protein: number;
-    carbs: number;
-    fat: number;
-    logCount: number;
-  }> = [];
+  const toLocalKey = (dt: Date) => {
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dd}`;
+  };
 
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(startDate);
-    d.setDate(d.getDate() + i);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    const dateStr = `${y}-${m}-${dd}`;
+  const buildDays = (from: Date, sourceLogs: typeof logs) => {
+    const out: Array<{
+      date: string;
+      kcal: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+      logCount: number;
+    }> = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(from);
+      d.setDate(d.getDate() + i);
+      const dateStr = toLocalKey(d);
+      const dayLogs = sourceLogs.filter((l) => toLocalKey(l.createdAt) === dateStr);
+      out.push({
+        date: dateStr,
+        kcal: Math.round(dayLogs.reduce((s, l) => s + l.kcal, 0) * 10) / 10,
+        protein: Math.round(dayLogs.reduce((s, l) => s + l.protein, 0) * 10) / 10,
+        carbs: Math.round(dayLogs.reduce((s, l) => s + l.carbs, 0) * 10) / 10,
+        fat: Math.round(dayLogs.reduce((s, l) => s + l.fat, 0) * 10) / 10,
+        logCount: dayLogs.length,
+      });
+    }
+    return out;
+  };
 
-    const dayLogs = logs.filter((l) => {
-      const ld = l.createdAt;
-      const key = `${ld.getFullYear()}-${String(ld.getMonth() + 1).padStart(2, '0')}-${String(ld.getDate()).padStart(2, '0')}`;
-      return key === dateStr;
-    });
-
-    days.push({
-      date: dateStr,
-      kcal: Math.round(dayLogs.reduce((s, l) => s + l.kcal, 0) * 10) / 10,
-      protein: Math.round(dayLogs.reduce((s, l) => s + l.protein, 0) * 10) / 10,
-      carbs: Math.round(dayLogs.reduce((s, l) => s + l.carbs, 0) * 10) / 10,
-      fat: Math.round(dayLogs.reduce((s, l) => s + l.fat, 0) * 10) / 10,
-      logCount: dayLogs.length,
-    });
-  }
+  const days = buildDays(startDate, logs);
+  const prevDays = buildDays(prevStart, prevLogs);
 
   const dailyKcalGoal = profile?.dailyKcalGoal ?? 2000;
   const dailyProteinGoal = profile?.dailyProteinGoal ?? null;
@@ -642,12 +666,51 @@ async function createOrRefreshWeeklyNutrition(
   const kcalRange =
     loggedDaysList.length >= 2 ? Math.round(highestDay.kcal - lowestDay.kcal) : null;
 
+  const prevAvgKcal = Math.round(prevDays.reduce((s, d) => s + d.kcal, 0) / 7);
+  const prevAvgProtein = Math.round((prevDays.reduce((s, d) => s + d.protein, 0) / 7) * 10) / 10;
+  const prevAvgCarbs = Math.round((prevDays.reduce((s, d) => s + d.carbs, 0) / 7) * 10) / 10;
+  const prevAvgFat = Math.round((prevDays.reduce((s, d) => s + d.fat, 0) / 7) * 10) / 10;
+  const prevLoggedDays = prevDays.filter((d) => d.logCount > 0).length;
+  const prevWeek = {
+    avgKcal: prevAvgKcal,
+    loggedDays: prevLoggedDays,
+    avgDeltaVsGoal: Math.round(prevAvgKcal - dailyKcalGoal),
+    avgProtein: prevAvgProtein,
+    avgCarbs: prevAvgCarbs,
+    avgFat: prevAvgFat,
+    deltaAvgKcal: Math.round(avgKcal - prevAvgKcal),
+  };
+
   let weightDeltaKg: number | null = null;
-  if (weightLogs.length >= 2) {
-    const first = weightLogs[0].weightKg;
-    const last = weightLogs[weightLogs.length - 1].weightKg;
-    weightDeltaKg = Math.round((last - first) * 10) / 10;
+  let firstWeightKg: number | null = null;
+  let lastWeightKg: number | null = null;
+  let firstWeightDate: string | null = null;
+  let lastWeightDate: string | null = null;
+  if (weightLogs.length >= 1) {
+    firstWeightKg = weightLogs[0].weightKg;
+    lastWeightKg = weightLogs[weightLogs.length - 1].weightKg;
+    firstWeightDate = weightLogs[0].loggedDate.toISOString().slice(0, 10);
+    lastWeightDate = weightLogs[weightLogs.length - 1].loggedDate.toISOString().slice(0, 10);
   }
+  if (weightLogs.length >= 2) {
+    weightDeltaKg = Math.round((lastWeightKg! - firstWeightKg!) * 10) / 10;
+  }
+
+  const measurementsByPart = new Map<string, { firstCm: number; lastCm: number }>();
+  for (const row of bodyLogs) {
+    const prev = measurementsByPart.get(row.bodyPart);
+    if (!prev) {
+      measurementsByPart.set(row.bodyPart, { firstCm: row.valueCm, lastCm: row.valueCm });
+    } else {
+      prev.lastCm = row.valueCm;
+    }
+  }
+  const measurements = [...measurementsByPart.entries()].map(([bodyPart, v]) => ({
+    bodyPart,
+    firstCm: v.firstCm,
+    lastCm: v.lastCm,
+    deltaCm: Math.round((v.lastCm - v.firstCm) * 10) / 10,
+  }));
 
   const fromKey = days[0]?.date ?? dateKey;
   const content = await generateWeeklyNutritionAnalysis({
@@ -682,6 +745,15 @@ async function createOrRefreshWeeklyNutrition(
       lowestDay,
       kcalRange,
     },
+    prevWeek,
+    body: {
+      weightDeltaKg,
+      firstWeightKg,
+      lastWeightKg,
+      firstWeightDate,
+      lastWeightDate,
+      measurements,
+    },
     weightDeltaKg,
   });
 
@@ -705,7 +777,8 @@ async function createOrRefreshWeeklyNutrition(
     date: dateKey,
     content: saved.content,
     generationCount: nextKindCount,
-    remaining: Math.max(0, MAX_WEEKLY_NUTRITION_GENERATIONS - nextKindCount),
+    remaining: Math.max(0, cap - nextKindCount),
+    max: cap,
     updatedAt: saved.updatedAt,
   };
 }

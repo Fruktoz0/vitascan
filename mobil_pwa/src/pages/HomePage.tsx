@@ -320,8 +320,6 @@ export default function HomePage() {
           />
         )}
 
-        <StreakCard streak={streak} />
-
         <WaterProgressBar
           totalMl={water?.totalMl ?? 0}
           goalMl={water?.goalMl ?? 2500}
@@ -361,6 +359,8 @@ export default function HomePage() {
             </div>
           </div>
         </div>
+
+        <StreakCard streak={streak} />
 
         <button type="button" className={styles.addFoodOuter} onClick={() => openAddFood('SNACK')}>
           <span className={styles.addFoodShadow} />

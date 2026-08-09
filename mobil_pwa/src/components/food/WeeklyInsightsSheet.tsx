@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { AnalysisResultView } from './AnalysisResult';
 import { MacroChip } from '../ui/MacroBar';
-import { IconClose } from '../ui/Icons';
+import { IconClose, IconExpandLess, IconExpandMore } from '../ui/Icons';
 import { Colors } from '../../design/tokens';
 import {
   analysisApi,
@@ -11,8 +11,10 @@ import {
   type DailyAnalysisResult,
   type WeeklyStatsResult,
 } from '../../services/api';
+import { getItem, setItem, deleteItem } from '../../services/storage';
 import { parseAnalysisContent } from '../../utils/parseAnalysisContent';
 import { MEAL_META, type MealType } from '../../utils/mealMeta';
+import { BODY_PART_META, isBodyPart } from '../../utils/bodyMeta';
 import styles from './WeeklyInsightsSheet.module.css';
 
 type Props = {
@@ -36,6 +38,14 @@ function weekdayLabel(dateStr: string): string {
     month: 'short',
     day: 'numeric',
   });
+}
+
+function formatDelta(n: number): string {
+  return n > 0 ? `+${n}` : String(n);
+}
+
+function collapseKey(weekTo: string) {
+  return `weeklyAiCollapsed:${weekTo}`;
 }
 
 const MEAL_ORDER: MealType[] = ['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK'];
@@ -62,12 +72,17 @@ export default function WeeklyInsightsSheet({
   const titleId = useId();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aiCollapsed, setAiCollapsed] = useState(false);
 
   const summary = weekly.summary;
   const goals = weekly.goals;
   const remaining = analysis?.remaining ?? 2;
+  const maxQuota =
+    analysis?.max ?? Math.max(2, remaining + (analysis?.generationCount ?? 0));
   const loggedDays = summary?.loggedDays ?? 0;
   const canGenerate = loggedDays >= 2 && remaining > 0 && !busy && !analysisLoading;
+  const parsed = parseAnalysisContent(analysis?.content);
+  const hasContent = !!parsed;
 
   useEffect(() => {
     if (!open) return;
@@ -87,6 +102,28 @@ export default function WeeklyInsightsSheet({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      if (!hasContent) {
+        if (!cancelled) setAiCollapsed(false);
+        return;
+      }
+      const stored = await getItem(collapseKey(weekly.to));
+      if (!cancelled) setAiCollapsed(stored === '1');
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, weekly.to, hasContent]);
+
+  const setCollapsedPersist = async (next: boolean) => {
+    setAiCollapsed(next);
+    if (next) await setItem(collapseKey(weekly.to), '1');
+    else await deleteItem(collapseKey(weekly.to));
+  };
+
   const handlePickDay = useCallback(
     (dateStr: string) => {
       onSelectDate(parseLocalDate(dateStr));
@@ -103,6 +140,9 @@ export default function WeeklyInsightsSheet({
       const locale = i18n.language?.startsWith('en') ? 'en' : 'hu';
       const result = await analysisApi.generate(weekly.to, locale, 'weeklyNutrition');
       onAnalysisChange(result);
+      // Keep collapsed if user already collapsed this week
+      const stored = await getItem(collapseKey(weekly.to));
+      if (stored === '1') setAiCollapsed(true);
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 429) {
@@ -120,8 +160,26 @@ export default function WeeklyInsightsSheet({
 
   if (!open || !summary || !goals) return null;
 
-  const parsed = parseAnalysisContent(analysis?.content);
   const mealEntries = MEAL_ORDER.filter((m) => (weekly.mealAvg?.[m]?.daysWithMeal ?? 0) > 0);
+  const previewText =
+    parsed?.kind === 'structured'
+      ? parsed.data.summary.positives[0] ??
+        parsed.data.suggestions[0] ??
+        parsed.data.summary.negatives[0] ??
+        null
+      : parsed?.kind === 'plain'
+        ? parsed.text
+        : null;
+
+  const prevDelta = summary.prevWeek?.deltaAvgKcal;
+  const prevDeltaClass =
+    prevDelta == null
+      ? undefined
+      : prevDelta < 0
+        ? styles.miniValueMint
+        : prevDelta > 0
+          ? styles.miniValueOrange
+          : undefined;
 
   return (
     <div
@@ -150,7 +208,7 @@ export default function WeeklyInsightsSheet({
               {weekly.from} → {weekly.to}
             </p>
           </div>
-          <button type="button" className={styles.closeBtn} onClick={onClose} aria-label={t('common.close', 'Bezárás')}>
+          <button type="button" className={styles.closeBtn} onClick={onClose} aria-label={t('common.close')}>
             <IconClose size={20} color={Colors.dashboard.stroke} />
           </button>
         </div>
@@ -200,6 +258,20 @@ export default function WeeklyInsightsSheet({
                 <span className={styles.miniLabel}>{t('homeScreen.weeklyInsightsTotal')}</span>
                 <span className={styles.miniValue}>{summary.totalKcal} kcal</span>
               </div>
+              {summary.emptyDays != null && (
+                <div className={styles.miniCard}>
+                  <span className={styles.miniLabel}>{t('homeScreen.weeklyInsightsEmptyDays')}</span>
+                  <span className={styles.miniValue}>{summary.emptyDays}</span>
+                </div>
+              )}
+              {summary.prevWeek && (
+                <div className={styles.miniCard}>
+                  <span className={styles.miniLabel}>{t('homeScreen.weeklyInsightsVsPrev')}</span>
+                  <span className={`${styles.miniValue} ${prevDeltaClass ?? ''}`.trim()}>
+                    {formatDelta(summary.prevWeek.deltaAvgKcal)} kcal
+                  </span>
+                </div>
+              )}
               {summary.mostLoggedDay && (
                 <button
                   type="button"
@@ -216,6 +288,36 @@ export default function WeeklyInsightsSheet({
             </div>
           </section>
 
+          {summary.bestDayVsGoal && summary.worstDayVsGoal && loggedDays >= 2 && (
+            <section>
+              <h3 className={styles.sectionTitle}>{t('homeScreen.weeklyInsightsGoalDays')}</h3>
+              <div className={styles.heroPair}>
+                <button
+                  type="button"
+                  className={`${styles.heroCard} ${styles.heroLow}`}
+                  onClick={() => handlePickDay(summary.bestDayVsGoal!.date)}
+                >
+                  <span className={styles.heroLabel}>{t('homeScreen.weeklyInsightsBestVsGoal')}</span>
+                  <span className={styles.heroDay}>{weekdayLabel(summary.bestDayVsGoal.date)}</span>
+                  <span className={styles.heroKcal}>
+                    {summary.bestDayVsGoal.kcal} · {formatDelta(summary.bestDayVsGoal.delta)}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.heroCard} ${styles.heroHigh}`}
+                  onClick={() => handlePickDay(summary.worstDayVsGoal!.date)}
+                >
+                  <span className={styles.heroLabel}>{t('homeScreen.weeklyInsightsWorstVsGoal')}</span>
+                  <span className={styles.heroDay}>{weekdayLabel(summary.worstDayVsGoal.date)}</span>
+                  <span className={styles.heroKcal}>
+                    {summary.worstDayVsGoal.kcal} · {formatDelta(summary.worstDayVsGoal.delta)}
+                  </span>
+                </button>
+              </div>
+            </section>
+          )}
+
           <section>
             <h3 className={styles.sectionTitle}>{t('homeScreen.weeklyInsightsMacros')}</h3>
             <div className={styles.macroRow}>
@@ -223,17 +325,51 @@ export default function WeeklyInsightsSheet({
               <MacroChip type="carbs" value={summary.avgCarbs} goal={goals.dailyCarbsGoal} />
               <MacroChip type="fat" value={summary.avgFat} goal={goals.dailyFatGoal} />
             </div>
+            {summary.macroAdherence && (
+              <div className={styles.macroAdherence}>
+                {summary.macroAdherence.protein != null && (
+                  <span className={styles.adherenceChip}>
+                    {t('food.protein')}: {summary.macroAdherence.protein}%
+                  </span>
+                )}
+                {summary.macroAdherence.carbs != null && (
+                  <span className={styles.adherenceChip}>
+                    {t('food.carbs')}: {summary.macroAdherence.carbs}%
+                  </span>
+                )}
+                {summary.macroAdherence.fat != null && (
+                  <span className={styles.adherenceChip}>
+                    {t('food.fat')}: {summary.macroAdherence.fat}%
+                  </span>
+                )}
+              </div>
+            )}
           </section>
 
           {mealEntries.length > 0 && (
             <section>
               <h3 className={styles.sectionTitle}>{t('homeScreen.weeklyInsightsMeals')}</h3>
+              {summary.dominantMeal && (
+                <p className={styles.empty} style={{ marginBottom: 8 }}>
+                  {t('homeScreen.weeklyInsightsDominantMeal', {
+                    meal: t(
+                      MEAL_I18N[(summary.dominantMeal.mealType as MealType) || 'SNACK'] ??
+                        'food.snack',
+                    ),
+                    pct: summary.dominantMeal.sharePct,
+                  })}
+                </p>
+              )}
               <div className={styles.mealList}>
                 {mealEntries.map((meal) => {
                   const entry = weekly.mealAvg[meal];
                   const { Icon, bg } = MEAL_META[meal];
+                  const dominant = summary.dominantMeal?.mealType === meal;
                   return (
-                    <div key={meal} className={styles.mealRow}>
+                    <div
+                      key={meal}
+                      className={`${styles.mealRow} ${dominant ? styles.mealRowDominant : ''}`.trim()}
+                    >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                         <span
                           style={{
@@ -265,49 +401,127 @@ export default function WeeklyInsightsSheet({
             </section>
           )}
 
-          <section className={styles.panel}>
-            <div className={styles.panelHead}>
-              <div>
-                <h3 className={styles.panelTitle}>{t('homeScreen.weeklyEvalAiTitle')}</h3>
-                <p className={styles.panelMeta}>
-                  {t('homeScreen.weeklyEvalRemaining', { count: remaining })}
-                </p>
+          {summary.body && (
+            <section>
+              <h3 className={styles.sectionTitle}>{t('homeScreen.weeklyInsightsBody')}</h3>
+              <div className={styles.secondaryGrid}>
+                {summary.body.weightDeltaKg != null && (
+                  <div className={styles.miniCard}>
+                    <span className={styles.miniLabel}>{t('homeScreen.weeklyInsightsWeightDelta')}</span>
+                    <span
+                      className={`${styles.miniValue} ${
+                        summary.body.weightDeltaKg < 0
+                          ? styles.miniValueMint
+                          : summary.body.weightDeltaKg > 0
+                            ? styles.miniValueOrange
+                            : ''
+                      }`.trim()}
+                    >
+                      {formatDelta(summary.body.weightDeltaKg)} kg
+                    </span>
+                  </div>
+                )}
+                {summary.body.firstWeightKg != null && summary.body.lastWeightKg != null && (
+                  <div className={styles.miniCard}>
+                    <span className={styles.miniLabel}>{t('homeScreen.weeklyInsightsWeightRange')}</span>
+                    <span className={styles.miniValue}>
+                      {summary.body.firstWeightKg} → {summary.body.lastWeightKg} kg
+                    </span>
+                  </div>
+                )}
               </div>
-            </div>
+              {summary.body.measurements.length > 0 && (
+                <div className={styles.mealList} style={{ marginTop: 8 }}>
+                  {summary.body.measurements.map((m) => (
+                    <div key={m.bodyPart} className={styles.mealRow}>
+                      <span className={styles.mealName}>
+                        {isBodyPart(m.bodyPart)
+                          ? t(BODY_PART_META[m.bodyPart].labelKey)
+                          : m.bodyPart}
+                      </span>
+                      <span className={styles.mealMeta}>
+                        {m.firstCm} → {m.lastCm} cm ({formatDelta(m.deltaCm)})
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          <section className={styles.panel}>
+            {hasContent ? (
+              <button
+                type="button"
+                className={styles.panelHeadBtn}
+                onClick={() => setCollapsedPersist(!aiCollapsed)}
+                aria-expanded={!aiCollapsed}
+              >
+                <div>
+                  <h3 className={styles.panelTitle}>{t('homeScreen.weeklyEvalAiTitle')}</h3>
+                  <p className={styles.panelMeta}>
+                    {t('homeScreen.weeklyEvalRemaining', { count: remaining, max: maxQuota })}
+                  </p>
+                </div>
+                {aiCollapsed ? (
+                  <IconExpandMore size={22} color={Colors.dashboard.stroke} />
+                ) : (
+                  <IconExpandLess size={22} color={Colors.dashboard.stroke} />
+                )}
+              </button>
+            ) : (
+              <div className={styles.panelHead}>
+                <div>
+                  <h3 className={styles.panelTitle}>{t('homeScreen.weeklyEvalAiTitle')}</h3>
+                  <p className={styles.panelMeta}>
+                    {t('homeScreen.weeklyEvalRemaining', { count: remaining, max: maxQuota })}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {error && <p className={styles.error}>{error}</p>}
 
-            {!parsed && (
-              <p className={styles.empty}>{t('homeScreen.weeklyEvalEmpty')}</p>
+            {!parsed && <p className={styles.empty}>{t('homeScreen.weeklyEvalEmpty')}</p>}
+
+            {hasContent && aiCollapsed && (
+              <>
+                {previewText && <p className={styles.preview}>{previewText}</p>}
+                <p className={styles.expandHint}>{t('homeScreen.weeklyEvalExpand')}</p>
+              </>
             )}
 
-            {parsed?.kind === 'structured' && (
-              <div className={styles.analysisBox}>
-                <AnalysisResultView
-                  data={parsed.data}
-                  hideMeals
-                  summaryTitle={t('homeScreen.weeklyEvalSummary')}
-                  suggestionsTitle={t('homeScreen.weeklyEvalSuggestions')}
-                />
+            {hasContent && !aiCollapsed && (
+              <>
+                {parsed?.kind === 'structured' && (
+                  <div className={styles.analysisBox}>
+                    <AnalysisResultView
+                      data={parsed.data}
+                      hideMeals
+                      summaryTitle={t('homeScreen.weeklyEvalSummary')}
+                      suggestionsTitle={t('homeScreen.weeklyEvalSuggestions')}
+                    />
+                  </div>
+                )}
+                {parsed?.kind === 'plain' && <p className={styles.empty}>{parsed.text}</p>}
+              </>
+            )}
+
+            {(!hasContent || !aiCollapsed) && (
+              <div className={styles.ctaWrap}>
+                <span className={styles.ctaShadow} aria-hidden />
+                <button
+                  type="button"
+                  className={styles.cta}
+                  onClick={handleGenerate}
+                  disabled={!canGenerate}
+                >
+                  {busy || analysisLoading
+                    ? t('homeScreen.weeklyEvalAnalyzing')
+                    : t('homeScreen.weeklyEvalStart')}
+                </button>
               </div>
             )}
-            {parsed?.kind === 'plain' && (
-              <p className={styles.empty}>{parsed.text}</p>
-            )}
-
-            <div className={styles.ctaWrap}>
-              <span className={styles.ctaShadow} aria-hidden />
-              <button
-                type="button"
-                className={styles.cta}
-                onClick={handleGenerate}
-                disabled={!canGenerate}
-              >
-                {busy || analysisLoading
-                  ? t('homeScreen.weeklyEvalAnalyzing')
-                  : t('homeScreen.weeklyEvalStart')}
-              </button>
-            </div>
             {loggedDays < 2 && (
               <p className={styles.hint}>{t('homeScreen.weeklyInsightsNeedMoreDays')}</p>
             )}

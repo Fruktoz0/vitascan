@@ -90,13 +90,15 @@ Output rules:
 const WEEKLY_NUTRITION_PROMPT_HU = `Te a VitaScan tapasztalt táplálkozási szakértője vagy.
 Feladat: a HETI (7 napos) kalória/makró mintázat értékelése JSON-ben a felhasználó terve (célok) alapján.
 
-Bemenet: days[] (napi kcal/makró/logCount), summary (átlag, delta a célhoz, naplózott napok, célban töltött napok, highest/lowest), goals, profile.goal (LOSE/MAINTAIN/GAIN), opcionális weightDeltaKg.
+Bemenet: days[] (napi kcal/makró/logCount), summary (átlag, delta a célhoz, naplózott napok, célban töltött napok, highest/lowest), goals, profile.goal (LOSE/MAINTAIN/GAIN), prevWeek (előző 7 nap átlagai + deltaAvgKcal), body (súlyváltozás, körfogatok ha van).
 
 Kimeneti szabályok:
 - CSAK érvényes JSON a sémával. Semmi más szöveg.
 - Magyar, rövid bullet-mondatok (max ~18 szó). TILOS regény, motivációs lózung.
 - meals: MINDIG üres tömb ([]). Nincs étkezésenkénti bontás.
 - summary: max 4 positives, max 4 negatives — heti összkép vs terv (kcal átlag, deficit/surplus, következetesség, makrók).
+- Legalább 1 summary vagy suggestion pont viszonyítson az ELŐZŐ HÉTHEZ (prevWeek.deltaAvgKcal / loggedDays), ha van értelmes adat.
+- Legalább 1 summary vagy suggestion pont viszonyítson a TEST/SÚLY adatokhoz (body.weightDeltaKg vagy measurements), ha van adat; ha nincs, ne inventálj.
 - suggestions: max 3 KONKRÉT, kivitelezhető tipp számokkal (pl. „~−150 kcal/nap”, „+15 g fehérje átlag”).
 - Ne ismételd szó szerint a „legtöbb/legkevesebb nap” címkéket — értelmezd a tervhez viszonyítva.
 - Ne inventálj számot. Nincs orvosi diagnózis.`;
@@ -104,13 +106,15 @@ Kimeneti szabályok:
 const WEEKLY_NUTRITION_PROMPT_EN = `You are VitaScan's experienced nutrition expert.
 Task: evaluate the WEEKLY (7-day) calorie/macro pattern in JSON against the user's plan (goals).
 
-Input: days[] (daily kcal/macros/logCount), summary (averages, delta vs goal, logged days, days on target, highest/lowest), goals, profile.goal (LOSE/MAINTAIN/GAIN), optional weightDeltaKg.
+Input: days[] (daily kcal/macros/logCount), summary (averages, delta vs goal, logged days, days on target, highest/lowest), goals, profile.goal (LOSE/MAINTAIN/GAIN), prevWeek (prior 7-day averages + deltaAvgKcal), body (weight change, girths if present).
 
 Output rules:
 - ONLY valid JSON matching the schema. No other text.
 - English, short bullets (max ~18 words). FORBIDDEN: novels, hype speeches.
 - meals: ALWAYS an empty array ([]). No per-meal breakdown.
 - summary: max 4 positives, max 4 negatives — week overview vs plan (avg kcal, deficit/surplus, consistency, macros).
+- At least 1 summary or suggestion point must relate to the PREVIOUS WEEK (prevWeek.deltaAvgKcal / loggedDays) when data is meaningful.
+- At least 1 summary or suggestion point must relate to BODY/WEIGHT (body.weightDeltaKg or measurements) when present; if absent, do not invent.
 - suggestions: max 3 CONCRETE actionable tips with numbers (e.g. "~−150 kcal/day", "+15 g protein avg").
 - Do not literally restate "highest/lowest day" labels — interpret vs the plan.
 - Do not invent numbers. No medical diagnoses.`;
@@ -825,6 +829,29 @@ export type WeeklyNutritionGeminiPayload = {
     lowestDay: { date: string; kcal: number } | null;
     kcalRange: number | null;
   };
+  prevWeek: {
+    avgKcal: number;
+    loggedDays: number;
+    avgDeltaVsGoal: number;
+    avgProtein: number;
+    avgCarbs: number;
+    avgFat: number;
+    deltaAvgKcal: number;
+  };
+  body: {
+    weightDeltaKg: number | null;
+    firstWeightKg: number | null;
+    lastWeightKg: number | null;
+    firstWeightDate: string | null;
+    lastWeightDate: string | null;
+    measurements: Array<{
+      bodyPart: string;
+      firstCm: number;
+      lastCm: number;
+      deltaCm: number;
+    }>;
+  };
+  /** @deprecated use body.weightDeltaKg */
   weightDeltaKg: number | null;
 };
 
@@ -848,8 +875,8 @@ export async function generateWeeklyNutritionAnalysis(
     payload.locale === 'en' ? 'Weekly context (JSON):' : 'Heti kontextus (JSON):',
     JSON.stringify(payload, null, 2),
     payload.locale === 'en'
-      ? 'Return ONLY overview JSON. meals MUST be []. Put all evaluation in summary + suggestions vs the plan.'
-      : 'Csak heti összkép JSON. meals MINDIG []. Minden értékelés a summary-ban + javaslatok a tervhez képest.',
+      ? 'Return ONLY overview JSON. meals MUST be []. Evaluate vs plan, previous week, and body/weight when present.'
+      : 'Csak heti összkép JSON. meals MINDIG []. Értékeld a tervhez, az előző héthez és a test/súly adatokhoz képest, ha van.',
   ].join('\n');
 
   const primaryResult = await callGeminiModel(

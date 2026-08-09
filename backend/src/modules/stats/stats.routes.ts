@@ -156,12 +156,34 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     startDate.setDate(startDate.getDate() - 6);
     startDate.setHours(0, 0, 0, 0);
 
-    const [logs, profile] = await Promise.all([
+    const [logs, profile, weightLogs, bodyLogs, prevLogs] = await Promise.all([
       fastify.prisma.dailyLog.findMany({
         where: { userId, createdAt: { gte: startDate, lte: endDate } },
         orderBy: { createdAt: 'asc' },
       }),
       fastify.prisma.userProfile.findUnique({ where: { userId } }),
+      fastify.prisma.weightLog.findMany({
+        where: { userId, loggedDate: { gte: startDate, lte: endDate } },
+        orderBy: { loggedDate: 'asc' },
+      }),
+      fastify.prisma.bodyMeasurementLog.findMany({
+        where: { userId, loggedDate: { gte: startDate, lte: endDate } },
+        orderBy: { loggedDate: 'asc' },
+      }),
+      fastify.prisma.dailyLog.findMany({
+        where: {
+          userId,
+          createdAt: {
+            gte: (() => {
+              const s = new Date(startDate);
+              s.setDate(s.getDate() - 7);
+              return s;
+            })(),
+            lt: startDate,
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
     ]);
 
     // Napi bontás generálása (üres napok is legyenek benne)
@@ -200,6 +222,7 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
 
     const loggedDaysList = days.filter((d) => d.logCount > 0);
     const loggedDays = loggedDaysList.length;
+    const emptyDays = 7 - loggedDays;
     const totalKcal = Math.round(days.reduce((s, d) => s + d.kcal, 0));
     const onTargetBand = dailyKcalGoal * 0.1;
     const daysOnTarget = loggedDaysList.filter(
@@ -211,6 +234,8 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     let lowestDay: { date: string; kcal: number } | null = null;
     let mostLoggedDay: { date: string; logCount: number } | null = null;
     let kcalRange: number | null = null;
+    let bestDayVsGoal: { date: string; kcal: number; delta: number } | null = null;
+    let worstDayVsGoal: { date: string; kcal: number; delta: number } | null = null;
 
     if (loggedDaysList.length > 0) {
       highestDay = loggedDaysList.reduce(
@@ -229,7 +254,33 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       if (loggedDaysList.length >= 2 && highestDay && lowestDay) {
         kcalRange = Math.round(highestDay.kcal - lowestDay.kcal);
       }
+
+      const withDelta = loggedDaysList.map((d) => ({
+        date: d.date,
+        kcal: Math.round(d.kcal),
+        delta: Math.round(d.kcal - dailyKcalGoal),
+        abs: Math.abs(d.kcal - dailyKcalGoal),
+      }));
+      bestDayVsGoal = withDelta.reduce((best, d) => (d.abs < best.abs ? d : best));
+      worstDayVsGoal = withDelta.reduce((worst, d) => (d.abs > worst.abs ? d : worst));
+      bestDayVsGoal = {
+        date: bestDayVsGoal.date,
+        kcal: bestDayVsGoal.kcal,
+        delta: bestDayVsGoal.delta,
+      };
+      worstDayVsGoal = {
+        date: worstDayVsGoal.date,
+        kcal: worstDayVsGoal.kcal,
+        delta: worstDayVsGoal.delta,
+      };
     }
+
+    const macroAdherence = {
+      protein:
+        dailyProteinGoal > 0 ? Math.round((avg.protein / dailyProteinGoal) * 100) : null,
+      carbs: dailyCarbsGoal > 0 ? Math.round((avg.carbs / dailyCarbsGoal) * 100) : null,
+      fat: dailyFatGoal > 0 ? Math.round((avg.fat / dailyFatGoal) * 100) : null,
+    };
 
     // Étkezéstípus átlag: csak azokra a napokra, ahol volt log az adott étkezésnél
     type MealAgg = { kcal: number; protein: number; carbs: number; fat: number; daysWithMeal: number };
@@ -263,6 +314,103 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       };
     }
 
+    let dominantMeal: { mealType: string; avgKcal: number; sharePct: number } | null = null;
+    const mealEntries = Object.entries(mealAvg);
+    if (mealEntries.length > 0) {
+      const sumAvg = mealEntries.reduce((s, [, m]) => s + m.kcal, 0);
+      const top = mealEntries.reduce((best, cur) => (cur[1].kcal > best[1].kcal ? cur : best));
+      dominantMeal = {
+        mealType: top[0],
+        avgKcal: top[1].kcal,
+        sharePct: sumAvg > 0 ? Math.round((top[1].kcal / sumAvg) * 100) : 0,
+      };
+    }
+
+    // Previous week (rolling 7 days before current window)
+    const prevDays: typeof days = [];
+    const prevStart = new Date(startDate);
+    prevStart.setDate(prevStart.getDate() - 7);
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(prevStart);
+      d.setDate(d.getDate() + i);
+      const dateStr = d.toISOString().split('T')[0];
+      const dayLogs = prevLogs.filter(
+        (l) => l.createdAt.toISOString().split('T')[0] === dateStr,
+      );
+      prevDays.push({
+        date: dateStr,
+        kcal: Math.round(dayLogs.reduce((s, l) => s + l.kcal, 0) * 10) / 10,
+        protein: Math.round(dayLogs.reduce((s, l) => s + l.protein, 0) * 10) / 10,
+        carbs: Math.round(dayLogs.reduce((s, l) => s + l.carbs, 0) * 10) / 10,
+        fat: Math.round(dayLogs.reduce((s, l) => s + l.fat, 0) * 10) / 10,
+        logCount: dayLogs.length,
+      });
+    }
+    const prevAvgKcal = Math.round(prevDays.reduce((s, d) => s + d.kcal, 0) / 7);
+    const prevAvgProtein = Math.round((prevDays.reduce((s, d) => s + d.protein, 0) / 7) * 10) / 10;
+    const prevAvgCarbs = Math.round((prevDays.reduce((s, d) => s + d.carbs, 0) / 7) * 10) / 10;
+    const prevAvgFat = Math.round((prevDays.reduce((s, d) => s + d.fat, 0) / 7) * 10) / 10;
+    const prevLoggedDays = prevDays.filter((d) => d.logCount > 0).length;
+    const prevAvgDeltaVsGoal = Math.round(prevAvgKcal - dailyKcalGoal);
+    const prevWeek = {
+      avgKcal: prevAvgKcal,
+      loggedDays: prevLoggedDays,
+      avgDeltaVsGoal: prevAvgDeltaVsGoal,
+      avgProtein: prevAvgProtein,
+      avgCarbs: prevAvgCarbs,
+      avgFat: prevAvgFat,
+      deltaAvgKcal: Math.round(avg.kcal - prevAvgKcal),
+    };
+
+    let body: {
+      weightDeltaKg: number | null;
+      firstWeightKg: number | null;
+      lastWeightKg: number | null;
+      firstWeightDate: string | null;
+      lastWeightDate: string | null;
+      measurements: Array<{
+        bodyPart: string;
+        firstCm: number;
+        lastCm: number;
+        deltaCm: number;
+      }>;
+    } | null = null;
+
+    const weightDeltaKg =
+      weightLogs.length >= 2
+        ? Math.round((weightLogs[weightLogs.length - 1].weightKg - weightLogs[0].weightKg) * 10) / 10
+        : null;
+    const measurementsByPart = new Map<string, { firstCm: number; lastCm: number }>();
+    for (const row of bodyLogs) {
+      const prev = measurementsByPart.get(row.bodyPart);
+      if (!prev) {
+        measurementsByPart.set(row.bodyPart, { firstCm: row.valueCm, lastCm: row.valueCm });
+      } else {
+        prev.lastCm = row.valueCm;
+      }
+    }
+    const measurements = [...measurementsByPart.entries()].map(([bodyPart, v]) => ({
+      bodyPart,
+      firstCm: v.firstCm,
+      lastCm: v.lastCm,
+      deltaCm: Math.round((v.lastCm - v.firstCm) * 10) / 10,
+    }));
+
+    if (weightLogs.length > 0 || measurements.length > 0) {
+      body = {
+        weightDeltaKg,
+        firstWeightKg: weightLogs[0]?.weightKg ?? null,
+        lastWeightKg: weightLogs[weightLogs.length - 1]?.weightKg ?? null,
+        firstWeightDate: weightLogs[0]
+          ? weightLogs[0].loggedDate.toISOString().split('T')[0]
+          : null,
+        lastWeightDate: weightLogs[weightLogs.length - 1]
+          ? weightLogs[weightLogs.length - 1].loggedDate.toISOString().split('T')[0]
+          : null,
+        measurements,
+      };
+    }
+
     return reply.send({
       days,
       avg,
@@ -283,12 +431,19 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
         avgFat: avg.fat,
         totalKcal,
         loggedDays,
+        emptyDays,
         daysOnTarget,
         avgDeltaVsGoal,
         highestDay,
         lowestDay,
         kcalRange,
         mostLoggedDay,
+        bestDayVsGoal,
+        worstDayVsGoal,
+        macroAdherence,
+        dominantMeal,
+        prevWeek,
+        body,
       },
     });
   });

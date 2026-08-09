@@ -35,3 +35,11 @@ export const MAX_COACH_GENERATIONS_PER_DAY = 8;
 export const MAX_MEAL_SUGGEST_REFRESH_PREMIUM = 1;
 /** Weekly calorie evaluation — separate quota keyed by week end date. */
 export const MAX_WEEKLY_NUTRITION_GENERATIONS = 2;
+/** Admin weekly calorie evaluation quota. */
+export const MAX_WEEKLY_NUTRITION_GENERATIONS_ADMIN = 10;
+
+export function weeklyNutritionQuotaCap(role = 'USER'): number {
+  return role === 'ADMIN'
+    ? MAX_WEEKLY_NUTRITION_GENERATIONS_ADMIN
+    : MAX_WEEKLY_NUTRITION_GENERATIONS;
+}
