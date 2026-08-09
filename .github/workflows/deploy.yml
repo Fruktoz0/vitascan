@@ -11,22 +11,24 @@ jobs:
     steps:
       - name: Deploy to mini PC local directory
         run: |
-          # 1. Belépünk a felcsatolt mappa könyvtárába
+          # 1. Beállítjuk a kivételt a Git biztonsági ellenőrzéséhez
+          git config --global --add safe.directory /home/runner/projects/vitascan
+
+          # 2. Belépünk a felcsatolt mappa könyvtárába
           cd /home/runner/projects/vitascan
 
-          # 2. Lehúzzuk a legfrissebb kódváltozásokat
+          # 3. Lehúzzuk a legfrissebb kódváltozásokat
           git fetch origin main
           git reset --hard origin/main
 
-          # 3. Ellenőrizzük az utolsó commitban megváltozott fájlokat
+          # 4. Ellenőrizzük az utolsó commitban megváltozott fájlokat
           CHANGED_FILES=$(git diff --name-only HEAD@{1} HEAD || true)
           echo "Megváltozott fájlok:"
           echo "$CHANGED_FILES"
 
-          # 4. HA FRONTEND (web, mobil_pwa), DOCKER VAGY BACKEND PACKAGE VÁLTOZOTT -> REBUILD!
+          # 5. HA FRONTEND (web, mobil_pwa), DOCKER VAGY BACKEND PACKAGE VÁLTOZOTT -> REBUILD!
           if echo "$CHANGED_FILES" | grep -E -q 'Dockerfile|docker-compose|package\.json|web/|mobil_pwa/'; then
             echo "--> Frontend/Infrastruktúra változott: Docker re-build kényszerítése..."
-            # Mivel a web és pwa kódot bele kell fordítani a képbe, a --build elengedhetetlen!
             docker compose up -d --build web mobil_pwa api
           else
             echo "--> Csak backend üzleti logika változott: Backend/API újraindítása..."
