@@ -11,8 +11,8 @@ jobs:
     steps:
       - name: Deploy to mini PC local directory
         run: |
-          # 1. Belépünk a szerveren lévő felcsatolt mappa könyvtárába
-          cd /home/fruktoz/projects/vitascan
+          # 1. Belépünk a felcsatolt mappa könyvtárába
+          cd /home/runner/projects/vitascan
 
           # 2. Lehúzzuk a legfrissebb kódváltozásokat
           git fetch origin main
@@ -23,11 +23,12 @@ jobs:
           echo "Megváltozott fájlok:"
           echo "$CHANGED_FILES"
 
-          # 4. Ha Docker vagy függőség fájlok változtak, újraépítjük, különben csak frissítünk/újraindítunk
-          if echo "$CHANGED_FILES" | grep -E -q 'Dockerfile|docker-compose|package\.json|package-lock\.json'; then
-            echo "--> Docker infra vagy függőség változott: Teljes Rebuild indítása..."
-            docker compose up -d --build
+          # 4. HA FRONTEND (web, mobil_pwa), DOCKER VAGY BACKEND PACKAGE VÁLTOZOTT -> REBUILD!
+          if echo "$CHANGED_FILES" | grep -E -q 'Dockerfile|docker-compose|package\.json|web/|mobil_pwa/'; then
+            echo "--> Frontend/Infrastruktúra változott: Docker re-build kényszerítése..."
+            # Mivel a web és pwa kódot bele kell fordítani a képbe, a --build elengedhetetlen!
+            docker compose up -d --build web mobil_pwa api
           else
-            echo "--> Csak alkalmazáskód változott: Gyors frissítés/újraindítás..."
-            docker compose restart
+            echo "--> Csak backend üzleti logika változott: Backend/API újraindítása..."
+            docker compose restart api
           fi
