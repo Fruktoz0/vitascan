@@ -1,0 +1,155 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.goalPill {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--stroke, #1c1b1b);
+  background: #fff4ea;
+  box-shadow: 2px 2px 0 var(--shadow-hard, #1c1b1b);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.1px;
+}
+
+.goalPillDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--stroke, #1c1b1b);
+  background: repeating-linear-gradient(
+    -45deg,
+    #1c1b1b 0 1px,
+    transparent 1px 3px
+  );
+  flex-shrink: 0;
+}
+
+.chart {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 6px;
+  height: 168px;
+  padding-right: 28px;
+}
+
+.chartWithPill {
+  height: 180px;
+  padding-top: 4px;
+}
+
+.goalLine {
+  position: absolute;
+  left: 0;
+  right: 28px;
+  height: 0;
+  border-top: 1.5px dashed rgba(28, 27, 27, 0.4);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.goalFloat {
+  position: absolute;
+  right: 0;
+  z-index: 2;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 8px;
+  border: 1.5px solid var(--stroke, #1c1b1b);
+  background: #fff;
+  box-shadow: 1px 1px 0 var(--shadow-hard, #1c1b1b);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.goalFloatBelow {
+  transform: translateY(4px);
+}
+
+.col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  height: 100%;
+  font: inherit;
+  color: inherit;
+}
+
+.barTrack {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 0;
+}
+
+.bar {
+  position: relative;
+  width: 70%;
+  max-width: 28px;
+  min-height: 4px;
+  border-radius: 8px 8px 4px 4px;
+  border: 1.5px solid var(--stroke, #1c1b1b);
+  transition: height 0.35s ease;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.barEmpty {
+  background: #f0eded;
+  opacity: 0.7;
+}
+
+.colActive .bar {
+  box-shadow: 2px 2px 0 rgba(28, 27, 27, 0.15);
+  filter: brightness(0.95);
+}
+
+.valueLabel {
+  position: relative;
+  z-index: 1;
+  margin-top: 5px;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--stroke, #1c1b1b);
+  opacity: 0.75;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.colActive .valueLabel {
+  opacity: 1;
+}
+
+.dayLabel {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.75;
+}
+
+.colActive .dayLabel {
+  opacity: 1;
+  font-weight: 900;
+}

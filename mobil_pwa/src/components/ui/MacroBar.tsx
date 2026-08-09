@@ -30,7 +30,6 @@ const CONFIG: Record<
     fill: Colors.dashboard.carbsFill,
     iconColor: Colors.dashboard.carbsFill,
     radii: { borderTopLeftRadius: 24, borderTopRightRadius: 16, borderBottomRightRadius: 16, borderBottomLeftRadius: 24 },
-    // MdBakeryDining clips badly in narrow chips; grain reads clearly as carbs.
     Icon: IconGrain,
   },
   fat: {
@@ -45,11 +44,17 @@ export function MacroChip({
   type,
   value,
   goal,
+  adherencePct,
+  compare = false,
   onClick,
 }: {
   type: MacroType;
   value: number;
   goal?: number;
+  /** Raw adherence % (avg/goal*100) */
+  adherencePct?: number | null;
+  /** Weekly compare layout: big avg + clear goal/% row */
+  compare?: boolean;
   onClick?: () => void;
 }) {
   const { t } = useTranslation();
@@ -58,8 +63,25 @@ export function MacroChip({
   const label =
     type === 'protein' ? t('food.protein') : type === 'carbs' ? t('food.carbs') : t('food.fat');
   const Icon = cfg.Icon;
+  const showCompare = compare || adherencePct != null;
 
-  const inner = (
+  const inner = showCompare ? (
+    <>
+      <div className={styles.header}>
+        <span className={styles.label}>{label}</span>
+        <span className={styles.icon} aria-hidden>
+          <Icon size={16} color={cfg.iconColor} />
+        </span>
+      </div>
+      <div className={styles.value}>{Math.round(value)}g</div>
+      <div className={styles.track}>
+        <div className={styles.fill} style={{ width: `${pct * 100}%`, background: cfg.fill }} />
+      </div>
+      {adherencePct != null && (
+        <div className={styles.comparePctOnly}>{Math.round(adherencePct)}%</div>
+      )}
+    </>
+  ) : (
     <>
       <div className={styles.header}>
         <span className={styles.label}>{label}</span>
@@ -75,15 +97,17 @@ export function MacroChip({
     </>
   );
 
+  const minH = showCompare ? 118 : 110;
+
   if (onClick) {
     return (
-      <button type="button" className={styles.chipBtn} onClick={onClick} style={{ flex: 1, minHeight: 110 }}>
+      <button type="button" className={styles.chipBtn} onClick={onClick} style={{ flex: 1, minHeight: minH }}>
         <GlassCardSimple
           className={styles.chip}
           padding={12}
           shadowOffset={3}
           customRadius={cfg.radii}
-          style={{ height: '100%', minHeight: 110 }}
+          style={{ height: '100%', minHeight: minH }}
         >
           {inner}
         </GlassCardSimple>
@@ -97,7 +121,7 @@ export function MacroChip({
       padding={12}
       shadowOffset={3}
       customRadius={cfg.radii}
-      style={{ flex: 1, minHeight: 110 }}
+      style={{ flex: 1, minHeight: minH }}
     >
       {inner}
     </GlassCardSimple>

@@ -277,6 +277,8 @@ export type WeeklyStatsSummary = {
       firstCm: number;
       lastCm: number;
       deltaCm: number;
+      firstDate?: string | null;
+      lastDate?: string | null;
     }>;
   } | null;
 };
@@ -288,6 +290,11 @@ export type WeeklyStatsResult = {
     string,
     { kcal: number; protein: number; carbs: number; fat: number; daysWithMeal: number }
   >;
+  mealDaily?: Record<
+    string,
+    Array<{ date: string; kcal: number; protein?: number; carbs?: number; fat?: number }>
+  >;
+  weightDaily?: Array<{ date: string; weightKg: number | null }>;
   from: string;
   to: string;
   goals?: {

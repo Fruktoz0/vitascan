@@ -326,6 +326,34 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       };
     }
 
+    const mealDaily: Record<
+      string,
+      Array<{ date: string; kcal: number; protein: number; carbs: number; fat: number }>
+    > = {};
+    const allMealTypes = new Set([
+      ...Object.keys(mealDaySets),
+      'BREAKFAST',
+      'TIZORAI',
+      'LUNCH',
+      'UZSONNA',
+      'DINNER',
+      'SNACK',
+    ]);
+    for (const mealType of allMealTypes) {
+      const dayMap = mealDaySets[mealType];
+      if (!dayMap || dayMap.size === 0) continue;
+      mealDaily[mealType] = days.map((d) => {
+        const row = dayMap.get(d.date);
+        return {
+          date: d.date,
+          kcal: Math.round(row?.kcal ?? 0),
+          protein: Math.round((row?.protein ?? 0) * 10) / 10,
+          carbs: Math.round((row?.carbs ?? 0) * 10) / 10,
+          fat: Math.round((row?.fat ?? 0) * 10) / 10,
+        };
+      });
+    }
+
     // Previous week (rolling 7 days before current window)
     const prevDays: typeof days = [];
     const prevStart = new Date(startDate);
@@ -373,6 +401,8 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
         firstCm: number;
         lastCm: number;
         deltaCm: number;
+        firstDate: string | null;
+        lastDate: string | null;
       }>;
     } | null = null;
 
@@ -380,13 +410,22 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       weightLogs.length >= 2
         ? Math.round((weightLogs[weightLogs.length - 1].weightKg - weightLogs[0].weightKg) * 10) / 10
         : null;
-    const measurementsByPart = new Map<string, { firstCm: number; lastCm: number }>();
+    const measurementsByPart = new Map<
+      string,
+      { firstCm: number; lastCm: number; firstDate: Date; lastDate: Date }
+    >();
     for (const row of bodyLogs) {
       const prev = measurementsByPart.get(row.bodyPart);
       if (!prev) {
-        measurementsByPart.set(row.bodyPart, { firstCm: row.valueCm, lastCm: row.valueCm });
+        measurementsByPart.set(row.bodyPart, {
+          firstCm: row.valueCm,
+          lastCm: row.valueCm,
+          firstDate: row.loggedDate,
+          lastDate: row.loggedDate,
+        });
       } else {
         prev.lastCm = row.valueCm;
+        prev.lastDate = row.loggedDate;
       }
     }
     const measurements = [...measurementsByPart.entries()].map(([bodyPart, v]) => ({
@@ -394,6 +433,8 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       firstCm: v.firstCm,
       lastCm: v.lastCm,
       deltaCm: Math.round((v.lastCm - v.firstCm) * 10) / 10,
+      firstDate: v.firstDate.toISOString().split('T')[0],
+      lastDate: v.lastDate.toISOString().split('T')[0],
     }));
 
     if (weightLogs.length > 0 || measurements.length > 0) {
@@ -411,10 +452,24 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       };
     }
 
+    const weightByDate = new Map<string, number>();
+    for (const w of weightLogs) {
+      const dateStr = w.loggedDate.toISOString().split('T')[0];
+      weightByDate.set(dateStr, w.weightKg);
+    }
+    const weightDaily = days.map((d) => ({
+      date: d.date,
+      weightKg: weightByDate.has(d.date)
+        ? Math.round((weightByDate.get(d.date) as number) * 10) / 10
+        : null,
+    }));
+
     return reply.send({
       days,
       avg,
       mealAvg,
+      mealDaily,
+      weightDaily,
       from: startDate.toISOString().split('T')[0],
       to: endDate.toISOString().split('T')[0],
       goals: {

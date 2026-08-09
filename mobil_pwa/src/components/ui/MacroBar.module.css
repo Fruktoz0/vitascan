@@ -89,3 +89,45 @@
   margin-top: 4px;
   text-align: right;
 }
+
+.adherence {
+  font-weight: 800;
+  color: var(--stroke);
+  opacity: 0.75;
+}
+
+.compareRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1.5px solid rgba(28, 27, 27, 0.12);
+}
+
+.compareGoal {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--tab-inactive);
+  min-width: 0;
+}
+
+.comparePct {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--stroke);
+  letter-spacing: -0.2px;
+}
+
+.comparePctOnly {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1.5px solid rgba(28, 27, 27, 0.12);
+  text-align: center;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--stroke);
+  letter-spacing: -0.2px;
+}

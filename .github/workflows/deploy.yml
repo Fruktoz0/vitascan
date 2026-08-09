@@ -9,28 +9,28 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Deploy to mini PC local directory
+      - name: Deploy VitaScan Services
         run: |
-          # 1. Beállítjuk a kivételt a Git biztonsági ellenőrzéséhez
+          # 1. Beállítjuk a safe.directory-t a konténer belső útjára
           git config --global --add safe.directory /home/runner/projects/vitascan
 
-          # 2. Belépünk a felcsatolt mappa könyvtárába
+          # 2. Belépünk a felcsatolt projekt mappájába
           cd /home/runner/projects/vitascan
 
-          # 3. Lehúzzuk a legfrissebb kódváltozásokat
+          # 3. Kód frissítése a GitHubról
           git fetch origin main
           git reset --hard origin/main
 
-          # 4. Ellenőrizzük az utolsó commitban megváltozott fájlokat
+          # 4. Ellenőrizzük a változásokat
           CHANGED_FILES=$(git diff --name-only HEAD@{1} HEAD || true)
           echo "Megváltozott fájlok:"
           echo "$CHANGED_FILES"
 
-          # 5. HA FRONTEND (web, mobil_pwa), DOCKER VAGY BACKEND PACKAGE VÁLTOZOTT -> REBUILD!
+          # 5. Konténerek frissítése
           if echo "$CHANGED_FILES" | grep -E -q 'Dockerfile|docker-compose|package\.json|web/|mobil_pwa/'; then
-            echo "--> Frontend/Infrastruktúra változott: Docker re-build kényszerítése..."
-            docker compose up -d --build web mobil_pwa api
+            echo "--> Infra / Frontend változott: Rebuild indítása..."
+            docker compose --project-directory /home/runner/projects/vitascan up -d --build web mobil_pwa api
           else
-            echo "--> Csak backend üzleti logika változott: Backend/API újraindítása..."
-            docker compose restart api
+            echo "--> Csak backend változott: API újraindítása..."
+            docker compose --project-directory /home/runner/projects/vitascan restart api
           fi

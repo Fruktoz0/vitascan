@@ -70,6 +70,8 @@ import {
   MdExpandMore,
   MdExpandLess,
   MdContentCopy,
+  MdFlag,
+  MdTripOrigin,
 } from 'react-icons/md';
 import { FaAppleAlt } from 'react-icons/fa';
 import {
@@ -195,6 +197,8 @@ export const IconExpandLess = wrap(MdExpandLess);
 export const IconContentCopy = wrap(MdContentCopy);
 export const IconRefresh = wrap(MdRefresh);
 export const IconScreenRotation = wrap(MdScreenRotation);
+export const IconFlag = wrap(MdFlag);
+export const IconTripOrigin = wrap(MdTripOrigin);
 
 export const TAB_ICONS = {
   home: { outline: IconHomeOutline, filled: IconHome },
