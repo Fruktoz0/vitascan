@@ -6,6 +6,7 @@ import { IconArrowBack, IconChevronLeft, IconChevronRight, IconDownload } from '
 import { exportApi, getAccessToken, statsApi, weightApi } from '../services/api';
 import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import { useTierStore } from '../stores/tierStore';
+import { kcalGoalTone } from '../utils/kcalGoalTone';
 import styles from './DatePickerPage.module.css';
 
 const DAY_LABELS = ['H', 'K', 'Sz', 'Cs', 'P', 'Szo', 'V'];
@@ -49,7 +50,8 @@ export default function DatePickerPage() {
   const [viewMonth, setViewMonth] = useState(selectedDate.getMonth());
   const [streak, setStreak] = useState<number | null>(null);
   const [weightDelta, setWeightDelta] = useState<number | null>(null);
-  const [loggedDates, setLoggedDates] = useState<Set<string>>(new Set());
+  const [loggedByDate, setLoggedByDate] = useState<Map<string, number>>(new Map());
+  const [dailyKcalGoal, setDailyKcalGoal] = useState(2000);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportFrom, setExportFrom] = useState(() => toLocalDateStr(addDays(new Date(), -30)));
   const [exportTo, setExportTo] = useState(() => toLocalDateStr(new Date()));
@@ -67,10 +69,12 @@ export default function DatePickerPage() {
     statsApi
       .loggedDays(viewYear, viewMonth + 1)
       .then((r) => {
-        if (!cancelled) setLoggedDates(new Set(r.dates));
+        if (cancelled) return;
+        setDailyKcalGoal(r.dailyKcalGoal ?? 2000);
+        setLoggedByDate(new Map((r.days ?? []).map((d) => [d.date, d.kcal])));
       })
       .catch(() => {
-        if (!cancelled) setLoggedDates(new Set());
+        if (!cancelled) setLoggedByDate(new Map());
       });
     return () => {
       cancelled = true;
@@ -221,7 +225,8 @@ export default function DatePickerPage() {
               const isToday = d.getTime() === today.getTime();
               const isSelected = d.getTime() === sel.getTime();
               const dateStr = toLocalDateStr(d);
-              const hasLog = loggedDates.has(dateStr);
+              const dayKcal = loggedByDate.get(dateStr);
+              const tone = dayKcal != null ? kcalGoalTone(dayKcal, dailyKcalGoal) : null;
               return (
                 <button
                   key={di}
@@ -230,7 +235,14 @@ export default function DatePickerPage() {
                   onClick={() => selectDay(day)}
                 >
                   {day}
-                  {hasLog ? <span className={styles.loggedDot} aria-hidden /> : null}
+                  {tone ? (
+                    <span
+                      className={`${styles.loggedDot} ${
+                        tone === 'green' ? styles.dotGreen : tone === 'yellow' ? styles.dotYellow : styles.dotRed
+                      }`}
+                      aria-hidden
+                    />
+                  ) : null}
                 </button>
               );
             })}

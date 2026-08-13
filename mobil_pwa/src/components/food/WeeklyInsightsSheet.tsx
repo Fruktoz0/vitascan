@@ -29,6 +29,7 @@ import { getItem, setItem, deleteItem } from '../../services/storage';
 import { parseAnalysisContent } from '../../utils/parseAnalysisContent';
 import { MEAL_META, type MealType } from '../../utils/mealMeta';
 import { BODY_PART_META, isBodyPart } from '../../utils/bodyMeta';
+import { weekKcalGoalTone, type KcalGoalTone } from '../../utils/kcalGoalTone';
 import { useTierStore } from '../../stores/tierStore';
 import styles from './WeeklyInsightsSheet.module.css';
 
@@ -132,6 +133,12 @@ function eachYmd(from: string, to: string): string[] {
   return out;
 }
 
+function pickerDotClass(tone: KcalGoalTone): string {
+  if (tone === 'green') return styles.dotGreen;
+  if (tone === 'yellow') return styles.dotYellow;
+  return styles.dotRed;
+}
+
 function buildWeekOptions(count = 24): WeekOption[] {
   const currentMon = mondayOf(new Date());
   const weeks: WeekOption[] = [];
@@ -183,7 +190,8 @@ export default function WeeklyInsightsSheet({
   const [chartSpec, setChartSpec] = useState<WeeklyChartSpec | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [weekLoading, setWeekLoading] = useState(false);
-  const [loggedDateSet, setLoggedDateSet] = useState<Set<string>>(new Set());
+  const [loggedByDate, setLoggedByDate] = useState<Map<string, number>>(new Map());
+  const [loggedGoalKcal, setLoggedGoalKcal] = useState(2000);
 
   useEffect(() => {
     if (!open) return;
@@ -212,11 +220,25 @@ export default function WeeklyInsightsSheet({
         month: to.getMonth() + 1,
       });
     }
-    Promise.all([...months.values()].map(({ year, month }) => statsApi.loggedDays(year, month).catch(() => ({ dates: [] as string[] }))))
-      .then((results) => {
-        if (cancelled) return;
-        setLoggedDateSet(new Set(results.flatMap((r) => r.dates)));
-      });
+    Promise.all(
+      [...months.values()].map(({ year, month }) =>
+        statsApi.loggedDays(year, month).catch(() => ({
+          dates: [] as string[],
+          days: [] as { date: string; kcal: number }[],
+          dailyKcalGoal: 2000,
+        })),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      const map = new Map<string, number>();
+      let goal = 2000;
+      for (const r of results) {
+        if (typeof r.dailyKcalGoal === 'number') goal = r.dailyKcalGoal;
+        for (const d of r.days ?? []) map.set(d.date, d.kcal);
+      }
+      setLoggedGoalKcal(goal);
+      setLoggedByDate(map);
+    });
     return () => {
       cancelled = true;
     };
@@ -1003,7 +1025,8 @@ export default function WeeklyInsightsSheet({
                 {buildWeekOptions().map((opt, index, all) => {
                   const locked = opt.weeksBack > 1 && !isPremium();
                   const selected = opt.from === weekly.from;
-                  const hasLog = eachYmd(opt.from, opt.to).some((d) => loggedDateSet.has(d));
+                  const dates = eachYmd(opt.from, opt.to);
+                  const tone = weekKcalGoalTone(loggedByDate, dates, loggedGoalKcal);
                   const prev = index > 0 ? all[index - 1] : null;
                   const showMonth = !prev || prev.monthKey !== opt.monthKey;
                   const monthLabel = parseLocalDate(opt.from).toLocaleDateString(
@@ -1037,7 +1060,12 @@ export default function WeeklyInsightsSheet({
                           ) : null}
                         </span>
                         <span className={styles.pickerEnd}>
-                          {hasLog ? <span className={styles.pickerLoggedDot} aria-hidden /> : null}
+                          {tone ? (
+                            <span
+                              className={`${styles.pickerLoggedDot} ${pickerDotClass(tone)}`}
+                              aria-hidden
+                            />
+                          ) : null}
                           {locked ? (
                             <IconLockOutline size={18} color={Colors.dashboard.stroke} />
                           ) : null}

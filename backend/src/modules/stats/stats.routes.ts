@@ -552,13 +552,34 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     const startDate = new Date(y, m - 1, 1, 0, 0, 0, 0);
     const endDate = new Date(y, m, 0, 23, 59, 59, 999);
 
-    const logs = await fastify.prisma.dailyLog.findMany({
-      where: { userId, createdAt: { gte: startDate, lte: endDate } },
-      select: { createdAt: true },
-    });
+    const [logs, profile] = await Promise.all([
+      fastify.prisma.dailyLog.findMany({
+        where: { userId, createdAt: { gte: startDate, lte: endDate } },
+        select: { createdAt: true, kcal: true },
+      }),
+      fastify.prisma.userProfile.findUnique({
+        where: { userId },
+        select: { dailyKcalGoal: true },
+      }),
+    ]);
 
-    const dates = [...new Set(logs.map((l) => dateKey(l.createdAt)))].sort();
-    return reply.send({ year: y, month: m, dates });
+    const byDate = new Map<string, number>();
+    for (const l of logs) {
+      const key = dateKey(l.createdAt);
+      byDate.set(key, (byDate.get(key) ?? 0) + l.kcal);
+    }
+    const days = [...byDate.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, kcal]) => ({ date, kcal: Math.round(kcal * 10) / 10 }));
+    const dates = days.map((d) => d.date);
+
+    return reply.send({
+      year: y,
+      month: m,
+      dailyKcalGoal: profile?.dailyKcalGoal ?? 2000,
+      dates,
+      days,
+    });
   });
 
   // GET /stats/monthly?year=2025&month=3 — havi adatok (PREMIUM)

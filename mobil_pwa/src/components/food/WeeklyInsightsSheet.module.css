@@ -280,8 +280,21 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
+}
+
+.dotGreen {
   background: #2d8a4e;
   box-shadow: 0 0 0 1.5px #fff, 0 0 0 3px #2d8a4e22;
+}
+
+.dotYellow {
+  background: #e0a106;
+  box-shadow: 0 0 0 1.5px #fff, 0 0 0 3px #e0a10622;
+}
+
+.dotRed {
+  background: #d64545;
+  box-shadow: 0 0 0 1.5px #fff, 0 0 0 3px #d6454522;
 }
 
 .pickerHint {

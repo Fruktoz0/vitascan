@@ -122,7 +122,18 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
+}
+
+.dotGreen {
   background: #2d8a4e;
+}
+
+.dotYellow {
+  background: #e0a106;
+}
+
+.dotRed {
+  background: #d64545;
 }
 
 .today {

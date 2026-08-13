@@ -230,9 +230,13 @@ export const statsApi = {
   },
   monthly: (year: number, month: number) => request<any>(`/stats/monthly?year=${year}&month=${month}`),
   loggedDays: (year: number, month: number) =>
-    request<{ year: number; month: number; dates: string[] }>(
-      `/stats/logged-days?year=${year}&month=${month}`,
-    ),
+    request<{
+      year: number;
+      month: number;
+      dailyKcalGoal: number;
+      dates: string[];
+      days: { date: string; kcal: number }[];
+    }>(`/stats/logged-days?year=${year}&month=${month}`),
   streak: () => request<{ streak: number; message: string }>('/stats/streak'),
 };
 
