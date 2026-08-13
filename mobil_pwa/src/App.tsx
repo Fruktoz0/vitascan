@@ -26,6 +26,12 @@ import NotificationsPage from './pages/NotificationsPage';
 import DatePickerPage from './pages/DatePickerPage';
 import DataVaultPage from './pages/DataVaultPage';
 import AdminPage from './pages/AdminPage';
+import MenuPage from './pages/MenuPage';
+import RecipesPage from './pages/RecipesPage';
+import RecipeCreatePage from './pages/RecipeCreatePage';
+import RecipeReviewPage from './pages/RecipeReviewPage';
+import RecipeDetailPage from './pages/RecipeDetailPage';
+import RecipeImportPage from './pages/RecipeImportPage';
 
 export default function App() {
   const restoreSession = useAuthStore((s) => s.restoreSession);
@@ -57,7 +63,15 @@ export default function App() {
             <Route path="/body" element={<BodyMeasurementsPage />} />
             <Route path="/fitness" element={<FitnessPage />} />
             <Route path="/scanner" element={<ScannerPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/menu" element={<MenuPage />} />
+            <Route path="/menu/profile" element={<ProfilePage />} />
+            <Route path="/profile" element={<Navigate to="/menu/profile" replace />} />
+            <Route path="/recipes" element={<RecipesPage />} />
+            <Route path="/recipes/new" element={<RecipeCreatePage />} />
+            <Route path="/recipes/import" element={<RecipeImportPage />} />
+            <Route path="/recipes/review" element={<RecipeReviewPage />} />
+            <Route path="/recipes/:id/edit" element={<RecipeReviewPage />} />
+            <Route path="/recipes/:id" element={<RecipeDetailPage />} />
             <Route path="/date-picker" element={<DatePickerPage />} />
             <Route path="/data-vault" element={<DataVaultPage />} />
           </Route>
@@ -80,4 +94,3 @@ export default function App() {
     </BrowserRouter>
   );
 }
-// test sokadik uajbb probaffsdfsdsdfsdfsdfsdf

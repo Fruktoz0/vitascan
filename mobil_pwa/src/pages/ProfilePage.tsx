@@ -5,11 +5,11 @@ import { useTranslation } from 'react-i18next';
 import { Colors } from '../design/tokens';
 import {
   IconAccountEditOutline,
+  IconArrowBack,
   IconChevronRight,
   IconLogout,
   IconNotificationsOutline,
   IconShield,
-  IconTarget,
 } from '../components/ui/Icons';
 import AvatarPicker, { UserAvatar } from '../components/ui/AvatarPicker';
 import { profileApi, statsApi } from '../services/api';
@@ -81,7 +81,13 @@ export default function ProfilePage() {
       <div className={`${styles.blob} ${styles.blobPeach}`} />
       <div className={`${styles.blob} ${styles.blobLavender}`} />
 
-      <h1 className={styles.pageTitle}>{t('profileTab')}</h1>
+      <header className={styles.topBar}>
+        <button type="button" className={styles.back} onClick={() => navigate('/menu')}>
+          <IconArrowBack size={22} color={Colors.dashboard.stroke} />
+        </button>
+        <h1 className={styles.pageTitle}>{t('profileTab')}</h1>
+        <span className={styles.headerSpacer} />
+      </header>
 
       <div className={styles.heroWrap}>
         <span className={styles.cardShadow} />
@@ -144,11 +150,6 @@ export default function ProfilePage() {
             icon={<IconNotificationsOutline size={20} color="#1565C0" />}
             label={t('profile.settingsNotifications')}
             onClick={() => navigate('/notifications')}
-          />
-          <SettingsRow
-            icon={<IconTarget size={20} color="#E65100" />}
-            label={t('profile.settingsGoals')}
-            onClick={() => navigate('/goals')}
           />
         </div>
       </div>

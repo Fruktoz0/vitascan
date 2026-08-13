@@ -4,6 +4,7 @@ import { AdminLoginPage } from './admin/AdminLoginPage';
 import { AdminLayout } from './admin/AdminLayout';
 import { DashboardPage } from './admin/pages/DashboardPage';
 import { FoodsPage } from './admin/pages/FoodsPage';
+import { RecipesPage } from './admin/pages/RecipesPage';
 import { UsersPage } from './admin/pages/UsersPage';
 import { DatabaseLayout } from './admin/DatabaseLayout';
 import { DatabaseOverviewPage } from './admin/pages/DatabaseOverviewPage';
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<DashboardPage />} />
           <Route path="foods" element={<FoodsPage />} />
+          <Route path="recipes" element={<RecipesPage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="token-cleanup" element={<TokenCleanupPage />} />
           <Route path="database" element={<DatabaseLayout />}>

@@ -189,8 +189,12 @@ export function DashboardPage() {
           <div className="admin-stat-value">{s.totalFoods}</div>
         </article>
         <article className="admin-stat-card">
-          <div className="admin-stat-label">Függőben</div>
+          <div className="admin-stat-label">Függőben (ételek)</div>
           <div className="admin-stat-value admin-stat-warn">{s.pendingFoods}</div>
+        </article>
+        <article className="admin-stat-card">
+          <div className="admin-stat-label">Függőben (receptek)</div>
+          <div className="admin-stat-value admin-stat-warn">{s.pendingRecipes ?? 0}</div>
         </article>
         <article className="admin-stat-card">
           <div className="admin-stat-label">Tiltott ételek</div>

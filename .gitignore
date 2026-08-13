@@ -31,5 +31,8 @@ web/db-admin-stack/backups/*.dump
 web/db-admin-stack/backups/*.sql
 web/db-admin-stack/backups/*.backup
 
+# Lokális receptkép fallback (Docker named volume a kanonikus tár)
+backend/data/
+
 # Runner / CI/CD temp
 .actions-runner/

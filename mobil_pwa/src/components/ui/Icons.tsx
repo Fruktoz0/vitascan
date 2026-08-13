@@ -32,8 +32,10 @@ import {
   MdIcecream,
   MdInfoOutline,
   MdLocalFireDepartment,
+  MdLink,
   MdLockOutline,
   MdLogout,
+  MdMenu,
   MdLunchDining,
   MdMonitorWeight,
   MdMoreHoriz,
@@ -62,6 +64,7 @@ import {
   MdStar,
   MdThumbDownOffAlt,
   MdThumbUpOffAlt,
+  MdVideocam,
   MdVerified,
   MdVisibility,
   MdVisibilityOff,
@@ -83,6 +86,8 @@ import {
   IoFitnessOutline,
   IoHome,
   IoHomeOutline,
+  IoMenu,
+  IoMenuOutline,
   IoMaleFemaleOutline,
   IoNotificationsOutline,
   IoPeople,
@@ -136,6 +141,11 @@ export const IconInfoOutline = wrap(MdInfoOutline);
 export const IconLocalFire = wrap(MdLocalFireDepartment);
 export const IconLockOutline = wrap(MdLockOutline);
 export const IconLogout = wrap(MdLogout);
+export const IconLink = wrap(MdLink);
+export const IconMenuMd = wrap(MdMenu);
+export const IconVideocam = wrap(MdVideocam);
+export const IconMenuOutline = wrap(IoMenuOutline);
+export const IconMenuFilled = wrap(IoMenu);
 export const IconOpacity = wrap(MdOpacity);
 export const IconPersonOutline = wrap(MdPersonOutline);
 export const IconQrCodeScanner = wrap(MdQrCodeScanner);
@@ -209,4 +219,5 @@ export const TAB_ICONS = {
   body: { outline: IconScaleOutline, filled: IconScaleOutline },
   fitness: { outline: IconFitnessOutline, filled: IconFitness },
   profile: { outline: IconPersonOutlineIo, filled: IconPersonFilled },
+  menu: { outline: IconMenuOutline, filled: IconMenuFilled },
 } as const;

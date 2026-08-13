@@ -5,6 +5,7 @@ import './admin.css';
 const nav = [
   { to: '/admin', end: true, label: 'Áttekintés' },
   { to: '/admin/foods', end: false, label: 'Ételek' },
+  { to: '/admin/recipes', end: false, label: 'Receptek' },
   { to: '/admin/users', end: false, label: 'Felhasználók' },
   { to: '/admin/token-cleanup', end: false, label: 'Token takarítás' },
   { to: '/admin/database', end: false, label: 'Adatbázis' },

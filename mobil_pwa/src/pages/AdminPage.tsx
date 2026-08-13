@@ -6,7 +6,7 @@ import { adminApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import styles from './AdminPage.module.css';
 
-type AdminTab = 'dashboard' | 'foods' | 'users';
+type AdminTab = 'dashboard' | 'foods' | 'users' | 'recipes';
 
 export default function AdminPage() {
   const navigate = useNavigate();
@@ -15,6 +15,7 @@ export default function AdminPage() {
   const [dashboard, setDashboard] = useState<any>(null);
   const [foods, setFoods] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [recipes, setRecipes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -28,6 +29,10 @@ export default function AdminPage() {
       if (tab === 'users') {
         const res = await adminApi.getUsers({ limit: 40 });
         setUsers(res.users);
+      }
+      if (tab === 'recipes') {
+        const res = await adminApi.getRecipes({ status: 'PENDING', limit: 40 });
+        setRecipes(res.recipes);
       }
     } catch {}
     setLoading(false);
@@ -57,6 +62,7 @@ export default function AdminPage() {
             ['dashboard', '📊'],
             ['foods', '🍽️'],
             ['users', '👥'],
+            ['recipes', '📖'],
           ] as const
         ).map(([id, emoji]) => (
           <button
@@ -83,7 +89,8 @@ export default function AdminPage() {
               ['Users', dashboard.stats.totalUsers],
               ['New today', dashboard.stats.newUsersToday],
               ['Foods', dashboard.stats.totalFoods],
-              ['Pending', dashboard.stats.pendingFoods],
+              ['Pending foods', dashboard.stats.pendingFoods],
+              ['Pending recipes', dashboard.stats.pendingRecipes ?? 0],
               ['Logs today', dashboard.stats.logsToday],
               ['Premium', dashboard.stats.premiumUsers],
             ].map(([label, value]) => (
@@ -121,6 +128,26 @@ export default function AdminPage() {
                 <div className={styles.rowMeta}>
                   {u.role} · {u.tier ?? 'FREE'} · rep {u.reputation ?? 0}
                 </div>
+              </div>
+            </div>
+          ))}
+
+        {!loading && tab === 'recipes' &&
+          recipes.map((r) => (
+            <div key={r.id} className={styles.row}>
+              <div>
+                <div className={styles.rowTitle}>{r.title}</div>
+                <div className={styles.rowMeta}>
+                  {r.createdBy?.username} · {r.sourceType} · {r.status}
+                </div>
+              </div>
+              <div className={styles.rowActions}>
+                <button type="button" onClick={() => adminApi.approveRecipe(r.id).then(load)}>
+                  ✅
+                </button>
+                <button type="button" onClick={() => adminApi.rejectRecipe(r.id).then(load)}>
+                  🚫
+                </button>
               </div>
             </div>
           ))}

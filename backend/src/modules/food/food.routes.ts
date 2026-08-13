@@ -229,6 +229,7 @@ export default async function foodRoutes(fastify: FastifyInstance) {
 
     const where: any = {
       status: status ?? { not: 'BANNED' },
+      preparedFromRecipeId: null,
     };
     if (onlyMine) {
       where.creatorId = userId;

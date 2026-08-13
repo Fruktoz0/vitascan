@@ -8,6 +8,7 @@ import {
   runRefreshTokenCleanupJob,
   setRefreshTokenCleanupConfig,
 } from '../system/refresh-token-cleanup.service';
+import { getRecipe, listAdminRecipes, mapRecipeDetail, moderateRecipe } from '../recipes/recipes.service';
 
 const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', authenticate);
@@ -22,7 +23,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     const [
       totalUsers, newUsersToday, totalFoods,
       pendingFoods, bannedFoods, totalLogs,
-      logsToday, premiumUsers,
+      logsToday, premiumUsers, pendingRecipes,
     ] = await Promise.all([
       fastify.prisma.user.count({ where: { deletedAt: null } }),
       fastify.prisma.user.count({ where: { createdAt: { gte: today }, deletedAt: null } }),
@@ -32,6 +33,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       fastify.prisma.dailyLog.count(),
       fastify.prisma.dailyLog.count({ where: { createdAt: { gte: today } } }),
       fastify.prisma.userProfile.count({ where: { tier: 'PREMIUM' } }),
+      fastify.prisma.recipe.count({ where: { status: 'PENDING' } }),
     ]);
 
     const topContributors = await fastify.prisma.user.findMany({
@@ -42,7 +44,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     });
 
     return reply.send({
-      stats: { totalUsers, newUsersToday, totalFoods, pendingFoods, bannedFoods, totalLogs, logsToday, premiumUsers },
+      stats: { totalUsers, newUsersToday, totalFoods, pendingFoods, bannedFoods, totalLogs, logsToday, premiumUsers, pendingRecipes },
       topContributors,
     });
   });
@@ -579,6 +581,56 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     const config = await getRefreshTokenCleanupConfig(fastify.prisma);
     const totalRefreshTokens = await fastify.prisma.refreshToken.count();
     return reply.send({ deleted, ...config, totalRefreshTokens });
+  });
+
+  fastify.get('/recipes', async (request, reply) => {
+    const query = z.object({
+      status: z.enum(['PENDING', 'PUBLISHED', 'REJECTED']).optional(),
+      page: z.coerce.number().int().min(1).default(1),
+      limit: z.coerce.number().int().min(1).max(50).default(20),
+    }).parse(request.query);
+    const result = await listAdminRecipes(fastify.prisma, query);
+    return reply.send(result);
+  });
+
+  fastify.get('/recipes/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      const recipe = await getRecipe(fastify.prisma, id, request.user.userId, request.user.role);
+      return reply.send(mapRecipeDetail(recipe, request.user.userId));
+    } catch (err: unknown) {
+      const code = (err as { statusCode?: number })?.statusCode;
+      return reply.status(typeof code === 'number' ? code : 404).send({
+        error: err instanceof Error ? err.message : 'A recept nem található.',
+      });
+    }
+  });
+
+  fastify.post('/recipes/:id/approve', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      const recipe = await moderateRecipe(fastify.prisma, id, 'approve');
+      return reply.send(recipe);
+    } catch (err: unknown) {
+      const code = (err as { statusCode?: number })?.statusCode;
+      return reply.status(typeof code === 'number' ? code : 404).send({
+        error: err instanceof Error ? err.message : 'A jóváhagyás sikertelen.',
+      });
+    }
+  });
+
+  fastify.post('/recipes/:id/reject', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = z.object({ reason: z.string().trim().max(500).optional() }).parse(request.body ?? {});
+    try {
+      const recipe = await moderateRecipe(fastify.prisma, id, 'reject', body.reason);
+      return reply.send(recipe);
+    } catch (err: unknown) {
+      const code = (err as { statusCode?: number })?.statusCode;
+      return reply.status(typeof code === 'number' ? code : 404).send({
+        error: err instanceof Error ? err.message : 'Az elutasítás sikertelen.',
+      });
+    }
   });
 
   await registerAdminDatabaseRoutes(fastify);

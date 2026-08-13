@@ -20,6 +20,7 @@ services:
       ]
     volumes:
       - ./backend:/app
+      - vitascan_media:/data/vitascan
     environment:
       DATABASE_URL: "postgresql://${DB_USER}:${DB_PASS}@global_postgres:5432/${DB_NAME}?schema=public"
       PORT: ${PORT:-3005}
@@ -35,6 +36,7 @@ services:
       FITNESS_CREDENTIALS_KEY: ${FITNESS_CREDENTIALS_KEY:-}
       PUBLIC_API_URL: ${PUBLIC_API_URL:-}
       PUBLIC_PWA_URL: ${PUBLIC_PWA_URL:-}
+      RECIPE_STORAGE_DIR: ${RECIPE_STORAGE_DIR:-/data/vitascan/recipes}
     ports:
       - "${PORT:-3005}:${PORT:-3005}"
     networks:
@@ -124,3 +126,6 @@ services:
 networks:
   global-net:
     external: true
+
+volumes:
+  vitascan_media:

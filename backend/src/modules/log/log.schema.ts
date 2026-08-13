@@ -11,7 +11,7 @@ export const CreateLogSchema = z.object({
   sugar: z.number().min(0).optional(),
   amount: z.number().min(1, 'Mennyiség min. 1g'),
   mealType: z.enum(['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK', 'OTHER']).default('OTHER'),
-  source: z.enum(['MANUAL', 'SCAN', 'SEARCH', 'AI']).default('MANUAL'),
+  source: z.enum(['MANUAL', 'SCAN', 'SEARCH', 'AI', 'RECIPE']).default('MANUAL'),
   /** YYYY-MM-DD — ha meg van adva, a bejegyzés erre a napra kerül (nem a mai createdAt-re). */
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Dátum formátum: YYYY-MM-DD').optional(),
   logGroupId: z.string().uuid().optional().nullable(),

@@ -28,10 +28,12 @@ export function getAccessToken() {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  payload?: Record<string, unknown>;
+  constructor(status: number, message: string, payload?: Record<string, unknown>) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.payload = payload;
   }
 }
 
@@ -133,8 +135,10 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
   };
   // Fastify rejects empty bodies when Content-Type is application/json (DELETE/GET → 400 Bad Request).
   const hasBody = options.body != null && options.body !== '';
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   if (
     hasBody &&
+    !isFormData &&
     headers['Content-Type'] == null &&
     headers['content-type'] == null
   ) {
@@ -212,7 +216,11 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
                   : response.status >= 500
                     ? `Szerverhiba (HTTP ${response.status}).`
                     : `A kérés sikertelen (HTTP ${response.status}).`);
-      throw new ApiError(response.status, msg);
+      throw new ApiError(
+        response.status,
+        msg,
+        data && typeof data === 'object' ? (data as Record<string, unknown>) : undefined,
+      );
     }
     return data as T;
   } catch (error) {
@@ -905,6 +913,7 @@ export const adminApi = {
         newUsersToday: number;
         totalFoods: number;
         pendingFoods: number;
+        pendingRecipes?: number;
         bannedFoods: number;
         totalLogs: number;
         logsToday: number;
@@ -939,4 +948,180 @@ export const adminApi = {
   adjustReputation: (id: string, delta: number, reason?: string) =>
     request(`/admin/users/${id}/reputation`, { method: 'PATCH', body: JSON.stringify({ delta, reason }) }),
   getBadges: () => request<{ experts: any[]; threshold: number; total: number }>('/admin/badges'),
+  getRecipes: (opts?: { status?: string; page?: number; limit?: number }) => {
+    const p = new URLSearchParams();
+    if (opts?.status) p.set('status', opts.status);
+    if (opts?.page) p.set('page', String(opts.page));
+    if (opts?.limit) p.set('limit', String(opts.limit));
+    return request<{
+      recipes: Array<{
+        id: string;
+        title: string;
+        status: string;
+        sourceType: string;
+        createdAt: string;
+        createdBy: { id: string; username: string };
+        hasImage: boolean;
+      }>;
+      total: number;
+    }>(`/admin/recipes?${p}`);
+  },
+  approveRecipe: (id: string) => request(`/admin/recipes/${id}/approve`, { method: 'POST', body: JSON.stringify({}) }),
+  rejectRecipe: (id: string, reason?: string) =>
+    request(`/admin/recipes/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
+};
+
+export type RecipeCategory = 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK' | 'DESSERT' | 'OTHER';
+export type RecipeSourceType =
+  | 'MANUAL'
+  | 'IMAGE'
+  | 'VIDEO'
+  | 'FACEBOOK'
+  | 'INSTAGRAM'
+  | 'TIKTOK'
+  | 'YOUTUBE'
+  | 'WEB';
+
+export type RecipeNutrition = {
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  sugar: number;
+  incomplete: boolean;
+  matchedCount: number;
+  totalCount: number;
+};
+
+export type RecipeIngredientDraft = {
+  id?: string;
+  name: string;
+  amount?: number | null;
+  unit?: string | null;
+  amountG?: number | null;
+  sortOrder?: number;
+  foodId?: string | null;
+  matchConfidence?: number | null;
+  matchedFoodName?: string | null;
+  suggestedFood?: { id: string; displayName: string } | null;
+};
+
+export type RecipeDraft = {
+  title: string;
+  description?: string | null;
+  servings: number;
+  category?: RecipeCategory | null;
+  ingredients: RecipeIngredientDraft[];
+  instructions: string[];
+  sourceUrl?: string | null;
+  sourceExternalId?: string | null;
+  sourceType: RecipeSourceType;
+};
+
+export type RecipeListItem = {
+  id: string;
+  title: string;
+  servings: number;
+  category: RecipeCategory | null;
+  status: string;
+  sourceType: RecipeSourceType;
+  createdAt: string;
+  createdBy: { id: string; username: string };
+  hasImage: boolean;
+  isFavorite: boolean;
+  nutrition?: RecipeNutrition | null;
+};
+
+export type RecipeDetail = RecipeDraft & {
+  id: string;
+  status: string;
+  rejectReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: { id: string; username: string };
+  hasImage: boolean;
+  isFavorite: boolean;
+  isOwner: boolean;
+  nutrition?: RecipeNutrition | null;
+};
+
+async function requestBlob(path: string, retry = true): Promise<Blob> {
+  const headers: Record<string, string> = {};
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  const response = await fetch(`${API_BASE}${path}`, { headers });
+  if (response.status === 401 && retry) {
+    const refreshed = await refreshAccessTokenFromStorage();
+    if (refreshed) return requestBlob(path, false);
+    throw new ApiError(401, 'A hitelesítés frissítése sikertelen. Próbáld újra később.');
+  }
+  if (!response.ok) {
+    throw new ApiError(response.status, 'A kép betöltése sikertelen.');
+  }
+  return response.blob();
+}
+
+export const recipesApi = {
+  list: (opts?: { page?: number; limit?: number; search?: string; category?: RecipeCategory }) => {
+    const p = new URLSearchParams();
+    if (opts?.page) p.set('page', String(opts.page));
+    if (opts?.limit) p.set('limit', String(opts.limit));
+    if (opts?.search) p.set('search', opts.search);
+    if (opts?.category) p.set('category', opts.category);
+    const q = p.toString();
+    return request<{ recipes: RecipeListItem[]; page: number; limit: number; total: number }>(
+      `/recipes${q ? `?${q}` : ''}`,
+    );
+  },
+  get: (id: string) => request<RecipeDetail>(`/recipes/${id}`),
+  create: (data: RecipeDraft & { tempImageKey?: string; sourceExternalId?: string | null }) =>
+    request<RecipeDetail>('/recipes', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<RecipeDraft> & { tempImageKey?: string }) =>
+    request<RecipeDetail>(`/recipes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  remove: (id: string) => request(`/recipes/${id}`, { method: 'DELETE' }),
+  favorite: (id: string) => request<{ isFavorite: boolean }>(`/recipes/${id}/favorite`, { method: 'POST' }),
+  unfavorite: (id: string) => request<{ isFavorite: boolean }>(`/recipes/${id}/favorite`, { method: 'DELETE' }),
+  match: (ingredients: RecipeIngredientDraft[], servings = 1) =>
+    request<{ ingredients: RecipeIngredientDraft[]; nutrition: RecipeNutrition | null }>('/recipes/match', {
+      method: 'POST',
+      body: JSON.stringify({ ingredients, servings }),
+    }),
+  log: (id: string, data: { servings: number; mealType: string; date?: string }) =>
+    request(`/recipes/${id}/log`, { method: 'POST', body: JSON.stringify(data) }),
+  importFromImage: (file: File, locale: 'hu' | 'en' = 'hu') => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return request<{
+      draft: RecipeDraft;
+      nutrition?: RecipeNutrition | null;
+      tempImageKey: string;
+      remaining: number;
+      limit: number;
+    }>(`/recipes/import/image?locale=${locale}`, { method: 'POST', body: fd });
+  },
+  importFromUrl: (url: string, locale: 'hu' | 'en' = 'hu') =>
+    request<{
+      draft: RecipeDraft;
+      nutrition?: RecipeNutrition | null;
+      tempImageKey?: string;
+      needsFallback?: boolean;
+      remaining: number;
+      limit: number;
+    }>('/recipes/import/url', { method: 'POST', body: JSON.stringify({ url, locale }) }),
+  importFromVideo: (file: File, locale: 'hu' | 'en' = 'hu') => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return request<{
+      draft: RecipeDraft;
+      nutrition?: RecipeNutrition | null;
+      remaining: number;
+      limit: number;
+    }>(`/recipes/import/video?locale=${locale}`, {
+      method: 'POST',
+      body: fd,
+      ...requestTimeout(180_000),
+    });
+  },
+  getImageBlob: (id: string) => requestBlob(`/recipes/${id}/image`),
+  getTempImageBlob: (key: string) => requestBlob(`/recipes/tmp/${key}/image`),
 };

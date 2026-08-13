@@ -1,0 +1,141 @@
+.screen {
+  position: relative;
+  min-height: 100%;
+  background: var(--page);
+  padding-top: calc(var(--safe-top) + 16px);
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+.blob {
+  position: absolute;
+  border: 1px solid var(--stroke);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.blobMint {
+  width: 260px;
+  height: 260px;
+  top: -40px;
+  right: -80px;
+  background: rgba(232, 245, 233, 0.7);
+  border-radius: 140px;
+}
+
+.blobPeach {
+  width: 220px;
+  height: 220px;
+  bottom: 10%;
+  left: -70px;
+  background: rgba(255, 218, 214, 0.65);
+  border-radius: 110px;
+}
+
+.blobLavender {
+  width: 180px;
+  height: 180px;
+  top: 40%;
+  right: -50px;
+  background: rgba(234, 222, 204, 0.65);
+  border-radius: 90px;
+}
+
+.pageTitle {
+  position: relative;
+  z-index: 1;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  margin: 0 0 16px;
+  text-align: center;
+}
+
+.listWrap {
+  position: relative;
+  z-index: 1;
+  padding-right: 2px;
+  padding-bottom: 3px;
+}
+
+.cardShadow {
+  position: absolute;
+  top: 3px;
+  left: 2px;
+  right: -2px;
+  bottom: -2px;
+  background: var(--shadow-hard);
+  border-radius: 26px;
+}
+
+.listInner {
+  position: relative;
+  z-index: 1;
+  background: #fff;
+  border: 1.5px solid var(--stroke);
+  border-radius: 26px;
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 18px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  border-bottom: 1px solid rgba(28, 27, 27, 0.08);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row:active {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.rowIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  border: 1.5px solid var(--stroke);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.iconProfile {
+  background: #e8f5e9;
+}
+
+.iconGoals {
+  background: #e3f2fd;
+}
+
+.iconRecipes {
+  background: #ffe8d6;
+}
+
+.rowText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rowTitle {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--stroke);
+}
+
+.rowHint {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.45);
+}

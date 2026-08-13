@@ -14,6 +14,7 @@ export type DashboardResponse = {
     newUsersToday: number;
     totalFoods: number;
     pendingFoods: number;
+    pendingRecipes?: number;
     bannedFoods: number;
     totalLogs: number;
     logsToday: number;
@@ -168,6 +169,82 @@ export function setFoodStatus(id: string, status: FoodStatus) {
     method: 'PATCH',
     body: JSON.stringify({ status }),
   });
+}
+
+export type AdminRecipeStatus = 'PENDING' | 'PUBLISHED' | 'REJECTED';
+
+export type AdminRecipeRow = {
+  id: string;
+  title: string;
+  status: AdminRecipeStatus;
+  sourceType: string;
+  sourceUrl: string | null;
+  rejectReason: string | null;
+  createdAt: string;
+  createdBy: { id: string; username: string };
+  hasImage: boolean;
+  ingredientCount: number;
+};
+
+export type AdminRecipeDetail = AdminRecipeRow & {
+  description: string | null;
+  servings: number;
+  instructions: string[];
+  ingredients: Array<{
+    id: string;
+    name: string;
+    amount: number | null;
+    unit: string | null;
+    amountG: number | null;
+    foodId: string | null;
+    matchedFoodName: string | null;
+  }>;
+  nutrition?: {
+    kcal: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    incomplete: boolean;
+  } | null;
+};
+
+export function getRecipes(opts?: { status?: AdminRecipeStatus; page?: number; limit?: number }) {
+  const p = new URLSearchParams();
+  if (opts?.status) p.set('status', opts.status);
+  if (opts?.page) p.set('page', String(opts.page));
+  if (opts?.limit) p.set('limit', String(opts.limit));
+  const qs = p.toString();
+  return request<{ recipes: AdminRecipeRow[]; total: number; page: number; limit: number }>(
+    `/admin/recipes${qs ? `?${qs}` : ''}`,
+  );
+}
+
+export function getRecipe(id: string) {
+  return request<AdminRecipeDetail>(`/admin/recipes/${id}`);
+}
+
+export function approveRecipe(id: string) {
+  return request<AdminRecipeDetail>(`/admin/recipes/${id}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export function rejectRecipe(id: string, reason?: string) {
+  return request<AdminRecipeDetail>(`/admin/recipes/${id}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export async function fetchRecipeImageObjectUrl(id: string): Promise<string | null> {
+  const token = getAccessToken();
+  const res = await fetch(`${API_BASE}/recipes/${id}/image`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) return null;
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
 }
 
 export function getUsers(opts?: {

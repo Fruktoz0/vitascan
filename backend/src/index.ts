@@ -21,6 +21,7 @@ import dayNoteRoutes from './modules/dayNote/dayNote.routes';
 import analysisRoutes from './modules/analysis/analysis.routes';
 import bodyRoutes from './modules/body/body.routes';
 import fitnessRoutes from './modules/fitness/fitness.routes';
+import recipeRoutes from './modules/recipes/recipes.routes';
 import { startRefreshTokenCleanupScheduler } from './jobs/refresh-token-cleanup.scheduler';
 import { mapErrorToHttp } from './utils/httpErrors';
 
@@ -104,6 +105,7 @@ async function bootstrap() {
     await api.register(exportRoutes, { prefix: '/export' });
     await api.register(premiumRoutes);
     await api.register(adminRoutes, { prefix: '/admin' });
+    await api.register(recipeRoutes, { prefix: '/recipes' });
 
     // Scanner rate-limited endpoint
     await api.register(
