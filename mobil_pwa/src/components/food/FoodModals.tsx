@@ -11,6 +11,7 @@ import {
   IconBrain,
   IconChevronRight,
   IconClose,
+  IconDelete,
   IconEarth,
   IconEdit,
   IconHeart,
@@ -33,7 +34,9 @@ import {
 } from '../ui/Icons';
 import { GlassCardSimple } from '../ui/GlassCard';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
-import { foodApi, getErrorMessage, logApi, type Food, type FoodOrigin, type FoodStatus } from '../../services/api';
+import { SwipeDeleteRow } from '../ui/SwipeDeleteRow';
+import { adminApi, foodApi, getErrorMessage, logApi, type Food, type FoodOrigin, type FoodStatus } from '../../services/api';
+import { useAuthStore } from '../../stores/authStore';
 import { Colors } from '../../design/tokens';
 import { toLocalDateStr, useDateStore } from '../../stores/dateStore';
 import { fileToCompressedJpeg } from '../../utils/imageToJpeg';
@@ -223,6 +226,7 @@ interface FoodDetailModalProps {
   visible: boolean;
   onClose: () => void;
   onLogAdded?: () => void;
+  onFoodDeleted?: (id: string) => void;
   logSource?: 'SCAN' | 'SEARCH' | 'MANUAL';
   initialMealType?: MealType;
 }
@@ -479,10 +483,12 @@ export function FoodDetailModal({
   visible,
   onClose,
   onLogAdded,
+  onFoodDeleted,
   logSource = 'SEARCH',
   initialMealType = 'SNACK',
 }: FoodDetailModalProps) {
   const { t } = useTranslation();
+  const isAdmin = useAuthStore((s) => s.user?.role === 'ADMIN');
   const selectedDate = useDateStore((s) => s.selectedDate);
   const [amount, setAmount] = useState('100');
   const [displayUnit, setDisplayUnit] = useState<ServingUnitCode>('g');
@@ -492,6 +498,8 @@ export function FoodDetailModal({
   const [editOpen, setEditOpen] = useState(false);
   const [historyKey, setHistoryKey] = useState(0);
   const [logAsPrepared, setLogAsPrepared] = useState(false);
+  const [confirmDeleteFood, setConfirmDeleteFood] = useState(false);
+  const [deletingFood, setDeletingFood] = useState(false);
 
   useEffect(() => {
     setCurrentFood(food);
@@ -507,6 +515,7 @@ export function FoodDetailModal({
       setAmount(String(Number.isInteger(initial) ? initial : Math.round(initial * 10) / 10));
       setEditOpen(false);
       setLogAsPrepared(false);
+      setConfirmDeleteFood(false);
       // Load components for prepared foods if missing
       if (food.isPrepared && !(food.components?.length) && isLocalFoodId(food.id)) {
         foodApi.getById(food.id).then((full) => {
@@ -659,6 +668,23 @@ export function FoodDetailModal({
     }
   };
 
+  const handleDeleteFood = async () => {
+    if (!currentFood || !isLocalFoodId(currentFood.id)) return;
+    setDeletingFood(true);
+    try {
+      await adminApi.deleteFood(currentFood.id);
+      onFoodDeleted?.(currentFood.id);
+      onClose();
+    } catch (e: any) {
+      window.alert(e?.message || t('food.errorTitle'));
+    } finally {
+      setDeletingFood(false);
+      setConfirmDeleteFood(false);
+    }
+  };
+
+  const canDeleteFood = isAdmin && isLocalFoodId(currentFood.id);
+
   return createPortal(
     <div className={styles.detailScreen}>
       <header className={styles.detailHeader}>
@@ -669,18 +695,36 @@ export function FoodDetailModal({
           </span>
         </button>
         <h2 className={styles.detailTitle}>{t('food.productDetailsTitle')}</h2>
-        {canEditFood ? (
-          <button
-            type="button"
-            className={styles.headerEditBtn}
-            aria-label={t('food.editFood')}
-            onClick={() => setEditOpen(true)}
-          >
-            <span className={styles.headerEditShadow} />
-            <span className={styles.headerEditInner}>
-              <IconEdit size={20} color={Colors.dashboard.stroke} />
-            </span>
-          </button>
+        {canEditFood || canDeleteFood ? (
+          <div className={styles.headerActions}>
+            {canDeleteFood ? (
+              <button
+                type="button"
+                className={styles.headerEditBtn}
+                aria-label={t('common.delete', 'Törlés')}
+                disabled={deletingFood}
+                onClick={() => setConfirmDeleteFood(true)}
+              >
+                <span className={styles.headerEditShadow} />
+                <span className={`${styles.headerEditInner} ${styles.headerDeleteInner}`}>
+                  <IconDelete size={20} color="#B83B3B" />
+                </span>
+              </button>
+            ) : null}
+            {canEditFood ? (
+              <button
+                type="button"
+                className={styles.headerEditBtn}
+                aria-label={t('food.editFood')}
+                onClick={() => setEditOpen(true)}
+              >
+                <span className={styles.headerEditShadow} />
+                <span className={styles.headerEditInner}>
+                  <IconEdit size={20} color={Colors.dashboard.stroke} />
+                </span>
+              </button>
+            ) : null}
+          </div>
         ) : (
           <span className={styles.headerSpacer} />
         )}
@@ -698,6 +742,12 @@ export function FoodDetailModal({
             </span>
             <h3 className={foodNameSizeClass(displayName)}>{displayName}</h3>
             {brandLabel ? <p className={styles.foodBrand}>{brandLabel}</p> : null}
+            <div className={styles.portionBadgeWrap}>
+              <span className={styles.portionBadgeShadow} />
+              <span className={styles.portionBadgeInner}>
+                <span className={styles.portionText}>{portionLabel}</span>
+              </span>
+            </div>
             {currentFood.isPrepared && (currentFood.components?.length ?? 0) > 0 && (
               <label className={styles.preparedCheck}>
                 <span
@@ -716,12 +766,6 @@ export function FoodDetailModal({
                 </span>
               </label>
             )}
-            <div className={styles.portionBadgeWrap}>
-              <span className={styles.portionBadgeShadow} />
-              <span className={styles.portionBadgeInner}>
-                <span className={styles.portionText}>{portionLabel}</span>
-              </span>
-            </div>
           </div>
         </div>
 
@@ -913,6 +957,19 @@ export function FoodDetailModal({
         </button>
       </footer>
 
+      <ConfirmDialog
+        visible={confirmDeleteFood}
+        title={t('food.confirmDeleteFoodTitle')}
+        message={t('food.confirmDeleteFood')}
+        confirmLabel={t('common.delete', 'Törlés')}
+        cancelLabel={t('common.cancel', 'Mégse')}
+        destructive
+        onConfirm={() => {
+          void handleDeleteFood();
+        }}
+        onClose={() => setConfirmDeleteFood(false)}
+      />
+
       <EditFoodModal
         visible={editOpen}
         food={currentFood}
@@ -973,6 +1030,9 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
   const [base, setBase] = useState<DailyLogItem | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [dialog, setDialog] = useState<{ title: string; message: string } | null>(null);
+  const [editFood, setEditFood] = useState<Food | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
 
   useEffect(() => {
     if (visible && log) {
@@ -991,6 +1051,8 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
       setMealType((log.mealType as MealType) || 'SNACK');
       setConfirmDelete(false);
       setDialog(null);
+      setEditOpen(false);
+      setEditFood(null);
     }
   }, [visible, log]);
 
@@ -1107,7 +1169,22 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
     }
   };
 
-  const busy = saving || deleting;
+  const busy = saving || deleting || editLoading;
+  const canEditLinkedFood = isLocalFoodId(base.foodId);
+
+  const openFoodEdit = async () => {
+    if (!base.foodId || !isLocalFoodId(base.foodId)) return;
+    setEditLoading(true);
+    try {
+      const food = await foodApi.getById(base.foodId);
+      setEditFood(food);
+      setEditOpen(true);
+    } catch (e: any) {
+      setDialog({ title: t('food.errorTitle'), message: e?.message || t('food.errorTitle') });
+    } finally {
+      setEditLoading(false);
+    }
+  };
 
   return createPortal(
     <div className={styles.detailScreen}>
@@ -1119,7 +1196,24 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
           </span>
         </button>
         <h2 className={styles.detailTitle}>{t('food.editLogTitle', 'Bejegyzés szerkesztése')}</h2>
-        <span className={styles.headerSpacer} />
+        {canEditLinkedFood ? (
+          <button
+            type="button"
+            className={styles.headerEditBtn}
+            aria-label={t('food.editFood')}
+            disabled={editLoading}
+            onClick={() => {
+              void openFoodEdit();
+            }}
+          >
+            <span className={styles.headerEditShadow} />
+            <span className={styles.headerEditInner}>
+              <IconEdit size={20} color={Colors.dashboard.stroke} />
+            </span>
+          </button>
+        ) : (
+          <span className={styles.headerSpacer} />
+        )}
       </header>
 
       <div className={styles.detailBody}>
@@ -1317,6 +1411,22 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
         confirmLabel={t('common.ok', 'OK')}
         onClose={() => setDialog(null)}
       />
+
+      {editFood ? (
+        <EditFoodModal
+          visible={editOpen}
+          food={editFood}
+          onClose={() => {
+            setEditOpen(false);
+            setEditFood(null);
+          }}
+          onUpdated={(updated) => {
+            setEditFood(updated);
+            setEditOpen(false);
+            onSaved?.();
+          }}
+        />
+      ) : null}
     </div>,
     document.body,
   );
@@ -1342,12 +1452,15 @@ export function AddFoodManualModal({
   onOpenAiRecognize,
 }: AddFoodManualModalProps) {
   const { t } = useTranslation();
+  const isAdmin = useAuthStore((s) => s.user?.role === 'ADMIN');
   const [query, setQuery] = useState(prefillName ?? prefillBarcode ?? '');
   const [foods, setFoods] = useState<Food[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<FilterTab>('recent');
   const [favBusyId, setFavBusyId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Food | null>(null);
+  const [deletingFood, setDeletingFood] = useState(false);
   const cleanQuery = query.trim();
   const searchSeq = useRef(0);
   const isSearching = cleanQuery.length >= 3;
@@ -1569,7 +1682,13 @@ export function AddFoodManualModal({
                 const name = getDisplayName(item);
                 const brand = distinctBrand(name, item.brand);
                 return (
-                <div key={item.id} className={styles.quickRow}>
+                <SwipeDeleteRow
+                  key={item.id}
+                  enabled={isAdmin && isLocalFoodId(item.id)}
+                  deleteLabel={t('common.delete', 'Törlés')}
+                  onDelete={() => setDeleteTarget(item)}
+                >
+                <div className={styles.quickRow}>
                   <button
                     type="button"
                     className={styles.quickRowMain}
@@ -1608,6 +1727,7 @@ export function AddFoodManualModal({
                     <IconAdd size={18} color={Colors.dashboard.stroke} />
                   </button>
                 </div>
+                </SwipeDeleteRow>
               );
               })
             )}
@@ -1621,6 +1741,35 @@ export function AddFoodManualModal({
         onCreated={(food) => {
           setCreateOpen(false);
           onCreated?.(food);
+        }}
+      />
+
+      <ConfirmDialog
+        visible={!!deleteTarget}
+        title={t('food.confirmDeleteFoodTitle')}
+        message={t('food.confirmDeleteFood')}
+        confirmLabel={t('common.delete', 'Törlés')}
+        cancelLabel={t('common.cancel', 'Mégse')}
+        destructive
+        onConfirm={() => {
+          const target = deleteTarget;
+          if (!target || deletingFood) return;
+          setDeletingFood(true);
+          void adminApi
+            .deleteFood(target.id)
+            .then(() => {
+              setFoods((prev) => prev.filter((f) => f.id !== target.id));
+            })
+            .catch((e: any) => {
+              window.alert(e?.message || t('food.errorTitle'));
+            })
+            .finally(() => {
+              setDeletingFood(false);
+              setDeleteTarget(null);
+            });
+        }}
+        onClose={() => {
+          if (!deletingFood) setDeleteTarget(null);
         }}
       />
     </div>,
@@ -1678,14 +1827,7 @@ function FoodDataFormModal({
   const [aiPreviewUrl, setAiPreviewUrl] = useState<string | null>(null);
   const [aiImageFile, setAiImageFile] = useState<File | null>(null);
   const [approxNote, setApproxNote] = useState<string | null>(null);
-  const [unitMacrosOpen, setUnitMacrosOpen] = useState(false);
   const [servingInfoOpen, setServingInfoOpen] = useState(false);
-  const [unitKcal, setUnitKcal] = useState('');
-  const [unitProtein, setUnitProtein] = useState('');
-  const [unitCarbs, setUnitCarbs] = useState('');
-  const [unitFat, setUnitFat] = useState('');
-  const [unitFiber, setUnitFiber] = useState('');
-  const [unitSugar, setUnitSugar] = useState('');
   const [isPreparedRecipe, setIsPreparedRecipe] = useState(false);
   const [recipeComponents, setRecipeComponents] = useState<
     Array<{
@@ -1765,7 +1907,6 @@ function FoodDataFormModal({
     setDialog(null);
     setApproxNote(null);
     setAiView(false);
-    setUnitMacrosOpen(false);
     setServingInfoOpen(false);
     resetAiCapture();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1803,31 +1944,8 @@ function FoodDataFormModal({
 
   const fmtNum = (n: number) => String(Math.round(n * 10) / 10);
 
-  const scaleOptional = (raw: string, factor: number) => {
-    if (!raw.trim()) return '';
-    const n = num(raw);
-    if (!Number.isFinite(n)) return '';
-    return fmtNum(n * factor);
-  };
-
   const openServingInfo = () => {
     setServingInfoOpen(true);
-  };
-
-  const openUnitMacros = () => {
-    const grams = num(servingGrams);
-    if (!Number.isFinite(grams) || grams <= 0) {
-      showDialog(t('food.missingDataTitle'), t('food.unitMacrosNeedGrams'));
-      return;
-    }
-    const factor = grams / 100;
-    setUnitKcal(scaleOptional(kcal, factor) || '0');
-    setUnitProtein(scaleOptional(protein, factor) || '0');
-    setUnitCarbs(scaleOptional(carbs, factor) || '0');
-    setUnitFat(scaleOptional(fat, factor) || '0');
-    setUnitFiber(scaleOptional(fiber, factor));
-    setUnitSugar(scaleOptional(sugar, factor));
-    setUnitMacrosOpen(true);
   };
 
   const previewServingMacros = (() => {
@@ -1853,35 +1971,6 @@ function FoodDataFormModal({
       grams,
     );
   })();
-
-  const applyUnitMacros = () => {
-    const grams = num(servingGrams);
-    if (!Number.isFinite(grams) || grams <= 0) {
-      showDialog(t('food.missingDataTitle'), t('food.unitMacrosNeedGrams'));
-      return;
-    }
-    const uk = num(unitKcal);
-    const up = num(unitProtein);
-    const uc = num(unitCarbs);
-    const uf = num(unitFat);
-    if (![uk, up, uc, uf].every((n) => Number.isFinite(n) && n >= 0)) {
-      showDialog(
-        t('food.missingDataTitle'),
-        t('food.fillFields', {
-          fields: [t('food.energy'), t('food.protein'), t('food.carbs'), t('food.fat')].join(', '),
-        }),
-      );
-      return;
-    }
-    const factor = 100 / grams;
-    setKcal(fmtNum(uk * factor));
-    setProtein(fmtNum(up * factor));
-    setCarbs(fmtNum(uc * factor));
-    setFat(fmtNum(uf * factor));
-    setFiber(scaleOptional(unitFiber, factor));
-    setSugar(scaleOptional(unitSugar, factor));
-    setUnitMacrosOpen(false);
-  };
 
   const onPickAiPhoto = (file: File | null) => {
     if (!file) return;
@@ -2036,16 +2125,16 @@ function FoodDataFormModal({
         sugar: sugarN ?? null,
         servingSize: servingN,
         servingUnit: isPreparedRecipe ? ('adag' as const) : servingUnit,
-        source: 'USER_SCAN' as const,
         isPrepared: isPreparedRecipe,
         ...(componentsPayload ? { components: componentsPayload } : {}),
       };
 
       const saved =
         mode === 'edit' && initialFood
-          ? await foodApi.update(initialFood.id, payload as Partial<Food>)
+          ? await foodApi.update(initialFood.id, payload)
           : await foodApi.create({
               ...payload,
+              source: 'USER_SCAN',
               brand: brandTrim || undefined,
               barcode: barcodeTrim || undefined,
             });
@@ -2362,14 +2451,6 @@ function FoodDataFormModal({
                     >
                       <IconInfoOutline size={18} color={Colors.dashboard.stroke} />
                     </button>
-                    <button
-                      type="button"
-                      className={styles.unitMacrosBtn}
-                      aria-label={t('food.unitMacrosAria')}
-                      onClick={openUnitMacros}
-                    >
-                      <IconPieChartOutline size={18} color={Colors.dashboard.stroke} />
-                    </button>
                   </div>
                 </div>
                 <p className={styles.servingUnitHint}>{t('food.servingUnitHint')}</p>
@@ -2556,99 +2637,6 @@ function FoodDataFormModal({
           </footer>
         ) : null}
       </div>
-      {unitMacrosOpen ? (
-        <div
-          className={styles.unitMacrosOverlay}
-          role="presentation"
-          onClick={() => setUnitMacrosOpen(false)}
-        >
-          <div
-            className={styles.unitMacrosCard}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="unit-macros-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 id="unit-macros-title" className={styles.unitMacrosTitle}>
-              {t('food.unitMacrosTitle', { unit: unitLabel(servingUnit) })}
-            </h2>
-            <div className={styles.unitMacrosGrid}>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>{t('food.energy')} (kcal)</label>
-                <input
-                  className={styles.formInput}
-                  value={unitKcal}
-                  onChange={(e) => setUnitKcal(e.target.value.replace(/[^\d.,]/g, ''))}
-                  inputMode="decimal"
-                  placeholder="0"
-                />
-              </div>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>{t('food.protein')}</label>
-                <input
-                  className={styles.formInput}
-                  value={unitProtein}
-                  onChange={(e) => setUnitProtein(e.target.value.replace(/[^\d.,]/g, ''))}
-                  inputMode="decimal"
-                  placeholder="0"
-                />
-              </div>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>{t('food.carbs')}</label>
-                <input
-                  className={styles.formInput}
-                  value={unitCarbs}
-                  onChange={(e) => setUnitCarbs(e.target.value.replace(/[^\d.,]/g, ''))}
-                  inputMode="decimal"
-                  placeholder="0"
-                />
-              </div>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>{t('food.fat')}</label>
-                <input
-                  className={styles.formInput}
-                  value={unitFat}
-                  onChange={(e) => setUnitFat(e.target.value.replace(/[^\d.,]/g, ''))}
-                  inputMode="decimal"
-                  placeholder="0"
-                />
-              </div>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>{t('food.fiber')}</label>
-                <input
-                  className={styles.formInput}
-                  value={unitFiber}
-                  onChange={(e) => setUnitFiber(e.target.value.replace(/[^\d.,]/g, ''))}
-                  inputMode="decimal"
-                  placeholder="0"
-                />
-              </div>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>{t('food.sugar')}</label>
-                <input
-                  className={styles.formInput}
-                  value={unitSugar}
-                  onChange={(e) => setUnitSugar(e.target.value.replace(/[^\d.,]/g, ''))}
-                  inputMode="decimal"
-                  placeholder="0"
-                />
-              </div>
-            </div>
-            <div className={styles.unitMacrosActions}>
-              <button
-                type="button"
-                className={styles.unitMacrosSecondary}
-                onClick={() => setUnitMacrosOpen(false)}
-              >
-                {t('common.cancel', 'Mégse')}
-              </button>
-              <button type="button" className={styles.unitMacrosPrimary} onClick={applyUnitMacros}>
-                {t('common.save', 'Mentés')}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
       <ServingUnitInfoPopup
         open={servingInfoOpen}
         onClose={() => setServingInfoOpen(false)}

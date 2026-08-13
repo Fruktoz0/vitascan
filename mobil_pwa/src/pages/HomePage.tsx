@@ -407,6 +407,9 @@ export default function HomePage() {
           setManualOpen(false);
           fetchData();
         }}
+        onFoodDeleted={() => {
+          setSelectedFood(null);
+        }}
         logSource="SEARCH"
         initialMealType={mealForAdd}
       />

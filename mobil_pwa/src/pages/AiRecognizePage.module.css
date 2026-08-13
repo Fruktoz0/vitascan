@@ -416,3 +416,25 @@
   font-weight: 600;
   color: var(--tab-inactive);
 }
+
+.per100Card {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1.5px solid var(--stroke);
+  background: #eef6f1;
+}
+
+.per100Title {
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 6px;
+  color: var(--stroke);
+}
+
+.per100Row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 700;
+}

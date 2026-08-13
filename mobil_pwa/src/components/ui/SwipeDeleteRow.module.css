@@ -1,0 +1,36 @@
+.wrap {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+}
+
+.deleteBtn {
+  position: absolute;
+  top: 8px;
+  right: 4px;
+  bottom: 8px;
+  width: 64px;
+  border: 1.5px solid var(--stroke);
+  border-radius: 16px;
+  background: #fff5f5;
+  box-shadow: 2px 2px 0 rgba(28, 27, 27, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 0;
+}
+
+.deleteBtn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 rgba(28, 27, 27, 0.1);
+}
+
+.front {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  background: #fff;
+  touch-action: pan-y;
+  transition: transform 0.16s ease-out;
+}

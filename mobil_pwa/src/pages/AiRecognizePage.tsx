@@ -90,6 +90,64 @@ function parseNum(v: string) {
   return Number.isFinite(n) ? n : NaN;
 }
 
+type MacroSnap = {
+  amountG: number;
+  kcal: string;
+  protein: string;
+  carbs: string;
+  fat: string;
+  fiber: string;
+  sugar: string;
+};
+
+function snapIng(ing: IngredientDraft): MacroSnap {
+  return {
+    amountG: parseNum(ing.amountG),
+    kcal: ing.kcal,
+    protein: ing.protein,
+    carbs: ing.carbs,
+    fat: ing.fat,
+    fiber: ing.fiber,
+    sugar: ing.sugar,
+  };
+}
+
+function scaleField(v: string, scale: number) {
+  if (!v.trim()) return v;
+  const n = parseNum(v);
+  if (!Number.isFinite(n)) return v;
+  return String(Math.round(n * scale * 10) / 10);
+}
+
+function applyAmountScale(
+  ing: IngredientDraft,
+  cleaned: string,
+  baseline: MacroSnap | undefined,
+  scaleOn: boolean,
+): IngredientDraft {
+  if (!scaleOn) return { ...ing, amountG: cleaned };
+  const newG = parseNum(cleaned);
+  const oldG =
+    baseline && Number.isFinite(baseline.amountG) && baseline.amountG > 0
+      ? baseline.amountG
+      : parseNum(ing.amountG);
+  if (!Number.isFinite(oldG) || oldG <= 0 || !Number.isFinite(newG) || newG <= 0) {
+    return { ...ing, amountG: cleaned };
+  }
+  const scale = newG / oldG;
+  const src = baseline ?? snapIng(ing);
+  return {
+    ...ing,
+    amountG: cleaned,
+    kcal: scaleField(src.kcal, scale),
+    protein: scaleField(src.protein, scale),
+    carbs: scaleField(src.carbs, scale),
+    fat: scaleField(src.fat, scale),
+    fiber: scaleField(src.fiber, scale),
+    sugar: scaleField(src.sugar, scale),
+  };
+}
+
 export default function AiRecognizePage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -131,6 +189,11 @@ export default function AiRecognizePage() {
   const [ingredients, setIngredients] = useState<IngredientDraft[]>([]);
   const [saveToLibrary, setSaveToLibrary] = useState(false);
   const [logAsPrepared, setLogAsPrepared] = useState(false);
+  const [scaleWithAmount, setScaleWithAmount] = useState(true);
+  const [dishBrand, setDishBrand] = useState('');
+  const [dishBarcode, setDishBarcode] = useState('');
+  const [dishServingUnit, setDishServingUnit] = useState('g');
+  const [dishServingSize, setDishServingSize] = useState('');
   const [remaining, setRemaining] = useState<number | null>(null);
   const [dialog, setDialog] = useState<{ title: string; message: string; goBack?: boolean } | null>(
     null,
@@ -139,6 +202,16 @@ export default function AiRecognizePage() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const prefillAppliedRef = useRef(false);
+  const amountBaselineRef = useRef<Record<string, MacroSnap>>({});
+  const preparedBaselineRef = useRef<IngredientDraft[] | null>(null);
+
+  const applyDishMeta = (drafts: IngredientDraft[]) => {
+    const first = drafts[0];
+    setDishBrand(first?.brand || '');
+    setDishBarcode(first?.barcode || '');
+    setDishServingUnit(first?.servingUnit || (drafts.length > 1 ? 'adag' : 'g'));
+    setDishServingSize(first?.servingSize || '');
+  };
 
   useEffect(() => {
     if (prefillAppliedRef.current || !prefillSuggestion) return;
@@ -148,22 +221,22 @@ export default function AiRecognizePage() {
     setDishName(
       (prefillSuggestion.dishName || ings[0]?.name || '').trim() || t('aiRecognize.dishName'),
     );
-    setIngredients(
-      ings.map((ing) => {
-        const amountG =
-          ing.amountG != null && ing.amountG > 0
-            ? ing.amountG
-            : Math.max(50, Math.min(400, Math.round((ing.kcal || 100) / 1.5)));
-        return toDraft({
-          name: ing.name.trim(),
-          amountG,
-          kcal: ing.kcal,
-          protein: ing.protein,
-          carbs: ing.carbs,
-          fat: ing.fat,
-        });
-      }),
-    );
+    const drafts = ings.map((ing) => {
+      const amountG =
+        ing.amountG != null && ing.amountG > 0
+          ? ing.amountG
+          : Math.max(50, Math.min(400, Math.round((ing.kcal || 100) / 1.5)));
+      return toDraft({
+        name: ing.name.trim(),
+        amountG,
+        kcal: ing.kcal,
+        protein: ing.protein,
+        carbs: ing.carbs,
+        fat: ing.fat,
+      });
+    });
+    setIngredients(drafts);
+    applyDishMeta(drafts);
     // Meal suggest → default as prepared dish (not ingredient breakdown).
     setLogAsPrepared(true);
     setMode('result');
@@ -182,10 +255,26 @@ export default function AiRecognizePage() {
         protein: acc.protein + (parseNum(ing.protein) || 0),
         carbs: acc.carbs + (parseNum(ing.carbs) || 0),
         fat: acc.fat + (parseNum(ing.fat) || 0),
+        fiber: acc.fiber + (parseNum(ing.fiber) || 0),
+        sugar: acc.sugar + (parseNum(ing.sugar) || 0),
+        amountG: acc.amountG + (parseNum(ing.amountG) || 0),
       }),
-      { kcal: 0, protein: 0, carbs: 0, fat: 0 },
+      { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0, amountG: 0 },
     );
   }, [ingredients]);
+
+  const per100 = useMemo(() => {
+    const g = totals.amountG;
+    const to100 = (n: number) => (g > 0 ? Math.round((n / g) * 100 * 10) / 10 : 0);
+    return {
+      kcal: to100(totals.kcal),
+      protein: to100(totals.protein),
+      carbs: to100(totals.carbs),
+      fat: to100(totals.fat),
+      fiber: to100(totals.fiber),
+      sugar: to100(totals.sugar),
+    };
+  }, [totals]);
 
   const locale = i18n.language?.startsWith('en') ? 'en' : 'hu';
 
@@ -217,8 +306,10 @@ export default function AiRecognizePage() {
       }
 
       const res = await foodApi.aiRecognize(payload);
+      const drafts = res.ingredients.map(toDraft);
       setDishName(res.dishName || '');
-      setIngredients(res.ingredients.map(toDraft));
+      setIngredients(drafts);
+      applyDishMeta(drafts);
       setRemaining(res.remaining);
       setMode('result');
     } catch (e) {
@@ -235,33 +326,23 @@ export default function AiRecognizePage() {
     setIngredients((prev) => prev.map((ing) => (ing.id === id ? { ...ing, ...patch } : ing)));
   };
 
+  const captureAmountBaseline = (id: string) => {
+    const ing = ingredients.find((i) => i.id === id);
+    if (ing) amountBaselineRef.current[id] = snapIng(ing);
+  };
+
+  const capturePreparedBaseline = () => {
+    preparedBaselineRef.current = ingredients.map((ing) => ({ ...ing }));
+    const only = ingredients[0];
+    if (only) amountBaselineRef.current[only.id] = snapIng(only);
+  };
+
   const updateAmountG = (id: string, nextAmountRaw: string) => {
+    const cleaned = nextAmountRaw.replace(/[^\d.,]/g, '');
     setIngredients((prev) =>
       prev.map((ing) => {
         if (ing.id !== id) return ing;
-        const oldG = parseNum(ing.amountG);
-        const cleaned = nextAmountRaw.replace(/[^\d.,]/g, '');
-        const newG = parseNum(cleaned);
-        if (!Number.isFinite(oldG) || oldG <= 0 || !Number.isFinite(newG) || newG <= 0) {
-          return { ...ing, amountG: cleaned };
-        }
-        const scale = newG / oldG;
-        const scaleField = (v: string) => {
-          if (!v.trim()) return v;
-          const n = parseNum(v);
-          if (!Number.isFinite(n)) return v;
-          return String(Math.round(n * scale * 10) / 10);
-        };
-        return {
-          ...ing,
-          amountG: cleaned,
-          kcal: scaleField(ing.kcal),
-          protein: scaleField(ing.protein),
-          carbs: scaleField(ing.carbs),
-          fat: scaleField(ing.fat),
-          fiber: scaleField(ing.fiber),
-          sugar: scaleField(ing.sugar),
-        };
+        return applyAmountScale(ing, cleaned, amountBaselineRef.current[id], scaleWithAmount);
       }),
     );
   };
@@ -284,10 +365,37 @@ export default function AiRecognizePage() {
       updateIng(only.id, { [field]: cleaned });
       return;
     }
-    const oldTotal =
-      field === 'amountG'
-        ? ingredients.reduce((s, i) => s + (parseNum(i.amountG) || 0), 0)
-        : totals[field];
+
+    if (field === 'amountG') {
+      const baseline = preparedBaselineRef.current ?? ingredients;
+      const oldTotal = baseline.reduce((s, i) => s + (parseNum(i.amountG) || 0), 0);
+      const newTotal = parseNum(cleaned);
+      if (!Number.isFinite(oldTotal) || oldTotal <= 0 || !Number.isFinite(newTotal) || newTotal < 0) {
+        return;
+      }
+      const scale = newTotal / oldTotal;
+      setIngredients(
+        baseline.map((ing) => {
+          const oldG = parseNum(ing.amountG);
+          if (!Number.isFinite(oldG) || oldG <= 0) return ing;
+          const newG = Math.round(oldG * scale * 10) / 10;
+          if (!scaleWithAmount) return { ...ing, amountG: String(newG) };
+          return {
+            ...ing,
+            amountG: String(newG),
+            kcal: scaleField(ing.kcal, scale),
+            protein: scaleField(ing.protein, scale),
+            carbs: scaleField(ing.carbs, scale),
+            fat: scaleField(ing.fat, scale),
+            fiber: scaleField(ing.fiber, scale),
+            sugar: scaleField(ing.sugar, scale),
+          };
+        }),
+      );
+      return;
+    }
+
+    const oldTotal = totals[field];
     const newTotal = parseNum(cleaned);
     if (!Number.isFinite(oldTotal) || oldTotal <= 0 || !Number.isFinite(newTotal) || newTotal < 0) {
       return;
@@ -295,27 +403,6 @@ export default function AiRecognizePage() {
     const scale = newTotal / oldTotal;
     setIngredients((prev) =>
       prev.map((ing) => {
-        if (field === 'amountG') {
-          const oldG = parseNum(ing.amountG);
-          if (!Number.isFinite(oldG) || oldG <= 0) return ing;
-          const newG = Math.round(oldG * scale * 10) / 10;
-          const scaleField = (v: string) => {
-            if (!v.trim()) return v;
-            const n = parseNum(v);
-            if (!Number.isFinite(n)) return v;
-            return String(Math.round(n * scale * 10) / 10);
-          };
-          return {
-            ...ing,
-            amountG: String(newG),
-            kcal: scaleField(ing.kcal),
-            protein: scaleField(ing.protein),
-            carbs: scaleField(ing.carbs),
-            fat: scaleField(ing.fat),
-            fiber: scaleField(ing.fiber),
-            sugar: scaleField(ing.sugar),
-          };
-        }
         const n = parseNum(ing[field]);
         if (!Number.isFinite(n)) return ing;
         return { ...ing, [field]: String(Math.round(n * scale * 10) / 10) };
@@ -375,19 +462,30 @@ export default function AiRecognizePage() {
       );
 
       let preparedFoodId: string | undefined;
+      const dishServingN = parseNum(dishServingSize);
+      const savedServingSize =
+        Number.isFinite(dishServingN) && dishServingN > 0
+          ? dishServingN
+          : Math.round(totalG * 10) / 10;
+      const savedServingUnit = normalizeUnit(dishServingUnit);
+      const savedBrand = dishBrand.trim() || parsed[0]?.brand;
+      const savedBarcode = dishBarcode.trim() || parsed[0]?.barcode;
+
       if (saveToLibrary) {
-        const per100 = (n: number) =>
+        const to100 = (n: number) =>
           totalG > 0 ? Math.round((n / totalG) * 100 * 10) / 10 : 0;
         const food = await foodApi.create({
           name: dishName.trim() || parsed[0]!.name,
-          kcal: per100(totalMacros.kcal),
-          protein: per100(totalMacros.protein),
-          carbs: per100(totalMacros.carbs),
-          fat: per100(totalMacros.fat),
-          fiber: totalMacros.fiber > 0 ? per100(totalMacros.fiber) : undefined,
-          sugar: totalMacros.sugar > 0 ? per100(totalMacros.sugar) : undefined,
-          servingSize: Math.round(totalG * 10) / 10,
-          servingUnit: 'adag',
+          brand: savedBrand,
+          barcode: savedBarcode,
+          kcal: to100(totalMacros.kcal),
+          protein: to100(totalMacros.protein),
+          carbs: to100(totalMacros.carbs),
+          fat: to100(totalMacros.fat),
+          fiber: totalMacros.fiber > 0 ? to100(totalMacros.fiber) : undefined,
+          sugar: totalMacros.sugar > 0 ? to100(totalMacros.sugar) : undefined,
+          servingSize: savedServingSize,
+          servingUnit: savedServingUnit,
           source: 'USER_SCAN',
           isPrepared: true,
           components: parsed.map((p, i) => ({
@@ -406,11 +504,12 @@ export default function AiRecognizePage() {
       }
 
       const date = toLocalDateStr(selectedDate);
+      const dishLabel = dishName.trim();
 
       if (logAsPrepared) {
         await logApi.create({
           ...(preparedFoodId ? { foodId: preparedFoodId } : {}),
-          foodName: dishName.trim() || parsed[0]!.name,
+          foodName: dishLabel || parsed[0]!.name,
           kcal: round1(totalMacros.kcal),
           protein: round1(totalMacros.protein),
           carbs: round1(totalMacros.carbs),
@@ -425,9 +524,10 @@ export default function AiRecognizePage() {
         });
       } else {
         const logGroupId = crypto.randomUUID();
+        const single = parsed.length === 1;
         for (const p of parsed) {
           await logApi.create({
-            foodName: p.name,
+            foodName: single ? dishLabel || p.name : p.name,
             kcal: p.kcal,
             protein: p.protein,
             carbs: p.carbs,
@@ -611,6 +711,21 @@ export default function AiRecognizePage() {
               <p className={styles.hint}>{t('aiRecognize.remaining', { count: remaining })}</p>
             )}
 
+            <label className={styles.preparedCheck}>
+              <span className={styles.preparedCheckBox} data-checked={scaleWithAmount || undefined}>
+                <input
+                  type="checkbox"
+                  checked={scaleWithAmount}
+                  onChange={(e) => setScaleWithAmount(e.target.checked)}
+                />
+                {scaleWithAmount ? '✓' : null}
+              </span>
+              <span className={styles.preparedCheckText}>
+                <strong>{t('aiRecognize.scaleWithAmount')}</strong>
+                <small>{t('aiRecognize.scaleWithAmountHint')}</small>
+              </span>
+            </label>
+
             {logAsPrepared ? (
               <div className={styles.preparedDishCard}>
                 <div className={styles.preparedDishHead}>
@@ -624,7 +739,51 @@ export default function AiRecognizePage() {
                     </p>
                   ) : null}
                 </div>
+                <div className={styles.metaRow}>
+                  <label>
+                    {t('food.brandOptional')}
+                    <input
+                      className={styles.input}
+                      value={dishBrand}
+                      onChange={(e) => setDishBrand(e.target.value)}
+                      placeholder={t('food.brandOptional')}
+                    />
+                  </label>
+                  <label>
+                    {t('food.barcodeOptional')}
+                    <input
+                      className={styles.input}
+                      value={dishBarcode}
+                      onChange={(e) => setDishBarcode(e.target.value)}
+                      placeholder={t('food.barcodeOptional')}
+                      inputMode="numeric"
+                    />
+                  </label>
+                </div>
                 <div className={styles.grid}>
+                  <label>
+                    {t('aiRecognize.servingUnit')}
+                    <select
+                      className={styles.input}
+                      value={dishServingUnit}
+                      onChange={(e) => setDishServingUnit(e.target.value)}
+                    >
+                      <option value="g">{t('food.unitG')}</option>
+                      <option value="db">{t('food.unitDb')}</option>
+                      <option value="adag">{t('food.unitAdag')}</option>
+                      <option value="ek">{t('food.unitEk')}</option>
+                      <option value="szelet">{t('food.unitSzelet')}</option>
+                    </select>
+                  </label>
+                  <label>
+                    {t('aiRecognize.servingSizeG')}
+                    <input
+                      className={styles.input}
+                      inputMode="decimal"
+                      value={dishServingSize}
+                      onChange={(e) => setDishServingSize(e.target.value.replace(/[^\d.,]/g, ''))}
+                    />
+                  </label>
                   <label>
                     {t('aiRecognize.amountG')}
                     <input
@@ -633,12 +792,9 @@ export default function AiRecognizePage() {
                       value={
                         ingredients.length === 1
                           ? ingredients[0]!.amountG
-                          : String(
-                              Math.round(
-                                ingredients.reduce((s, i) => s + (parseNum(i.amountG) || 0), 0) * 10,
-                              ) / 10,
-                            )
+                          : String(Math.round(totals.amountG * 10) / 10)
                       }
+                      onFocus={capturePreparedBaseline}
                       onChange={(e) => scalePreparedTotal('amountG', e.target.value)}
                     />
                   </label>
@@ -695,6 +851,15 @@ export default function AiRecognizePage() {
                     />
                   </label>
                 </div>
+                <div className={styles.per100Card}>
+                  <div className={styles.per100Title}>{t('aiRecognize.per100gTitle')}</div>
+                  <div className={styles.per100Row}>
+                    <span>{per100.kcal} kcal</span>
+                    <span>
+                      F {per100.protein}g · Sz {per100.carbs}g · Zs {per100.fat}g
+                    </span>
+                  </div>
+                </div>
               </div>
             ) : (
               <>
@@ -746,6 +911,7 @@ export default function AiRecognizePage() {
                           className={styles.input}
                           inputMode="decimal"
                           value={ing.amountG}
+                          onFocus={() => captureAmountBaseline(ing.id)}
                           onChange={(e) => updateAmountG(ing.id, e.target.value)}
                         />
                       </label>

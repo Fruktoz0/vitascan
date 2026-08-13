@@ -179,6 +179,17 @@
   text-align: center;
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.headerDeleteInner {
+  background: #fff5f5;
+}
+
 .headerEditBtn {
   position: relative;
   width: 40px;

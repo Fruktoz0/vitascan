@@ -620,6 +620,9 @@ export default function FoodLibraryPage() {
           setManualOpen(false);
           fetchData();
         }}
+        onFoodDeleted={() => {
+          setSelectedFood(null);
+        }}
         logSource="MANUAL"
         initialMealType={mealForAdd}
       />

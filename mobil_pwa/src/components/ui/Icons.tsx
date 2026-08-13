@@ -13,6 +13,7 @@ import {
   MdChevronLeft,
   MdChevronRight,
   MdClose,
+  MdDelete,
   MdCrisisAlert,
   MdDinnerDining,
   MdDirectionsWalk,
@@ -122,6 +123,7 @@ export const IconCheck = wrap(MdCheck);
 export const IconChevronLeft = wrap(MdChevronLeft);
 export const IconChevronRight = wrap(MdChevronRight);
 export const IconClose = wrap(MdClose);
+export const IconDelete = wrap(MdDelete);
 export const IconDownload = wrap(MdDownload);
 export const IconEdit = wrap(MdEdit);
 export const IconEggAlt = wrap(MdEggAlt);

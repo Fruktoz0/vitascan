@@ -894,9 +894,44 @@ export default async function foodRoutes(fastify: FastifyInstance) {
       (body as { barcode?: string | null }).barcode = barcode;
     }
 
-    const updated = await prisma.food.update({ where: { id }, data: body });
+    const { components, isPrepared, source: unusedSource, ...rest } = body;
+    void unusedSource;
+
+    const updated = await prisma.food.update({
+      where: { id },
+      data: {
+        ...rest,
+        ...(isPrepared !== undefined ? { isPrepared } : {}),
+      },
+    });
+
+    if (components && isPrepared) {
+      await prisma.foodComponent.deleteMany({ where: { foodId: id } });
+      await prisma.foodComponent.createMany({
+        data: components.map((c, i) => ({
+          foodId: id,
+          name: c.name,
+          amountG: c.amountG,
+          kcal: c.kcal,
+          protein: c.protein,
+          carbs: c.carbs,
+          fat: c.fat,
+          fiber: c.fiber ?? undefined,
+          sugar: c.sugar ?? undefined,
+          sortOrder: c.sortOrder ?? i,
+        })),
+      });
+    } else if (isPrepared === false) {
+      await prisma.foodComponent.deleteMany({ where: { foodId: id } });
+    }
+
     await prisma.foodEditLog.create({ data: { foodId: id, userId: editorId } });
-    return reply.send(updated);
+    return reply.send(
+      (await prisma.food.findUnique({
+        where: { id },
+        include: { components: { orderBy: { sortOrder: 'asc' } } },
+      })) ?? updated,
+    );
   });
 
   // POST /foods/:id/vote
