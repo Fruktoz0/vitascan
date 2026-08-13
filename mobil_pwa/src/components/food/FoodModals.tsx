@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
@@ -89,6 +89,20 @@ function macrosForGrams(
     sugar: per100.sugar != null ? round1(per100.sugar * scale) : null,
     fiber: per100.fiber != null ? round1(per100.fiber * scale) : null,
   };
+}
+
+function SectionIcon({
+  children,
+  background,
+}: {
+  children: ReactNode;
+  background: string;
+}) {
+  return (
+    <span className={styles.sectionIconCircle} style={{ background }}>
+      {children}
+    </span>
+  );
 }
 
 function ServingUnitInfoPopup({
@@ -849,7 +863,9 @@ export function FoodDetailModal({
 
           <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
             <div className={styles.sectionHeaderSmall}>
-              <IconPieChartOutline size={24} color={Colors.dashboard.stroke} />
+              <SectionIcon background={Colors.dashboard.blobMint}>
+                <IconPieChartOutline size={20} color={Colors.dashboard.stroke} />
+              </SectionIcon>
               <span className={styles.sectionTitle}>Makrotápanyagok</span>
             </div>
             <div className={styles.macroEnergyRow}>
@@ -902,7 +918,9 @@ export function FoodDetailModal({
 
           <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
             <div className={styles.sectionHeaderSmall}>
-              <IconRestaurantOutline size={24} color={Colors.dashboard.stroke} />
+              <SectionIcon background={Colors.dashboard.blobPeach}>
+                <IconRestaurantOutline size={20} color={Colors.dashboard.stroke} />
+              </SectionIcon>
               <span className={styles.sectionTitle}>{t('food.mealType')}</span>
             </div>
             <div className={styles.mealRow}>
@@ -1293,7 +1311,9 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
 
           <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
             <div className={styles.sectionHeaderSmall}>
-              <IconPieChartOutline size={24} color={Colors.dashboard.stroke} />
+              <SectionIcon background={Colors.dashboard.blobMint}>
+                <IconPieChartOutline size={20} color={Colors.dashboard.stroke} />
+              </SectionIcon>
               <span className={styles.sectionTitle}>Makrotápanyagok</span>
             </div>
             <div className={styles.macroEnergyRow}>
@@ -1335,7 +1355,9 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
 
           <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
             <div className={styles.sectionHeaderSmall}>
-              <IconRestaurantOutline size={24} color={Colors.dashboard.stroke} />
+              <SectionIcon background={Colors.dashboard.blobPeach}>
+                <IconRestaurantOutline size={20} color={Colors.dashboard.stroke} />
+              </SectionIcon>
               <span className={styles.sectionTitle}>{t('food.mealType')}</span>
             </div>
             <div className={styles.mealRow}>
@@ -2256,7 +2278,9 @@ function FoodDataFormModal({
             <div className={styles.sections}>
               <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
                 <div className={styles.sectionHeaderSmall}>
-                  <IconLeaf size={24} color={Colors.dashboard.stroke} />
+                  <SectionIcon background={Colors.dashboard.blobMint}>
+                    <IconLeaf size={20} color={Colors.dashboard.stroke} />
+                  </SectionIcon>
                   <span className={styles.sectionTitle}>{t('food.baseData')}</span>
                 </div>
                 <label className={styles.formLabel}>{t('food.foodName')}</label>
@@ -2267,41 +2291,47 @@ function FoodDataFormModal({
                   placeholder={t('food.foodName')}
                   autoFocus
                 />
-                {mode === 'create' && (
-                  <label className={styles.preparedCheck}>
-                    <span
-                      className={styles.preparedCheckBox}
-                      data-checked={isPreparedRecipe || undefined}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isPreparedRecipe}
-                        onChange={(e) => {
-                          const on = e.target.checked;
-                          setIsPreparedRecipe(on);
-                          if (on && recipeComponents.length === 0) {
-                            setRecipeComponents([
-                              {
-                                key: `c-${Date.now()}`,
-                                name: '',
-                                amountG: '100',
-                                kcal: '',
-                                protein: '',
-                                carbs: '',
-                                fat: '',
-                              },
-                            ]);
-                          }
-                        }}
-                      />
-                      {isPreparedRecipe ? '✓' : null}
-                    </span>
-                    <span className={styles.preparedCheckText}>
-                      <strong>{t('food.createAsPrepared')}</strong>
-                      <small>{t('food.preparedRecipeHint')}</small>
-                    </span>
-                  </label>
-                )}
+                <label className={styles.preparedCheck}>
+                  <span
+                    className={styles.preparedCheckBox}
+                    data-checked={isPreparedRecipe || undefined}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isPreparedRecipe}
+                      onChange={(e) => {
+                        const on = e.target.checked;
+                        setIsPreparedRecipe(on);
+                        if (on && recipeComponents.length === 0) {
+                          const grams = num(servingGrams);
+                          const factor =
+                            Number.isFinite(grams) && grams > 0 ? grams / 100 : 1;
+                          const scale = (raw: string) => {
+                            if (!raw.trim()) return '';
+                            const n = num(raw);
+                            return Number.isFinite(n) ? String(Math.round(n * factor * 10) / 10) : '';
+                          };
+                          setRecipeComponents([
+                            {
+                              key: `c-${Date.now()}`,
+                              name: name.trim(),
+                              amountG: servingGrams.trim() || '100',
+                              kcal: scale(kcal),
+                              protein: scale(protein),
+                              carbs: scale(carbs),
+                              fat: scale(fat),
+                            },
+                          ]);
+                        }
+                      }}
+                    />
+                    {isPreparedRecipe ? '✓' : null}
+                  </span>
+                  <span className={styles.preparedCheckText}>
+                    <strong>{t('food.createAsPrepared')}</strong>
+                    <small>{t('food.preparedRecipeHint')}</small>
+                  </span>
+                </label>
                 <label className={styles.formLabel}>{t('food.brandOptional')}</label>
                 <input
                   className={styles.formInput}
@@ -2322,7 +2352,9 @@ function FoodDataFormModal({
               {isPreparedRecipe && (
                 <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
                   <div className={styles.sectionHeaderSmall}>
-                    <IconRestaurantOutline size={24} color={Colors.dashboard.stroke} />
+                    <SectionIcon background={Colors.dashboard.blobPeach}>
+                      <IconRestaurantOutline size={20} color={Colors.dashboard.stroke} />
+                    </SectionIcon>
                     <span className={styles.sectionTitle}>{t('food.preparedIngredients')}</span>
                   </div>
                   <p className={styles.recipeHint}>{t('food.preparedRecipeHint')}</p>
@@ -2440,7 +2472,9 @@ function FoodDataFormModal({
 
               <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
                 <div className={styles.sectionHeaderSmall}>
-                  <IconScaleOutline size={24} color={Colors.dashboard.stroke} />
+                  <SectionIcon background={Colors.dashboard.softBlue}>
+                    <IconScaleOutline size={20} color={Colors.dashboard.stroke} />
+                  </SectionIcon>
                   <span className={styles.sectionTitle}>{t('food.servingUnit')}</span>
                   <div className={styles.servingHeaderActions}>
                     <button
@@ -2543,7 +2577,9 @@ function FoodDataFormModal({
 
               <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
                 <div className={styles.sectionHeaderSmall}>
-                  <IconPieChartOutline size={24} color={Colors.dashboard.stroke} />
+                  <SectionIcon background={Colors.dashboard.blobLavender}>
+                    <IconPieChartOutline size={20} color={Colors.dashboard.stroke} />
+                  </SectionIcon>
                   <span className={styles.sectionTitle}>{t('food.nutritionPer100g')}</span>
                 </div>
                 <div className={styles.formGrid}>

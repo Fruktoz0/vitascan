@@ -874,8 +874,20 @@
 .sectionHeaderSmall {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 12px;
+}
+
+.sectionIconCircle {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  border: 0.8px solid var(--stroke);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 2px 2px 0 var(--shadow-hard);
 }
 
 .unitMacrosBtn {
