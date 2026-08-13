@@ -80,7 +80,7 @@ const recipeRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: parsed.error.errors[0].message });
     }
     try {
-      const recipe = await createRecipe(fastify.prisma, request.user.userId, parsed.data);
+      const recipe = await createRecipe(fastify.prisma, request.user.userId, parsed.data, request.user.role);
       return reply.status(201).send(recipe);
     } catch (err: unknown) {
       return reply.status(statusOf(err, 400)).send({

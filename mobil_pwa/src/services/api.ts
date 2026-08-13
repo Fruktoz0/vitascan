@@ -989,6 +989,7 @@ export type RecipeNutrition = {
   fat: number;
   fiber: number;
   sugar: number;
+  gramsPerServing?: number;
   incomplete: boolean;
   matchedCount: number;
   totalCount: number;
@@ -1062,12 +1063,19 @@ async function requestBlob(path: string, retry = true): Promise<Blob> {
 }
 
 export const recipesApi = {
-  list: (opts?: { page?: number; limit?: number; search?: string; category?: RecipeCategory }) => {
+  list: (opts?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    category?: RecipeCategory;
+    favorite?: boolean;
+  }) => {
     const p = new URLSearchParams();
     if (opts?.page) p.set('page', String(opts.page));
     if (opts?.limit) p.set('limit', String(opts.limit));
     if (opts?.search) p.set('search', opts.search);
     if (opts?.category) p.set('category', opts.category);
+    if (opts?.favorite) p.set('favorite', 'true');
     const q = p.toString();
     return request<{ recipes: RecipeListItem[]; page: number; limit: number; total: number }>(
       `/recipes${q ? `?${q}` : ''}`,
@@ -1086,7 +1094,7 @@ export const recipesApi = {
       method: 'POST',
       body: JSON.stringify({ ingredients, servings }),
     }),
-  log: (id: string, data: { servings: number; mealType: string; date?: string }) =>
+  log: (id: string, data: { servings?: number; amountG?: number; mealType: string; date?: string }) =>
     request(`/recipes/${id}/log`, { method: 'POST', body: JSON.stringify(data) }),
   importFromImage: (file: File, locale: 'hu' | 'en' = 'hu') => {
     const fd = new FormData();
@@ -1122,6 +1130,12 @@ export const recipesApi = {
       ...requestTimeout(180_000),
     });
   },
-  getImageBlob: (id: string) => requestBlob(`/recipes/${id}/image`),
+  getImageBlob: (id: string, revision?: number) =>
+    requestBlob(`/recipes/${id}/image${revision != null ? `?v=${revision}` : ''}`),
   getTempImageBlob: (key: string) => requestBlob(`/recipes/tmp/${key}/image`),
+  uploadImage: (id: string, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return request<{ ok: boolean }>(`/recipes/${id}/images`, { method: 'POST', body: fd });
+  },
 };

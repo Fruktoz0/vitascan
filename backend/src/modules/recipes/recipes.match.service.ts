@@ -234,6 +234,7 @@ export type NutritionSummary = {
   fat: number;
   fiber: number;
   sugar: number;
+  gramsPerServing: number;
   incomplete: boolean;
   matchedCount: number;
   totalCount: number;
@@ -261,6 +262,7 @@ export function computeNutrition(
   let fiber = 0;
   let sugar = 0;
   let matchedCount = 0;
+  let matchedGrams = 0;
   for (const ing of ingredients) {
     if (!ing.foodId || ing.amountG == null || !(ing.amountG > 0)) continue;
     const food = map.get(ing.foodId);
@@ -273,6 +275,7 @@ export function computeNutrition(
     fiber += (food.fiber ?? 0) * r;
     sugar += (food.sugar ?? 0) * r;
     matchedCount += 1;
+    matchedGrams += ing.amountG;
   }
   if (matchedCount === 0) return null;
   const n = Math.max(1, servings || 1);
@@ -284,6 +287,7 @@ export function computeNutrition(
     fat: round1(fat / n),
     fiber: round1(fiber / n),
     sugar: round1(sugar / n),
+    gramsPerServing: round1(matchedGrams / n),
     incomplete: matchedCount < totalCount,
     matchedCount,
     totalCount,

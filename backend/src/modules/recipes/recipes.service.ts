@@ -163,6 +163,11 @@ export async function listRecipes(prisma: PrismaClient, userId: string, query: R
   if (query.category) {
     (where.AND as Prisma.RecipeWhereInput[]).push({ category: query.category });
   }
+  if (query.favorite) {
+    (where.AND as Prisma.RecipeWhereInput[]).push({
+      favorites: { some: { userId } },
+    });
+  }
   const search = query.search?.trim();
   if (search) {
     (where.AND as Prisma.RecipeWhereInput[]).push({
@@ -234,6 +239,7 @@ export async function createRecipe(
   prisma: PrismaClient,
   userId: string,
   data: CreateRecipeInput,
+  role?: string,
 ) {
   let image: Awaited<ReturnType<typeof promoteTempImage>> | null = null;
   if (data.tempImageKey) {
@@ -253,7 +259,7 @@ export async function createRecipe(
         sourceUrl: data.sourceUrl ?? null,
         sourceType: data.sourceType,
         sourceExternalId: data.sourceExternalId?.trim() || null,
-        status: 'PENDING',
+        status: role === 'ADMIN' ? 'PUBLISHED' : 'PENDING',
         createdBy: userId,
         ingredients: {
           create: matched.map((ing, idx) => ({
@@ -343,6 +349,9 @@ export async function updateRecipe(
       ...(data.sourceUrl !== undefined ? { sourceUrl: data.sourceUrl } : {}),
       ...(data.sourceType !== undefined ? { sourceType: data.sourceType } : {}),
       ...(resubmit ? { status: 'PENDING' as const, rejectReason: null } : {}),
+      ...(role === 'ADMIN' && existing.createdBy === userId && existing.status === 'PENDING'
+        ? { status: 'PUBLISHED' as const }
+        : {}),
       ...(data.ingredients
         ? {
             ingredients: {
@@ -651,10 +660,11 @@ export async function logRecipeToDiary(
     throw httpError(403, 'Ez a recept még nem elérhető a naplóhoz.');
   }
   const prepared = await upsertPreparedFood(prisma, recipeId);
-  const requested = input.servings;
-  const recipeServings = Math.max(1, recipe.servings);
   const servingG = prepared.servingSize && prepared.servingSize > 0 ? prepared.servingSize : 100;
-  const amountG = Math.max(1, Math.round(servingG * requested * 10) / 10);
+  const amountG =
+    input.amountG != null
+      ? Math.max(1, Math.round(input.amountG * 10) / 10)
+      : Math.max(1, Math.round(servingG * (input.servings ?? 1) * 10) / 10);
 
   const log = await createLog(prisma, userId, {
     foodId: prepared.id,

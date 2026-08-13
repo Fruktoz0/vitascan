@@ -73,3 +73,11 @@ export async function fileToCompressedJpeg(
   }
   return { base64, mimeType: 'image/jpeg' };
 }
+
+export async function fileToCompressedJpegFile(file: File, filename = 'photo.jpg'): Promise<File> {
+  const { base64, mimeType } = await fileToCompressedJpeg(file);
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+  return new File([bytes], filename, { type: mimeType });
+}

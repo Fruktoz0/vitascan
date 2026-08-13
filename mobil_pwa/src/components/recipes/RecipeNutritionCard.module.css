@@ -1,0 +1,96 @@
+.card {
+  position: relative;
+  z-index: 1;
+  margin: 0 20px 14px;
+  background: #fff;
+  border: 1.5px solid var(--stroke);
+  border-radius: 24px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 3px 3px 0 var(--shadow-hard);
+}
+
+.title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+}
+
+.kcalRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1.5px solid var(--stroke);
+  background: linear-gradient(135deg, #fff4ea 0%, #ffe8d4 100%);
+}
+
+.kcalIcon {
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  border: 1px solid var(--stroke);
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.kcalValue {
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -0.6px;
+  line-height: 1;
+}
+
+.kcalUnit {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.macros {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.macro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border-radius: 16px;
+  border: 1.2px solid var(--stroke);
+  background: #f7f4f1;
+}
+
+.macroIcon {
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  border: 1px solid var(--stroke);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.macroVal {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.macroLbl {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}

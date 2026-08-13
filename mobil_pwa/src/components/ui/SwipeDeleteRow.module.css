@@ -4,24 +4,42 @@
   width: 100%;
 }
 
-.deleteBtn {
+.actions {
   position: absolute;
   top: 8px;
   right: 4px;
   bottom: 8px;
-  width: 64px;
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  z-index: 0;
+}
+
+.deleteBtn,
+.extraBtn {
+  flex: 1;
+  min-width: 0;
   border: 1.5px solid var(--stroke);
   border-radius: 16px;
-  background: #fff5f5;
-  box-shadow: 2px 2px 0 rgba(28, 27, 27, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 0;
+  padding: 0;
 }
 
-.deleteBtn:active {
+.deleteBtn {
+  background: #fff5f5;
+  box-shadow: 2px 2px 0 rgba(28, 27, 27, 0.1);
+}
+
+.extraBtn {
+  background: #eef6ef;
+  box-shadow: 2px 2px 0 rgba(28, 27, 27, 0.1);
+}
+
+.deleteBtn:active,
+.extraBtn:active {
   transform: translate(1px, 1px);
   box-shadow: 1px 1px 0 rgba(28, 27, 27, 0.1);
 }

@@ -6,9 +6,10 @@ type Props = {
   tempKey?: string;
   alt: string;
   className?: string;
+  revision?: number;
 };
 
-export default function AuthedImage({ recipeId, tempKey, alt, className }: Props) {
+export default function AuthedImage({ recipeId, tempKey, alt, className, revision }: Props) {
   const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -18,7 +19,7 @@ export default function AuthedImage({ recipeId, tempKey, alt, className }: Props
     const load = async () => {
       try {
         const blob = recipeId
-          ? await recipesApi.getImageBlob(recipeId)
+          ? await recipesApi.getImageBlob(recipeId, revision)
           : tempKey
             ? await recipesApi.getTempImageBlob(tempKey)
             : null;
@@ -30,12 +31,13 @@ export default function AuthedImage({ recipeId, tempKey, alt, className }: Props
       }
     };
 
+    setUrl(null);
     void load();
     return () => {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [recipeId, tempKey]);
+  }, [recipeId, tempKey, revision]);
 
   if (!url) return <div className={className} aria-hidden />;
   return <img src={url} alt={alt} className={className} />;

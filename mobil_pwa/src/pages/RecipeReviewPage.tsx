@@ -1,33 +1,32 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../design/tokens';
 import AuthedImage from '../components/ui/AuthedImage';
 import { PrimaryButton } from '../components/ui/Button';
-import { IconArrowBack, IconDelete } from '../components/ui/Icons';
+import {
+  IconArrowBack,
+  IconClose,
+  IconPhotoCamera,
+  IconRestaurant,
+  IconSearch,
+} from '../components/ui/Icons';
+import { RecipeNutritionCard } from '../components/recipes/RecipeNutritionCard';
+import { SwipeDeleteRow } from '../components/ui/SwipeDeleteRow';
 import {
   foodApi,
   getErrorMessage,
   recipesApi,
   type Food,
-  type RecipeCategory,
   type RecipeDraft,
   type RecipeIngredientDraft,
   type RecipeNutrition,
 } from '../services/api';
+import { fileToCompressedJpegFile } from '../utils/imageToJpeg';
+import { RECIPE_CATEGORIES, RECIPE_CATEGORY_META } from '../utils/recipeMeta';
 import { clearRecipeDraftSession, readRecipeDraftSession } from '../utils/recipeDraftSession';
 import styles from './RecipeReviewPage.module.css';
-
-const CATEGORIES: RecipeCategory[] = ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK', 'DESSERT', 'OTHER'];
-
-const CAT_KEYS: Record<RecipeCategory, string> = {
-  BREAKFAST: 'recipes.categoryBreakfast',
-  LUNCH: 'recipes.categoryLunch',
-  DINNER: 'recipes.categoryDinner',
-  SNACK: 'recipes.categorySnack',
-  DESSERT: 'recipes.categoryDessert',
-  OTHER: 'recipes.categoryOther',
-};
 
 function emptyDraft(): RecipeDraft {
   return {
@@ -52,10 +51,12 @@ export default function RecipeReviewPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<RecipeDraft>(emptyDraft());
   const [nutrition, setNutrition] = useState<RecipeNutrition | null>(null);
   const [tempImageKey, setTempImageKey] = useState<string | undefined>();
   const [hasExistingImage, setHasExistingImage] = useState(false);
+  const [imageRev, setImageRev] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [ready, setReady] = useState(!id);
@@ -116,7 +117,7 @@ export default function RecipeReviewPage() {
   );
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || picking != null) return;
     const named = draft.ingredients.filter((ing) => ing.name.trim());
     if (!named.length) {
       setNutrition(null);
@@ -145,7 +146,7 @@ export default function RecipeReviewPage() {
     return () => window.clearTimeout(handle);
     // rematchKey is the intentional trigger; draft is read inside
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, rematchKey]);
+  }, [ready, rematchKey, picking]);
 
   const setIng = (index: number, patch: Partial<RecipeIngredientDraft>) => {
     setDraft((d) => ({
@@ -176,10 +177,23 @@ export default function RecipeReviewPage() {
     setPickHits([]);
   };
 
+  const openPicker = (index: number) => {
+    const name = draft.ingredients[index]?.name.trim() ?? '';
+    setPickHits([]);
+    setPickQuery(name);
+    setPicking(index);
+  };
+
+  const closePicker = () => {
+    setPicking(null);
+    setPickQuery('');
+    setPickHits([]);
+  };
+
   useEffect(() => {
     if (picking == null) return;
     const q = pickQuery.trim();
-    if (q.length < 2) {
+    if (q.length < 1) {
       setPickHits([]);
       return;
     }
@@ -190,7 +204,7 @@ export default function RecipeReviewPage() {
         .then((res) => setPickHits(res.foods))
         .catch(() => setPickHits([]))
         .finally(() => setPickBusy(false));
-    }, 250);
+    }, 180);
     return () => window.clearTimeout(handle);
   }, [picking, pickQuery]);
 
@@ -220,9 +234,7 @@ export default function RecipeReviewPage() {
       tempImageKey,
     };
     try {
-      const saved = id
-        ? await recipesApi.update(id, payload)
-        : await recipesApi.create(payload);
+      const saved = id ? await recipesApi.update(id, payload) : await recipesApi.create(payload);
       clearRecipeDraftSession();
       navigate(`/recipes/${saved.id}`, { replace: true });
     } catch (err) {
@@ -232,242 +244,329 @@ export default function RecipeReviewPage() {
     }
   };
 
+  const onPickImage = async (file: File) => {
+    if (!id) return;
+    try {
+      const jpeg = await fileToCompressedJpegFile(file, 'recipe.jpg');
+      await recipesApi.uploadImage(id, jpeg);
+      setHasExistingImage(true);
+      setImageRev(Date.now());
+    } catch (err) {
+      setError(getErrorMessage(err, t('recipes.changeImageError')));
+    }
+  };
+
   if (!ready) {
     return (
       <div className={`${styles.screen} page-scroll`}>
-        <div className="spinner" />
+        <div className={styles.center}>
+          <div className="spinner" />
+        </div>
       </div>
     );
   }
 
+  const picker =
+    picking != null
+      ? createPortal(
+          <div className={styles.pickerRoot}>
+            <button type="button" className={styles.pickerBackdrop} onClick={closePicker} aria-label={t('common.close')} />
+            <div className={styles.pickerSheet} role="dialog" aria-modal="true">
+              <div className={styles.pickerHead}>
+                <h2>{t('recipes.matchPick')}</h2>
+                <button type="button" className={styles.pickerClose} onClick={closePicker} aria-label={t('common.close')}>
+                  <IconClose size={20} color={Colors.dashboard.stroke} />
+                </button>
+              </div>
+              <div className={styles.pickerSearch}>
+                <IconSearch size={18} color="rgba(0,0,0,0.4)" />
+                <input
+                  className={styles.pickerInput}
+                  autoFocus
+                  value={pickQuery}
+                  placeholder={t('recipes.matchSearch')}
+                  onChange={(e) => setPickQuery(e.target.value)}
+                />
+              </div>
+              {pickBusy && <p className={styles.pickerHint}>{t('common.loading')}</p>}
+              {!pickBusy && pickQuery.trim() && pickHits.length === 0 && (
+                <p className={styles.pickerHint}>{t('food.noResults')}</p>
+              )}
+              <div className={styles.pickList}>
+                {pickHits.map((food) => {
+                  const name = food.displayName || food.nameHu || food.nameEn || food.name;
+                  return (
+                    <button
+                      key={food.id}
+                      type="button"
+                      className={styles.pickItem}
+                      onClick={() => bindFood(picking, { id: food.id, displayName: name })}
+                    >
+                      <span>{name}</span>
+                      <span>{Math.round(food.kcal)} kcal</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
     <div className={`${styles.screen} page-scroll`}>
+      <div className={`${styles.blob} ${styles.blobMint}`} />
+      <div className={`${styles.blob} ${styles.blobPeach}`} />
+
       <header className={styles.header}>
         <button type="button" className={styles.back} onClick={() => navigate(-1)}>
           <IconArrowBack size={22} color={Colors.dashboard.stroke} />
         </button>
         <h1 className={styles.pageTitle}>{t('recipes.reviewTitle')}</h1>
-        <span style={{ width: 40 }} />
+        <span className={styles.headerSpacer} />
       </header>
       <p className={styles.hint}>{t('recipes.reviewHint')}</p>
 
-      {tempImageKey ? (
-        <AuthedImage tempKey={tempImageKey} alt="" className={styles.preview} />
-      ) : id && hasExistingImage ? (
-        <AuthedImage recipeId={id} alt="" className={styles.preview} />
-      ) : null}
-
-      <label className={styles.label}>{t('recipes.fieldTitle')}</label>
-      <input className={styles.input} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
-
-      <label className={styles.label}>{t('recipes.fieldDescription')}</label>
-      <textarea
-        className={styles.textarea}
-        value={draft.description ?? ''}
-        onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-      />
-
-      <div className={styles.row2}>
-        <div>
-          <label className={styles.label}>{t('recipes.servings')}</label>
-          <input
-            className={styles.input}
-            type="number"
-            min={1}
-            max={50}
-            value={draft.servings}
-            onChange={(e) => setDraft({ ...draft, servings: Math.max(1, Number(e.target.value) || 1) })}
-          />
-        </div>
-        <div>
-          <label className={styles.label}>{t('recipes.all')}</label>
-          <select
-            className={styles.select}
-            value={draft.category ?? ''}
-            onChange={(e) =>
-              setDraft({ ...draft, category: (e.target.value || null) as RecipeCategory | null })
-            }
-          >
-            <option value="">{t('recipes.categoryOther')}</option>
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {t(CAT_KEYS[c])}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {nutrition && (
-        <div className={styles.nutrition}>
-          <strong>{t('recipes.nutritionPerServing', { kcal: nutrition.kcal })}</strong>
-          <span>
-            {t('recipes.nutritionMacros', {
-              p: nutrition.protein,
-              c: nutrition.carbs,
-              f: nutrition.fat,
-            })}
-          </span>
-          {nutrition.incomplete && <span className={styles.warn}>{t('recipes.nutritionPartial')}</span>}
-        </div>
-      )}
-
-      <label className={styles.label}>{t('recipes.ingredients')}</label>
-      {draft.ingredients.map((ing, i) => {
-        const tone = matchTone(ing);
-        return (
-          <div key={i}>
-            <div className={styles.ingRow}>
-              <input
-                className={styles.input}
-                placeholder={t('recipes.ingredientName')}
-                value={ing.name}
-                onChange={(e) => setIng(i, { name: e.target.value })}
-              />
-              <input
-                className={styles.input}
-                placeholder={t('recipes.amount')}
-                type="number"
-                value={ing.amount ?? ''}
-                onChange={(e) => setIng(i, { amount: e.target.value === '' ? null : Number(e.target.value) })}
-              />
-              <input
-                className={styles.input}
-                placeholder={t('recipes.unit')}
-                value={ing.unit ?? ''}
-                onChange={(e) => setIng(i, { unit: e.target.value })}
-              />
-              <button
-                type="button"
-                className={styles.iconBtn}
-                onClick={() =>
-                  setDraft((d) => ({ ...d, ingredients: d.ingredients.filter((_, idx) => idx !== i) }))
-                }
-              >
-                <IconDelete size={18} color="#B83B3B" />
-              </button>
+      <section className={styles.card}>
+        <div className={styles.imageWrap}>
+          {tempImageKey ? (
+            <AuthedImage tempKey={tempImageKey} alt="" className={styles.preview} />
+          ) : id && hasExistingImage ? (
+            <AuthedImage recipeId={id} alt="" className={styles.preview} revision={imageRev} />
+          ) : (
+            <div className={styles.previewEmpty}>
+              <IconRestaurant size={28} color="rgba(0,0,0,0.28)" />
+              <span>{t('recipes.noImage')}</span>
             </div>
-            {ing.name.trim() && (ing.amount == null || Number.isNaN(ing.amount)) && (
-              <div className={styles.warn}>{t('recipes.missingAmount')}</div>
-            )}
-            {tone && (
-              <div className={`${styles.matchRow} ${styles[`match_${tone}`]}`}>
-                {tone === 'ok' && (
-                  <span>{t('recipes.matchOk', { name: ing.matchedFoodName || ing.name })}</span>
-                )}
-                {tone === 'maybe' && ing.suggestedFood && (
-                  <>
-                    <span>{t('recipes.matchSuggest', { name: ing.suggestedFood.displayName })}</span>
-                    <button type="button" className={styles.matchBtn} onClick={() => bindFood(i, ing.suggestedFood!)}>
-                      {t('recipes.matchAccept')}
-                    </button>
-                    <button type="button" className={styles.matchBtn} onClick={() => setPicking(i)}>
-                      {t('recipes.matchReplace')}
-                    </button>
-                  </>
-                )}
-                {tone === 'miss' && (
-                  <>
-                    <span>{t('recipes.matchMiss')}</span>
-                    <button type="button" className={styles.matchBtn} onClick={() => setPicking(i)}>
-                      {t('recipes.matchPick')}
-                    </button>
-                  </>
-                )}
-                {tone === 'ok' && (
-                  <button type="button" className={styles.matchBtn} onClick={() => setPicking(i)}>
-                    {t('recipes.matchReplace')}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })}
-      <button
-        type="button"
-        className={styles.addBtn}
-        onClick={() =>
-          setDraft((d) => ({
-            ...d,
-            ingredients: [...d.ingredients, { name: '', amount: null, unit: 'g', sortOrder: d.ingredients.length }],
-          }))
-        }
-      >
-        {t('recipes.addIngredient')}
-      </button>
+          )}
+          {id && (
+            <button
+              type="button"
+              className={styles.imageBtn}
+              onClick={() => fileRef.current?.click()}
+              aria-label={t('recipes.changeImage')}
+            >
+              <IconPhotoCamera size={18} color={Colors.dashboard.stroke} />
+            </button>
+          )}
+        </div>
+        <label className={styles.label}>{t('recipes.fieldTitle')}</label>
+        <input
+          className={styles.input}
+          value={draft.title}
+          onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+        />
+      </section>
 
-      <label className={styles.label}>{t('recipes.instructions')}</label>
-      {draft.instructions.map((step, i) => (
-        <div key={i} className={styles.step}>
-          <textarea
-            className={styles.textarea}
-            placeholder={t('recipes.stepN', { n: i + 1 })}
-            value={step}
-            onChange={(e) =>
-              setDraft((d) => ({
-                ...d,
-                instructions: d.instructions.map((s, idx) => (idx === i ? e.target.value : s)),
-              }))
-            }
-          />
-          <button
-            type="button"
-            className={styles.iconBtn}
-            onClick={() =>
-              setDraft((d) => ({ ...d, instructions: d.instructions.filter((_, idx) => idx !== i) }))
-            }
-          >
-            <IconDelete size={18} color="#B83B3B" />
+      <section className={styles.card}>
+        <label className={styles.label}>{t('recipes.fieldDescription')}</label>
+        <textarea
+          className={styles.textarea}
+          value={draft.description ?? ''}
+          onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+        />
+
+        <span className={styles.label}>{t('recipes.servings')}</span>
+        <div className={styles.stepper}>
+          <button type="button" onClick={() => setDraft({ ...draft, servings: Math.max(1, draft.servings - 1) })}>
+            −
+          </button>
+          <span>{draft.servings}</span>
+          <button type="button" onClick={() => setDraft({ ...draft, servings: Math.min(50, draft.servings + 1) })}>
+            +
           </button>
         </div>
-      ))}
-      <button
-        type="button"
-        className={styles.addBtn}
-        onClick={() => setDraft((d) => ({ ...d, instructions: [...d.instructions, ''] }))}
-      >
-        {t('recipes.addStep')}
-      </button>
+
+        <span className={styles.label}>{t('recipes.mealType')}</span>
+        <div className={styles.catChips}>
+          {RECIPE_CATEGORIES.map((c) => {
+            const meta = RECIPE_CATEGORY_META[c];
+            const Icon = meta.Icon;
+            const on = draft.category === c;
+            return (
+              <button
+                key={c}
+                type="button"
+                className={`${styles.catChip} ${on ? styles.catChipOn : ''}`}
+                onClick={() => setDraft({ ...draft, category: on ? null : c })}
+              >
+                <span className={styles.catIcon} style={{ background: meta.bg }}>
+                  <Icon size={16} color={Colors.dashboard.stroke} />
+                </span>
+                {t(meta.labelKey)}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {nutrition && <RecipeNutritionCard nutrition={nutrition} />}
+
+      <section className={styles.card}>
+        <h2 className={styles.cardTitle}>{t('recipes.ingredients')}</h2>
+        <div className={styles.ingList}>
+          {draft.ingredients.map((ing, i) => {
+            const tone = matchTone(ing);
+            return (
+              <SwipeDeleteRow
+                key={i}
+                enabled
+                deleteLabel={t('common.delete')}
+                onDelete={() =>
+                  setDraft((d) => ({
+                    ...d,
+                    ingredients: d.ingredients.filter((_, idx) => idx !== i),
+                  }))
+                }
+              >
+                <div className={styles.ingBlock}>
+                  <input
+                    className={styles.ingName}
+                    placeholder={t('recipes.ingredientName')}
+                    value={ing.name}
+                    onChange={(e) => setIng(i, { name: e.target.value })}
+                  />
+                  <div className={styles.qtyRow}>
+                    <input
+                      className={styles.ingAmt}
+                      placeholder={t('recipes.amount')}
+                      type="number"
+                      value={ing.amount ?? ''}
+                      onChange={(e) =>
+                        setIng(i, { amount: e.target.value === '' ? null : Number(e.target.value) })
+                      }
+                    />
+                    <input
+                      className={styles.ingUnit}
+                      placeholder={t('recipes.unit')}
+                      value={ing.unit ?? ''}
+                      onChange={(e) => setIng(i, { unit: e.target.value })}
+                    />
+                  </div>
+                  {ing.name.trim() && (ing.amount == null || Number.isNaN(ing.amount)) && (
+                    <div className={styles.warn}>{t('recipes.missingAmount')}</div>
+                  )}
+                  {tone && (
+                    <div className={`${styles.matchRow} ${styles[`match_${tone}`]}`}>
+                      {tone === 'ok' && (
+                        <span>{t('recipes.matchOk', { name: ing.matchedFoodName || ing.name })}</span>
+                      )}
+                      {tone === 'maybe' && ing.suggestedFood && (
+                        <span>{t('recipes.matchSuggest', { name: ing.suggestedFood.displayName })}</span>
+                      )}
+                      {tone === 'miss' && <span>{t('recipes.matchMiss')}</span>}
+                      <div className={styles.matchActions}>
+                        {tone === 'maybe' && ing.suggestedFood && (
+                          <button
+                            type="button"
+                            className={styles.matchBtn}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              bindFood(i, ing.suggestedFood!);
+                            }}
+                          >
+                            {t('recipes.matchAccept')}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className={styles.pickCta}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            openPicker(i);
+                          }}
+                        >
+                          {tone === 'ok' || tone === 'maybe' ? t('recipes.matchReplace') : t('recipes.matchPick')}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </SwipeDeleteRow>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          className={styles.addBtn}
+          onClick={() =>
+            setDraft((d) => ({
+              ...d,
+              ingredients: [...d.ingredients, { name: '', amount: null, unit: 'g', sortOrder: d.ingredients.length }],
+            }))
+          }
+        >
+          {t('recipes.addIngredient')}
+        </button>
+      </section>
+
+      <section className={styles.card}>
+        <h2 className={styles.cardTitle}>{t('recipes.instructions')}</h2>
+        {draft.instructions.map((step, i) => (
+          <SwipeDeleteRow
+            key={i}
+            enabled
+            deleteLabel={t('common.delete')}
+            onDelete={() =>
+              setDraft((d) => ({
+                ...d,
+                instructions: d.instructions.filter((_, idx) => idx !== i),
+              }))
+            }
+          >
+            <div className={styles.step}>
+              <span className={styles.stepNum}>{i + 1}</span>
+              <textarea
+                className={styles.stepText}
+                placeholder={t('recipes.stepN', { n: i + 1 })}
+                value={step}
+                onChange={(e) =>
+                  setDraft((d) => ({
+                    ...d,
+                    instructions: d.instructions.map((s, idx) => (idx === i ? e.target.value : s)),
+                  }))
+                }
+              />
+            </div>
+          </SwipeDeleteRow>
+        ))}
+        <button
+          type="button"
+          className={styles.addBtn}
+          onClick={() => setDraft((d) => ({ ...d, instructions: [...d.instructions, ''] }))}
+        >
+          {t('recipes.addStep')}
+        </button>
+      </section>
 
       {error && <p className={styles.error}>{error}</p>}
 
       <div className={styles.saveWrap}>
-        <PrimaryButton label={saving ? t('recipes.saving') : t('recipes.save')} onClick={() => void handleSave()} loading={saving} disabled={saving} />
+        <PrimaryButton
+          label={saving ? t('recipes.saving') : t('recipes.save')}
+          onClick={() => void handleSave()}
+          loading={saving}
+          disabled={saving}
+        />
       </div>
 
-      {picking != null && (
-        <div className={styles.pickerRoot}>
-          <button type="button" className={styles.pickerBackdrop} onClick={() => setPicking(null)} aria-label={t('common.close')} />
-          <div className={styles.pickerSheet}>
-            <h2>{t('recipes.matchPick')}</h2>
-            <input
-              className={styles.input}
-              autoFocus
-              value={pickQuery}
-              placeholder={t('recipes.matchSearch')}
-              onChange={(e) => setPickQuery(e.target.value)}
-            />
-            {pickBusy && <p className={styles.hint}>{t('common.loading')}</p>}
-            <div className={styles.pickList}>
-              {pickHits.map((food) => {
-                const name = food.displayName || food.nameHu || food.nameEn || food.name;
-                return (
-                  <button
-                    key={food.id}
-                    type="button"
-                    className={styles.pickItem}
-                    onClick={() => bindFood(picking, { id: food.id, displayName: name })}
-                  >
-                    <span>{name}</span>
-                    <span>{Math.round(food.kcal)} kcal</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) void onPickImage(file);
+        }}
+      />
+
+      {picker}
     </div>
   );
 }

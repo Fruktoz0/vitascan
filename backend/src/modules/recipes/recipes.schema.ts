@@ -100,6 +100,7 @@ export const RecipeListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
   search: z.string().trim().max(120).optional(),
   category: RecipeCategorySchema.optional(),
+  favorite: z.enum(['true', '1']).optional(),
 });
 
 export const MatchIngredientsSchema = z.object({
@@ -107,11 +108,16 @@ export const MatchIngredientsSchema = z.object({
   servings: z.number().int().min(1).max(50).optional(),
 });
 
-export const LogRecipeSchema = z.object({
-  servings: z.number().min(0.25).max(50).default(1),
-  mealType: z.enum(['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK', 'OTHER']).default('LUNCH'),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-});
+export const LogRecipeSchema = z
+  .object({
+    servings: z.number().min(0.25).max(50).optional(),
+    amountG: z.number().min(1).max(100000).optional(),
+    mealType: z.enum(['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK', 'OTHER']).default('LUNCH'),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  })
+  .refine((d) => d.servings != null || d.amountG != null, {
+    message: 'Adag vagy gramm megadása kötelező.',
+  });
 
 export const ImportUrlSchema = z.object({
   url: z.string().trim().url().max(2000),
