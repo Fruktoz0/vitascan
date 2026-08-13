@@ -64,21 +64,43 @@ const RESPONSE_SCHEMA = {
   required: ['dishName', 'ingredients'],
 };
 
-function buildGenerationConfig(model: string): Record<string, unknown> {
-  const isGemini3 = /gemini-3/i.test(model);
-  const base: Record<string, unknown> = {
-    temperature: 0.2,
-    maxOutputTokens: 4096,
-    responseMimeType: 'application/json',
-    responseSchema: RESPONSE_SCHEMA,
-  };
-  if (isGemini3) {
-    return { ...base, thinkingConfig: { thinkingLevel: 'low' } };
+type GenConfig = Record<string, unknown>;
+
+/** Single Gemini call budget. Kept short so a gateway (nginx/tunnel) never cuts the connection first. */
+const ATTEMPT_TIMEOUT_MS = 28_000;
+/** Whole recognition budget across models/attempts. */
+const TOTAL_BUDGET_MS = 55_000;
+
+function withThinking(model: string, config: GenConfig): GenConfig {
+  if (/gemini-3/i.test(model)) {
+    return { ...config, thinkingConfig: { thinkingLevel: 'low' } };
   }
   if (/gemini-2\.5-flash/i.test(model) && !/pro/i.test(model)) {
-    return { ...base, thinkingConfig: { thinkingBudget: 0 } };
+    return { ...config, thinkingConfig: { thinkingBudget: 0 } };
   }
-  return base;
+  return config;
+}
+
+/**
+ * Fallback ladder: schema → schema-less JSON → plain call.
+ * A strict responseSchema plus thinking tokens often ends in MAX_TOKENS / empty
+ * output on photos, so every later attempt drops one constraint.
+ */
+function buildAttemptConfigs(model: string): GenConfig[] {
+  return [
+    withThinking(model, {
+      temperature: 0.2,
+      maxOutputTokens: 4096,
+      responseMimeType: 'application/json',
+      responseSchema: RESPONSE_SCHEMA,
+    }),
+    withThinking(model, {
+      temperature: 0.2,
+      maxOutputTokens: 8192,
+      responseMimeType: 'application/json',
+    }),
+    { temperature: 0.2, maxOutputTokens: 8192, responseMimeType: 'application/json' },
+  ];
 }
 
 function clamp(n: number, min: number, max: number) {
@@ -210,13 +232,70 @@ function extractJsonText(body: any): string {
   return text;
 }
 
-async function callGemini(
-  apiKey: string,
-  model: string,
-  input: FoodRecognizeInput,
-): Promise<FoodRecognizeResult | null> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+/** Closing brackets needed to terminate `src`, or null if it ends inside a string. */
+function pendingClosers(src: string): string | null {
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+  for (const ch of src) {
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === '{') stack.push('}');
+    else if (ch === '[') stack.push(']');
+    else if (ch === '}' || ch === ']') stack.pop();
+  }
+  if (inString) return null;
+  return stack.reverse().join('');
+}
 
+/** MAX_TOKENS cuts the JSON mid-array — keep the ingredients that did arrive. */
+function parseMaybeTruncatedJson(text: string): unknown | null {
+  const start = text.indexOf('{');
+  if (start < 0) return null;
+  const src = text.slice(start);
+  try {
+    return JSON.parse(src);
+  } catch {
+    /* fall through to repair */
+  }
+  let end = src.lastIndexOf('}');
+  for (let tries = 0; end > 0 && tries < 40; tries += 1) {
+    const head = src.slice(0, end + 1);
+    const closers = pendingClosers(head);
+    if (closers != null) {
+      try {
+        return JSON.parse(head + closers);
+      } catch {
+        /* keep trimming */
+      }
+    }
+    end = src.lastIndexOf('}', end - 1);
+  }
+  return null;
+}
+
+type FailureKind =
+  | 'timeout'
+  | 'network'
+  | 'rate'
+  | 'image'
+  | 'config'
+  | 'http'
+  | 'empty'
+  | 'parse';
+
+type Failure = { kind: FailureKind; detail: string };
+
+type AttemptOutcome =
+  | { result: FoodRecognizeResult; failure?: undefined }
+  | { result?: undefined; failure: Failure };
+
+function buildUserParts(input: FoodRecognizeInput) {
   const userParts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
 
   if (input.mode === 'photo' && input.imageBase64) {
@@ -239,6 +318,18 @@ async function callGemini(
     });
   }
 
+  return userParts;
+}
+
+async function callGeminiOnce(
+  apiKey: string,
+  model: string,
+  input: FoodRecognizeInput,
+  generationConfig: GenConfig,
+  timeoutMs: number,
+): Promise<AttemptOutcome> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
   let res: Response;
   try {
     res = await fetch(url, {
@@ -246,116 +337,170 @@ async function callGemini(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: systemPrompt(input.locale) }] },
-        contents: [{ role: 'user', parts: userParts }],
-        generationConfig: buildGenerationConfig(model),
+        contents: [{ role: 'user', parts: buildUserParts(input) }],
+        generationConfig,
       }),
-      signal: AbortSignal.timeout(90_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (err) {
     const name = err instanceof Error ? err.name : '';
     if (name === 'TimeoutError' || name === 'AbortError') {
-      throw Object.assign(
-        new Error(
-          input.locale === 'en'
-            ? 'Recognition timed out. Try a clearer, smaller photo.'
-            : 'A felismerés időtúllépés miatt megszakadt. Próbálj kisebb, élesebb fotót.',
-        ),
-        { statusCode: 504 },
-      );
+      return { failure: { kind: 'timeout', detail: `${model}: timeout ${timeoutMs}ms` } };
     }
-    throw Object.assign(
-      new Error(
-        input.locale === 'en'
-          ? 'Could not reach the recognition service.'
-          : 'A felismerő szolgáltatás most nem érhető el.',
-      ),
-      { statusCode: 502 },
-    );
+    const detail = err instanceof Error ? err.message : String(err);
+    return { failure: { kind: 'network', detail: `${model}: ${detail}` } };
   }
 
   if (!res.ok) {
-    const errBody = await res.json().catch(() => null) as { error?: { message?: string; status?: string } } | null;
-    const msg = errBody?.error?.message || '';
-    if (res.status === 429) {
-      throw Object.assign(
-        new Error(
-          input.locale === 'en'
-            ? 'Recognition is busy. Try again in a moment.'
-            : 'A felismerés most foglalt. Próbáld újra rövidesen.',
-        ),
-        { statusCode: 429 },
-      );
+    const errBody = (await res.json().catch(() => null)) as
+      | { error?: { message?: string; status?: string } }
+      | null;
+    const msg = errBody?.error?.message || `HTTP ${res.status}`;
+    if (res.status === 429 || /quota|resource exhausted|rate limit/i.test(msg)) {
+      return { failure: { kind: 'rate', detail: `${model}: ${msg}` } };
     }
-    if (/image|mime|invalid argument|unsupported/i.test(msg)) {
-      throw Object.assign(
-        new Error(
-          input.locale === 'en'
-            ? 'This photo format is not supported. Try a JPEG from the gallery.'
-            : 'Ez a képformátum nem támogatott. Próbálj JPEG fotót a galériából.',
-        ),
-        { statusCode: 400 },
-      );
+    if (/image|mime|unsupported|media/i.test(msg)) {
+      return { failure: { kind: 'image', detail: `${model}: ${msg}` } };
     }
-    return null;
+    if (/invalid argument|unknown name|thinking|schema|responseMimeType|not supported/i.test(msg)) {
+      return { failure: { kind: 'config', detail: `${model}: ${msg}` } };
+    }
+    return { failure: { kind: 'http', detail: `${model}: HTTP ${res.status} ${msg}` } };
   }
 
-  const body = await res.json().catch(() => null);
-  if (!body) return null;
+  const body = (await res.json().catch(() => null)) as any;
+  if (!body) return { failure: { kind: 'parse', detail: `${model}: non-JSON Gemini body` } };
 
-  try {
-    const text = extractJsonText(body);
-    return parseResult(JSON.parse(text));
-  } catch {
-    return null;
+  const blockReason = body?.promptFeedback?.blockReason;
+  if (blockReason) {
+    return { failure: { kind: 'image', detail: `${model}: blocked (${blockReason})` } };
+  }
+
+  const finishReason = body?.candidates?.[0]?.finishReason || '';
+  const text = extractJsonText(body);
+  if (!text) {
+    return { failure: { kind: 'empty', detail: `${model}: empty output (${finishReason || 'no reason'})` } };
+  }
+
+  const parsed = parseMaybeTruncatedJson(text);
+  const result = parsed ? parseResult(parsed) : null;
+  if (!result) {
+    return {
+      failure: {
+        kind: 'parse',
+        detail: `${model}: unusable JSON (${finishReason || 'no reason'}, ${text.length} chars)`,
+      },
+    };
+  }
+
+  return { result };
+}
+
+export type RecognizeLogger = (message: string, meta?: Record<string, unknown>) => void;
+
+function httpError(statusCode: number, message: string) {
+  return Object.assign(new Error(message), { statusCode });
+}
+
+function failureToError(failure: Failure | null, locale: 'hu' | 'en'): Error {
+  const en = locale === 'en';
+  switch (failure?.kind) {
+    case 'timeout':
+      return httpError(
+        504,
+        en
+          ? 'Recognition timed out. Try again with a smaller, sharper photo.'
+          : 'A felismerés időtúllépés miatt megszakadt. Próbáld újra kisebb, élesebb fotóval.',
+      );
+    case 'rate':
+      return httpError(
+        429,
+        en
+          ? 'The recognition service is busy right now. Try again in a moment.'
+          : 'A felismerő szolgáltatás most túlterhelt. Próbáld újra kicsit később.',
+      );
+    case 'image':
+      return httpError(
+        400,
+        en
+          ? 'This photo could not be processed. Try another shot or a JPEG from the gallery.'
+          : 'Ez a fotó nem dolgozható fel. Próbálj másik képet, vagy JPEG-et a galériából.',
+      );
+    case 'network':
+    case 'http':
+      return httpError(
+        502,
+        en
+          ? 'Could not reach the recognition service. Try again in a moment.'
+          : 'A felismerő szolgáltatás most nem érhető el. Próbáld újra kicsit később.',
+      );
+    default:
+      return httpError(
+        502,
+        en
+          ? 'Could not recognize the food. Try another photo or a clearer description.'
+          : 'Nem sikerült felismerni az ételt. Próbálj másik képet vagy pontosabb leírást.',
+      );
   }
 }
 
 export async function recognizeFoodWithGemini(
   input: FoodRecognizeInput,
+  log?: RecognizeLogger,
 ): Promise<FoodRecognizeResult> {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) {
-    throw Object.assign(new Error('Gemini API kulcs nincs beállítva.'), { statusCode: 503 });
+    throw httpError(503, 'Gemini API kulcs nincs beállítva.');
   }
 
   if (input.mode === 'text' && !String(input.text || '').trim()) {
-    throw Object.assign(new Error('Adj meg egy szöveges leírást.'), { statusCode: 400 });
+    throw httpError(400, 'Adj meg egy szöveges leírást.');
   }
   if (input.mode === 'photo' && !input.imageBase64) {
-    throw Object.assign(new Error('Hiányzik a kép.'), { statusCode: 400 });
+    throw httpError(400, 'Hiányzik a kép.');
   }
 
   const primary = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
   const fallback = process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-2.0-flash';
+  const models = fallback && fallback !== primary ? [primary, fallback] : [primary];
 
-  let lastErr: unknown = null;
-  let result: FoodRecognizeResult | null = null;
-  try {
-    result = await callGemini(apiKey, primary, input);
-  } catch (e) {
-    lastErr = e;
-  }
-  if (!result && fallback && fallback !== primary) {
-    try {
-      result = await callGemini(apiKey, fallback, input);
-    } catch (e) {
-      lastErr = e;
+  const startedAt = Date.now();
+  let lastFailure: Failure | null = null;
+
+  for (const model of models) {
+    for (const generationConfig of buildAttemptConfigs(model)) {
+      const left = TOTAL_BUDGET_MS - (Date.now() - startedAt);
+      // Stop before a gateway would kill the connection and return a non-JSON 502.
+      if (left < 6_000) {
+        log?.('ai-recognize: out of time budget', { model, lastFailure: lastFailure?.detail });
+        throw failureToError(lastFailure ?? { kind: 'timeout', detail: 'budget exhausted' }, input.locale);
+      }
+
+      const outcome = await callGeminiOnce(
+        apiKey,
+        model,
+        input,
+        generationConfig,
+        Math.min(ATTEMPT_TIMEOUT_MS, left),
+      );
+      if (outcome.result) return outcome.result;
+
+      lastFailure = outcome.failure;
+      log?.('ai-recognize: Gemini attempt failed', {
+        model,
+        kind: outcome.failure.kind,
+        detail: outcome.failure.detail,
+        elapsedMs: Date.now() - startedAt,
+      });
+
+      // Quota and rejected images will not improve on retry.
+      if (outcome.failure.kind === 'rate' || outcome.failure.kind === 'image') {
+        throw failureToError(outcome.failure, input.locale);
+      }
+      // A dead endpoint or network error: skip the remaining configs, try the other model.
+      if (outcome.failure.kind === 'network' || outcome.failure.kind === 'http') break;
     }
   }
 
-  if (!result) {
-    if (lastErr && typeof lastErr === 'object' && lastErr && 'statusCode' in lastErr) {
-      throw lastErr;
-    }
-    throw Object.assign(
-      new Error(
-        input.locale === 'en'
-          ? 'Could not recognize the food. Try another photo or a clearer description.'
-          : 'Nem sikerült felismerni az ételt. Próbálj másik képet vagy pontosabb leírást.',
-      ),
-      { statusCode: 502 },
-    );
-  }
-
-  return result;
+  throw failureToError(lastFailure, input.locale);
 }

@@ -551,13 +551,16 @@ export default async function foodRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      const result = await recognizeFoodWithGemini({
-        locale: locale ?? 'hu',
-        mode,
-        text,
-        imageBase64,
-        mimeType,
-      });
+      const result = await recognizeFoodWithGemini(
+        {
+          locale: locale ?? 'hu',
+          mode,
+          text,
+          imageBase64,
+          mimeType,
+        },
+        (message, meta) => req.log.warn(meta ?? {}, message),
+      );
 
       const updated = await prisma.aiFoodRecognition.update({
         where: { userId_loggedDate: { userId, loggedDate: today } },

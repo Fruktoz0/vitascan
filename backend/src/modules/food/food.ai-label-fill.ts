@@ -190,16 +190,23 @@ async function callGemini(
     },
   ];
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: systemPrompt(input.locale) }] },
-      contents: [{ role: 'user', parts: userParts }],
-      generationConfig: buildGenerationConfig(model),
-    }),
-    signal: AbortSignal.timeout(45000),
-  });
+  // Two models are tried in sequence, so keep each call short enough that the
+  // whole request still finishes before a proxy/tunnel drops the connection.
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt(input.locale) }] },
+        contents: [{ role: 'user', parts: userParts }],
+        generationConfig: buildGenerationConfig(model),
+      }),
+      signal: AbortSignal.timeout(28_000),
+    });
+  } catch {
+    return null;
+  }
 
   if (!res.ok) return null;
   const body = await res.json().catch(() => null);

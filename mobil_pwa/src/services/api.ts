@@ -85,6 +85,14 @@ function toNetworkApiError(error: unknown): ApiError {
   return new ApiError(0, raw.trim() || 'Váratlan hiba történt a kérés közben.');
 }
 
+/** Abort signal for slow endpoints; older browsers without AbortSignal.timeout just wait. */
+function requestTimeout(ms: number): { signal?: AbortSignal } {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return { signal: AbortSignal.timeout(ms) };
+  }
+  return {};
+}
+
 let refreshInFlight: Promise<boolean> | null = null;
 
 export async function refreshAccessTokenFromStorage(): Promise<boolean> {
@@ -429,7 +437,12 @@ export const foodApi = {
       }>;
       remaining: number;
       limit: number;
-    }>('/foods/ai-recognize', { method: 'POST', body: JSON.stringify(data) }),
+    }>('/foods/ai-recognize', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      // Fail with our own message before a proxy/tunnel answers with an HTML 502.
+      ...requestTimeout(70_000),
+    }),
   aiServingEstimate: (data: {
     name: string;
     brand?: string;
@@ -466,7 +479,11 @@ export const foodApi = {
       approximateNote?: string;
       remaining: number;
       limit: number;
-    }>('/foods/ai-label-fill', { method: 'POST', body: JSON.stringify(data) }),
+    }>('/foods/ai-label-fill', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      ...requestTimeout(70_000),
+    }),
   update: (id: string, data: Partial<Food> | Record<string, unknown>) =>
     request<Food>(`/foods/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   editHistory: (id: string) =>
