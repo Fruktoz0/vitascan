@@ -41,6 +41,7 @@
     "favorites": "Kedvencek",
     "changeImage": "Kép csere",
     "changeImageError": "A kép cseréje nem sikerült.",
+    "changeImageHint": "Az AI által ajánlott képet a kamerával azonnal cserélheted.",
     "categoryBreakfast": "Reggeli",
     "categoryLunch": "Ebéd",
     "categoryDinner": "Vacsora",

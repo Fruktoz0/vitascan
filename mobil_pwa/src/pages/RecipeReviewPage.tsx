@@ -25,7 +25,7 @@ import {
 } from '../services/api';
 import { fileToCompressedJpegFile } from '../utils/imageToJpeg';
 import { RECIPE_CATEGORIES, RECIPE_CATEGORY_META } from '../utils/recipeMeta';
-import { clearRecipeDraftSession, readRecipeDraftSession } from '../utils/recipeDraftSession';
+import { clearRecipeDraftSession, readRecipeDraftSession, saveRecipeDraftSession } from '../utils/recipeDraftSession';
 import styles from './RecipeReviewPage.module.css';
 
 function emptyDraft(): RecipeDraft {
@@ -245,12 +245,21 @@ export default function RecipeReviewPage() {
   };
 
   const onPickImage = async (file: File) => {
-    if (!id) return;
     try {
       const jpeg = await fileToCompressedJpegFile(file, 'recipe.jpg');
-      await recipesApi.uploadImage(id, jpeg);
-      setHasExistingImage(true);
-      setImageRev(Date.now());
+      if (id) {
+        await recipesApi.uploadImage(id, jpeg);
+        setHasExistingImage(true);
+        setImageRev(Date.now());
+        return;
+      }
+      const res = await recipesApi.uploadTempImage(jpeg, tempImageKey);
+      setTempImageKey(res.tempImageKey);
+      const session = readRecipeDraftSession();
+      saveRecipeDraftSession({
+        draft: session?.draft ?? draft,
+        tempImageKey: res.tempImageKey,
+      });
     } catch (err) {
       setError(getErrorMessage(err, t('recipes.changeImageError')));
     }
@@ -340,17 +349,16 @@ export default function RecipeReviewPage() {
               <span>{t('recipes.noImage')}</span>
             </div>
           )}
-          {id && (
-            <button
-              type="button"
-              className={styles.imageBtn}
-              onClick={() => fileRef.current?.click()}
-              aria-label={t('recipes.changeImage')}
-            >
-              <IconPhotoCamera size={18} color={Colors.dashboard.stroke} />
-            </button>
-          )}
+          <button
+            type="button"
+            className={styles.imageBtn}
+            onClick={() => fileRef.current?.click()}
+            aria-label={t('recipes.changeImage')}
+          >
+            <IconPhotoCamera size={18} color={Colors.dashboard.stroke} />
+          </button>
         </div>
+        {tempImageKey ? <p className={styles.imageHint}>{t('recipes.changeImageHint')}</p> : null}
         <label className={styles.label}>{t('recipes.fieldTitle')}</label>
         <input
           className={styles.input}

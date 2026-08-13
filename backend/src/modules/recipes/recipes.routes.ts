@@ -25,6 +25,7 @@ import {
   openTempImageStream,
   readTempImageBuffer,
   saveTempRecipeImage,
+  deleteTempRecipeImage,
 } from './recipes.image.service';
 import { importRecipeFromUrl } from './recipes.import.service';
 import { matchDraftIngredients } from './recipes.match.service';
@@ -324,6 +325,26 @@ const recipeRoutes: FastifyPluginAsync = async (fastify) => {
     } catch (err: unknown) {
       return reply.status(statusOf(err, 404)).send({
         error: err instanceof Error ? err.message : 'A kép nem található.',
+      });
+    }
+  });
+
+  fastify.post('/tmp/image', { preHandler: authenticate }, async (request, reply) => {
+    const file = await request.file({ limits: { fileSize: 8 * 1024 * 1024 } });
+    if (!file) return reply.status(400).send({ error: 'Nincs kép (file mező).' });
+    const buf = await file.toBuffer();
+    const replace = typeof request.query === 'object' && request.query && 'replace' in request.query
+      ? String((request.query as { replace?: string }).replace ?? '')
+      : '';
+    try {
+      const stored = await saveTempRecipeImage(request.user.userId, buf);
+      if (replace && UUID_WEBP_RE.test(replace) && replace !== stored.storageKey) {
+        await deleteTempRecipeImage(request.user.userId, replace);
+      }
+      return reply.status(201).send({ tempImageKey: stored.storageKey });
+    } catch (err: unknown) {
+      return reply.status(statusOf(err, 400)).send({
+        error: err instanceof Error ? err.message : 'A kép feltöltése sikertelen.',
       });
     }
   });

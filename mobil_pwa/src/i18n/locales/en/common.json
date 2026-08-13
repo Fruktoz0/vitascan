@@ -26,6 +26,7 @@
     "favorites": "Favorites",
     "changeImage": "Change photo",
     "changeImageError": "Could not change the photo.",
+    "changeImageHint": "Replace the suggested photo with the camera button.",
     "categoryBreakfast": "Breakfast",
     "categoryLunch": "Lunch",
     "categoryDinner": "Dinner",

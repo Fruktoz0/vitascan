@@ -170,6 +170,15 @@ export async function deleteRecipeFile(storageKey: string): Promise<void> {
   }
 }
 
+export async function deleteTempRecipeImage(userId: string, storageKey: string): Promise<void> {
+  if (!UUID_WEBP_RE.test(storageKey)) return;
+  try {
+    await fs.unlink(resolveTempFilePath(userId, storageKey));
+  } catch {
+    /* missing file is fine */
+  }
+}
+
 async function cleanupOldTempImages() {
   const root = storageRoot();
   const tmpRoot = path.join(root, 'tmp');

@@ -1138,4 +1138,10 @@ export const recipesApi = {
     fd.append('file', file);
     return request<{ ok: boolean }>(`/recipes/${id}/images`, { method: 'POST', body: fd });
   },
+  uploadTempImage: (file: File, replaceKey?: string) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    const q = replaceKey ? `?replace=${encodeURIComponent(replaceKey)}` : '';
+    return request<{ tempImageKey: string }>(`/recipes/tmp/image${q}`, { method: 'POST', body: fd });
+  },
 };
