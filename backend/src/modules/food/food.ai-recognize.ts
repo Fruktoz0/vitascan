@@ -239,18 +239,66 @@ async function callGemini(
     });
   }
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: systemPrompt(input.locale) }] },
-      contents: [{ role: 'user', parts: userParts }],
-      generationConfig: buildGenerationConfig(model),
-    }),
-    signal: AbortSignal.timeout(45000),
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt(input.locale) }] },
+        contents: [{ role: 'user', parts: userParts }],
+        generationConfig: buildGenerationConfig(model),
+      }),
+      signal: AbortSignal.timeout(90_000),
+    });
+  } catch (err) {
+    const name = err instanceof Error ? err.name : '';
+    if (name === 'TimeoutError' || name === 'AbortError') {
+      throw Object.assign(
+        new Error(
+          input.locale === 'en'
+            ? 'Recognition timed out. Try a clearer, smaller photo.'
+            : 'A felismerés időtúllépés miatt megszakadt. Próbálj kisebb, élesebb fotót.',
+        ),
+        { statusCode: 504 },
+      );
+    }
+    throw Object.assign(
+      new Error(
+        input.locale === 'en'
+          ? 'Could not reach the recognition service.'
+          : 'A felismerő szolgáltatás most nem érhető el.',
+      ),
+      { statusCode: 502 },
+    );
+  }
 
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => null) as { error?: { message?: string; status?: string } } | null;
+    const msg = errBody?.error?.message || '';
+    if (res.status === 429) {
+      throw Object.assign(
+        new Error(
+          input.locale === 'en'
+            ? 'Recognition is busy. Try again in a moment.'
+            : 'A felismerés most foglalt. Próbáld újra rövidesen.',
+        ),
+        { statusCode: 429 },
+      );
+    }
+    if (/image|mime|invalid argument|unsupported/i.test(msg)) {
+      throw Object.assign(
+        new Error(
+          input.locale === 'en'
+            ? 'This photo format is not supported. Try a JPEG from the gallery.'
+            : 'Ez a képformátum nem támogatott. Próbálj JPEG fotót a galériából.',
+        ),
+        { statusCode: 400 },
+      );
+    }
+    return null;
+  }
+
   const body = await res.json().catch(() => null);
   if (!body) return null;
 
@@ -280,12 +328,25 @@ export async function recognizeFoodWithGemini(
   const primary = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
   const fallback = process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-2.0-flash';
 
-  let result = await callGemini(apiKey, primary, input);
+  let lastErr: unknown = null;
+  let result: FoodRecognizeResult | null = null;
+  try {
+    result = await callGemini(apiKey, primary, input);
+  } catch (e) {
+    lastErr = e;
+  }
   if (!result && fallback && fallback !== primary) {
-    result = await callGemini(apiKey, fallback, input);
+    try {
+      result = await callGemini(apiKey, fallback, input);
+    } catch (e) {
+      lastErr = e;
+    }
   }
 
   if (!result) {
+    if (lastErr && typeof lastErr === 'object' && lastErr && 'statusCode' in lastErr) {
+      throw lastErr;
+    }
     throw Object.assign(
       new Error(
         input.locale === 'en'

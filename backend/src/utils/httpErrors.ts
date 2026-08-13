@@ -150,6 +150,10 @@ export function mapErrorToHttp(err: unknown): MappedHttpError {
     return { status: 400, error: 'Érvénytelen kérés. Ellenőrizd a megadott adatokat.' };
   }
 
+  if (anyErr.code === 'FST_ERR_CTP_BODY_TOO_LARGE') {
+    return { status: 413, error: 'A kép túl nagy. Próbálj kisebb felbontású fotót.' };
+  }
+
   const status =
     typeof anyErr.statusCode === 'number' && Number.isFinite(anyErr.statusCode)
       ? anyErr.statusCode

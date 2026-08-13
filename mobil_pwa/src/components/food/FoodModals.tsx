@@ -36,6 +36,7 @@ import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { foodApi, getErrorMessage, logApi, type Food, type FoodOrigin, type FoodStatus } from '../../services/api';
 import { Colors } from '../../design/tokens';
 import { toLocalDateStr, useDateStore } from '../../stores/dateStore';
+import { fileToCompressedJpeg } from '../../utils/imageToJpeg';
 import styles from './FoodModals.module.css';
 
 type MealType = 'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK';
@@ -1896,18 +1897,11 @@ function FoodDataFormModal({
     }
     setAiBusy(true);
     try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ''));
-        reader.onerror = () => reject(reader.error ?? new Error('Read failed'));
-        reader.readAsDataURL(aiImageFile);
-      });
-      const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-      if (!match) throw new Error('Invalid image');
+      const { base64, mimeType } = await fileToCompressedJpeg(aiImageFile);
       const locale = i18n.language?.startsWith('en') ? 'en' : 'hu';
       const res = await foodApi.aiLabelFill({
-        imageBase64: match[2],
-        mimeType: match[1],
+        imageBase64: base64,
+        mimeType,
         locale,
       });
       setName(res.name || '');

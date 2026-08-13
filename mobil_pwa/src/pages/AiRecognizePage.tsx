@@ -13,6 +13,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { foodApi, getErrorMessage, logApi } from '../services/api';
 import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import type { MealType } from '../utils/mealMeta';
+import { fileToCompressedJpeg } from '../utils/imageToJpeg';
 import styles from './AiRecognizePage.module.css';
 
 type Mode = 'choose' | 'photo' | 'text' | 'result';
@@ -87,23 +88,6 @@ function toDraft(ing: {
 function parseNum(v: string) {
   const n = Number(String(v).replace(',', '.'));
   return Number.isFinite(n) ? n : NaN;
-}
-
-function fileToBase64(file: File): Promise<{ base64: string; mimeType: string }> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result || '');
-      const match = result.match(/^data:([^;]+);base64,(.+)$/);
-      if (!match) {
-        reject(new Error('Invalid image data'));
-        return;
-      }
-      resolve({ mimeType: match[1], base64: match[2] });
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('Read failed'));
-    reader.readAsDataURL(file);
-  });
 }
 
 export default function AiRecognizePage() {
@@ -222,7 +206,7 @@ export default function AiRecognizePage() {
           setDialog({ title: t('food.errorTitle'), message: t('aiRecognize.needPhoto') });
           return;
         }
-        const { base64, mimeType } = await fileToBase64(imageFile);
+        const { base64, mimeType } = await fileToCompressedJpeg(imageFile);
         payload = { mode: 'photo', imageBase64: base64, mimeType, locale };
       } else {
         if (!text.trim()) {

@@ -60,7 +60,7 @@ function toNetworkApiError(error: unknown): ApiError {
   const lower = raw.toLowerCase();
   if (
     error instanceof TypeError ||
-    /failed to fetch|networkerror|load failed|network request failed/i.test(lower)
+    /failed to fetch|networkerror|load failed|network request failed|aborted|the operation was aborted/i.test(lower)
   ) {
     const isHttpsPage =
       typeof window !== 'undefined' && window.location?.protocol === 'https:';
@@ -69,6 +69,12 @@ function toNetworkApiError(error: unknown): ApiError {
       return new ApiError(
         0,
         'A böngésző blokkolta a kérést (HTTPS oldal → HTTP API). Használd a /api proxyt vagy HTTPS API-t.',
+      );
+    }
+    if (/aborted|timeout/i.test(lower)) {
+      return new ApiError(
+        0,
+        'A kérés megszakadt vagy túl sokáig tartott. Próbálj kisebb fotót, vagy ismételd meg.',
       );
     }
     return new ApiError(
@@ -157,7 +163,11 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
           response.status,
           response.ok
             ? 'Érvénytelen válasz a szervertől.'
-            : `Szerver hiba (HTTP ${response.status}, nem JSON).`,
+            : response.status === 502 || response.status === 504
+              ? 'A felismerés nem ért célba (időtúllépés vagy túl nagy kép). Próbálj kisebb/élesebb fotót, vagy ismételd meg.'
+              : response.status === 413
+                ? 'A kép túl nagy. Próbálj kisebb felbontású fotót.'
+                : `Szerver hiba (HTTP ${response.status}).`,
         );
       }
     }
@@ -187,6 +197,10 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
                 ? 'Ez az adat már létezik.'
                 : response.status === 429
                   ? 'Túl sok kérés. Várj egy percet, majd próbáld újra.'
+                  : response.status === 413
+                    ? 'A kép túl nagy. Próbálj kisebb felbontású fotót.'
+                  : response.status === 502 || response.status === 504
+                    ? 'A felismerés nem ért célba. Próbáld újra, vagy küldj kisebb fotót.'
                   : response.status >= 500
                     ? `Szerverhiba (HTTP ${response.status}).`
                     : `A kérés sikertelen (HTTP ${response.status}).`);
