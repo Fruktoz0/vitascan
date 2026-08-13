@@ -81,63 +81,215 @@
 .header {
   position: relative;
   z-index: 2;
-  display: flex;
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
-  padding: max(12px, env(safe-area-inset-top)) 16px 10px;
+  padding: max(12px, env(safe-area-inset-top)) 16px 12px;
   flex-shrink: 0;
   background: rgba(252, 249, 248, 0.96);
   border-bottom: 1.5px solid rgba(28, 27, 27, 0.08);
 }
 
-.headerText {
-  min-width: 0;
-  flex: 1;
-}
-
-.titleRow {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 10px;
-  min-width: 0;
-}
-
-.title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 900;
-  letter-spacing: -0.3px;
-  color: var(--stroke, #1c1b1b);
-  line-height: 1.2;
+.headerSpacer {
+  width: 36px;
+  height: 36px;
 }
 
 .dateChip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  justify-content: center;
+  justify-self: center;
+  gap: 8px;
+  padding: 10px 16px;
   border-radius: 999px;
   border: 1.5px solid var(--stroke, #1c1b1b);
   background: #fff4ea;
   box-shadow: 2px 2px 0 var(--shadow-hard, #1c1b1b);
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 800;
   white-space: nowrap;
   line-height: 1.2;
   color: var(--stroke, #1c1b1b);
+  cursor: pointer;
+  font-family: inherit;
+  max-width: 100%;
 }
 
-.dateInline {
-  display: inline-flex;
+.dateChip:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.pickerOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  background: rgba(28, 27, 27, 0.35);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.pickerSheet {
+  width: 100%;
+  max-height: 72%;
+  background: var(--page, #fcf9f8);
+  border-radius: 22px 22px 0 0;
+  border-top: 1.5px solid var(--stroke, #1c1b1b);
+  box-shadow: 0 -6px 0 rgba(28, 27, 27, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pickerHead {
+  display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1.5px solid rgba(28, 27, 27, 0.08);
+}
+
+.pickerTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.pickerList {
+  overflow-y: auto;
+  padding: 8px 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pickerBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pickerMonth {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 2px 0;
+}
+
+.pickerMonth:first-child {
+  margin-top: 2px;
+}
+
+.pickerMonthLine {
+  flex: 1;
+  height: 1.5px;
+  background: var(--stroke, #1c1b1b);
+  opacity: 0.18;
+  border-radius: 999px;
+}
+
+.pickerMonthLabel {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--stroke, #1c1b1b);
+  background: #eadecc;
+  box-shadow: 2px 2px 0 var(--shadow-hard, #1c1b1b);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: capitalize;
+  letter-spacing: 0.02em;
+  color: var(--stroke, #1c1b1b);
+  white-space: nowrap;
+}
+
+.pickerItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1.5px solid var(--stroke, #1c1b1b);
+  background: #fff;
+  box-shadow: 2px 2px 0 var(--shadow-hard, #1c1b1b);
+  font: inherit;
+  cursor: pointer;
+  color: inherit;
+}
+
+.pickerItemSelected {
+  background: #fff4ea;
+}
+
+.pickerItemLocked {
+  opacity: 0.55;
+}
+
+.pickerRange {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 800;
+  min-width: 0;
+}
+
+.pickerWeekNum {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1.5px solid var(--stroke, #1c1b1b);
+  background: #fff4ea;
+  box-shadow: 1px 1px 0 var(--shadow-hard, #1c1b1b);
+}
+
+.pickerDates {
+  min-width: 0;
+}
+
+.pickerBadge {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #e8f5e9;
+  border: 1px solid var(--stroke, #1c1b1b);
+}
+
+.pickerEnd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.pickerLoggedDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2d8a4e;
+  box-shadow: 0 0 0 1.5px #fff, 0 0 0 3px #2d8a4e22;
+}
+
+.pickerHint {
+  margin: 0;
+  padding: 0 16px 16px;
   font-size: 12px;
   font-weight: 700;
-  opacity: 0.55;
-  white-space: nowrap;
-  line-height: 1.2;
+  opacity: 0.65;
 }
 
 .closeBtn {

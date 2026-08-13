@@ -1,7 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import { authenticate } from '../../middleware/authenticate';
 import { requirePremium } from '../../middleware/tierGuard';
-import { generateExport } from '../../services/exportService';
+import { EXPORT_SHEET_NAMES, generateExport } from '../../services/exportService';
 
 const exportRoutes: FastifyPluginAsync = async (fastify) => {
 
@@ -15,11 +15,23 @@ const exportRoutes: FastifyPluginAsync = async (fastify) => {
     fromDate.setHours(0, 0, 0, 0);
     toDate.setHours(23, 59, 59, 999);
 
-    const [logCount, waterCount] = await Promise.all([
+    const [logCount, waterCount, weightCount, bodyCount, workoutCount, noteCount] = await Promise.all([
       fastify.prisma.dailyLog.count({
         where: { userId, createdAt: { gte: fromDate, lte: toDate } },
       }),
       fastify.prisma.waterLog.count({
+        where: { userId, loggedDate: { gte: fromDate, lte: toDate } },
+      }),
+      fastify.prisma.weightLog.count({
+        where: { userId, loggedDate: { gte: fromDate, lte: toDate } },
+      }),
+      fastify.prisma.bodyMeasurementLog.count({
+        where: { userId, loggedDate: { gte: fromDate, lte: toDate } },
+      }),
+      fastify.prisma.workoutLog.count({
+        where: { userId, startedAt: { gte: fromDate, lte: toDate } },
+      }),
+      fastify.prisma.dayNote.count({
         where: { userId, loggedDate: { gte: fromDate, lte: toDate } },
       }),
     ]);
@@ -32,7 +44,11 @@ const exportRoutes: FastifyPluginAsync = async (fastify) => {
       days,
       logCount,
       waterCount,
-      sheets: ['📝 Napló', '📊 Napi összesítők', '💧 Vízfogyasztás', '👤 Profil'],
+      weightCount,
+      bodyCount,
+      workoutCount,
+      noteCount,
+      sheets: EXPORT_SHEET_NAMES,
     });
   });
 
@@ -46,8 +62,7 @@ const exportRoutes: FastifyPluginAsync = async (fastify) => {
     fromDate.setHours(0, 0, 0, 0);
     toDate.setHours(23, 59, 59, 999);
 
-    // Adatok lekérése
-    const [logs, waterLogs, user] = await Promise.all([
+    const [logs, waterLogs, weightLogs, bodyLogs, workouts, notes, user] = await Promise.all([
       fastify.prisma.dailyLog.findMany({
         where: { userId, createdAt: { gte: fromDate, lte: toDate } },
         orderBy: { createdAt: 'asc' },
@@ -55,6 +70,31 @@ const exportRoutes: FastifyPluginAsync = async (fastify) => {
       fastify.prisma.waterLog.findMany({
         where: { userId, loggedDate: { gte: fromDate, lte: toDate } },
         orderBy: { loggedDate: 'asc' },
+      }),
+      fastify.prisma.weightLog.findMany({
+        where: { userId, loggedDate: { gte: fromDate, lte: toDate } },
+        orderBy: { loggedDate: 'asc' },
+      }),
+      fastify.prisma.bodyMeasurementLog.findMany({
+        where: { userId, loggedDate: { gte: fromDate, lte: toDate } },
+        orderBy: { loggedDate: 'asc' },
+      }),
+      fastify.prisma.workoutLog.findMany({
+        where: { userId, startedAt: { gte: fromDate, lte: toDate } },
+        orderBy: { startedAt: 'asc' },
+        select: {
+          startedAt: true,
+          title: true,
+          activityType: true,
+          durationMin: true,
+          activeEnergyKcal: true,
+          distanceKm: true,
+        },
+      }),
+      fastify.prisma.dayNote.findMany({
+        where: { userId, loggedDate: { gte: fromDate, lte: toDate } },
+        orderBy: { loggedDate: 'asc' },
+        select: { loggedDate: true, content: true },
       }),
       fastify.prisma.user.findUnique({
         where: { id: userId },
@@ -64,10 +104,13 @@ const exportRoutes: FastifyPluginAsync = async (fastify) => {
 
     if (!user) return reply.status(404).send({ error: 'Felhasználó nem található.' });
 
-    // Excel generálása az exportService segítségével
     const buffer = await generateExport({
       logs,
       waterLogs,
+      weightLogs,
+      bodyLogs,
+      workouts,
+      notes,
       user: {
         username:         user.username,
         email:            user.email,

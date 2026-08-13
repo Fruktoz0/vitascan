@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../design/tokens';
-import { IconArrowBack, IconChevronLeft, IconChevronRight } from '../components/ui/Icons';
-import { statsApi, weightApi } from '../services/api';
-import { useDateStore } from '../stores/dateStore';
+import { IconArrowBack, IconChevronLeft, IconChevronRight, IconDownload } from '../components/ui/Icons';
+import { exportApi, getAccessToken, statsApi, weightApi } from '../services/api';
+import { toLocalDateStr, useDateStore } from '../stores/dateStore';
+import { useTierStore } from '../stores/tierStore';
 import styles from './DatePickerPage.module.css';
 
 const DAY_LABELS = ['H', 'K', 'Sz', 'Cs', 'P', 'Szo', 'V'];
@@ -25,20 +26,56 @@ function buildCalendarGrid(year: number, month: number): (number | null)[][] {
   return weeks;
 }
 
+function mondayOf(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  const dow = x.getDay();
+  x.setDate(x.getDate() + (dow === 0 ? -6 : 1 - dow));
+  return x;
+}
+
+function addDays(d: Date, n: number): Date {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+
 export default function DatePickerPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { selectedDate, setDate } = useDateStore();
+  const { fetch: fetchTier, isPremium } = useTierStore();
   const [viewYear, setViewYear] = useState(selectedDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(selectedDate.getMonth());
   const [streak, setStreak] = useState<number | null>(null);
   const [weightDelta, setWeightDelta] = useState<number | null>(null);
+  const [loggedDates, setLoggedDates] = useState<Set<string>>(new Set());
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportFrom, setExportFrom] = useState(() => toLocalDateStr(addDays(new Date(), -30)));
+  const [exportTo, setExportTo] = useState(() => toLocalDateStr(new Date()));
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
+    fetchTier();
     statsApi.streak().then((r) => setStreak(r.streak)).catch(() => setStreak(0));
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = toLocalDateStr(new Date());
     weightApi.getByDate(todayStr).then((res) => setWeightDelta(res.deltaKg)).catch(() => setWeightDelta(null));
-  }, []);
+  }, [fetchTier]);
+
+  useEffect(() => {
+    let cancelled = false;
+    statsApi
+      .loggedDays(viewYear, viewMonth + 1)
+      .then((r) => {
+        if (!cancelled) setLoggedDates(new Set(r.dates));
+      })
+      .catch(() => {
+        if (!cancelled) setLoggedDates(new Set());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [viewYear, viewMonth]);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -53,8 +90,71 @@ export default function DatePickerPage() {
     navigate(-1);
   };
 
+  const applyPreset = (key: string) => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    let from = new Date(now);
+    let to = new Date(now);
+    if (key === 'thisWeek') {
+      from = mondayOf(now);
+      to = addDays(from, 6);
+    } else if (key === 'thisMonth') {
+      from = new Date(now.getFullYear(), now.getMonth(), 1);
+      to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    } else if (key === 'last7') {
+      from = addDays(now, -6);
+    } else if (key === 'last30') {
+      from = addDays(now, -29);
+    } else if (key === 'last90') {
+      from = addDays(now, -89);
+    } else if (key === 'thisYear') {
+      from = new Date(now.getFullYear(), 0, 1);
+    } else if (key === 'lastYear') {
+      from = new Date(now.getFullYear() - 1, 0, 1);
+      to = new Date(now.getFullYear() - 1, 11, 31);
+    }
+    setExportFrom(toLocalDateStr(from));
+    setExportTo(toLocalDateStr(to));
+  };
+
+  const handleExport = async () => {
+    if (!isPremium()) {
+      alert(t('premiumMeta.exportDesc'));
+      return;
+    }
+    setExporting(true);
+    const url = exportApi.getDownloadUrl(exportFrom, exportTo);
+    const token = getAccessToken();
+    try {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `vitascan_export_${exportFrom}_${exportTo}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      alert(t('export.downloadErrorTitle'));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const weightText =
     weightDelta === null ? '-' : weightDelta === 0 ? '0.0 kg' : `${weightDelta > 0 ? '+' : ''}${weightDelta.toFixed(1)} kg`;
+
+  const presets = useMemo(
+    () =>
+      [
+        ['thisWeek', t('export.presets.thisWeek')],
+        ['thisMonth', t('export.presets.thisMonth')],
+        ['last7', t('export.presets.last7')],
+        ['last30', t('export.presets.last30')],
+        ['last90', t('export.presets.last90')],
+      ] as const,
+    [t],
+  );
 
   return (
     <div className={`${styles.screen} page-scroll`}>
@@ -120,6 +220,8 @@ export default function DatePickerPage() {
               d.setHours(0, 0, 0, 0);
               const isToday = d.getTime() === today.getTime();
               const isSelected = d.getTime() === sel.getTime();
+              const dateStr = toLocalDateStr(d);
+              const hasLog = loggedDates.has(dateStr);
               return (
                 <button
                   key={di}
@@ -128,11 +230,66 @@ export default function DatePickerPage() {
                   onClick={() => selectDay(day)}
                 >
                   {day}
+                  {hasLog ? <span className={styles.loggedDot} aria-hidden /> : null}
                 </button>
               );
             })}
           </div>
         ))}
+      </div>
+
+      <div className={styles.exportWrap}>
+        <button
+          type="button"
+          className={styles.exportToggle}
+          onClick={() => setExportOpen((v) => !v)}
+        >
+          <IconDownload size={18} color={Colors.dashboard.stroke} />
+          {t('export.downloadXlsx')}
+        </button>
+
+        {exportOpen && (
+          <div className={styles.exportPanel}>
+            <p className={styles.exportLabel}>{t('export.selectRange')}</p>
+            <div className={styles.presetRow}>
+              {presets.map(([key, label]) => (
+                <button key={key} type="button" className={styles.preset} onClick={() => applyPreset(key)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className={styles.rangeRow}>
+              <label className={styles.rangeField}>
+                <span>{t('export.from')}</span>
+                <input
+                  type="date"
+                  value={exportFrom}
+                  max={exportTo}
+                  onChange={(e) => setExportFrom(e.target.value)}
+                />
+              </label>
+              <label className={styles.rangeField}>
+                <span>{t('export.to')}</span>
+                <input
+                  type="date"
+                  value={exportTo}
+                  min={exportFrom}
+                  max={toLocalDateStr(new Date())}
+                  onChange={(e) => setExportTo(e.target.value)}
+                />
+              </label>
+            </div>
+            <button
+              type="button"
+              className={styles.exportGo}
+              onClick={handleExport}
+              disabled={exporting || !exportFrom || !exportTo}
+            >
+              <IconDownload size={18} color={Colors.dashboard.stroke} />
+              {exporting ? t('export.generating') : t('export.downloadXlsx')}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -221,8 +221,18 @@ interface UserDto {
 export const statsApi = {
   today: () => request<any>('/stats/today'),
   day: (date: string) => request<any>(`/stats/day?date=${date}`),
-  weekly: () => request<WeeklyStatsResult>('/stats/weekly'),
+  weekly: (opts?: { weekStart?: string; weeksBack?: number }) => {
+    const p = new URLSearchParams();
+    if (opts?.weekStart) p.set('weekStart', opts.weekStart);
+    if (opts?.weeksBack != null) p.set('weeksBack', String(opts.weeksBack));
+    const q = p.toString();
+    return request<WeeklyStatsResult>(`/stats/weekly${q ? `?${q}` : ''}`);
+  },
   monthly: (year: number, month: number) => request<any>(`/stats/monthly?year=${year}&month=${month}`),
+  loggedDays: (year: number, month: number) =>
+    request<{ year: number; month: number; dates: string[] }>(
+      `/stats/logged-days?year=${year}&month=${month}`,
+    ),
   streak: () => request<{ streak: number; message: string }>('/stats/streak'),
 };
 

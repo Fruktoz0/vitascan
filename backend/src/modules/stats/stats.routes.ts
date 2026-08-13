@@ -23,6 +23,44 @@ function flattenLogsWithBrand<T extends LogWithFoodBrand>(logs: T[]) {
   }));
 }
 
+function dateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function parseDateKey(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d, 0, 0, 0, 0);
+}
+
+function startOfIsoWeek(ref: Date): Date {
+  const d = new Date(ref);
+  d.setHours(0, 0, 0, 0);
+  const dow = d.getDay();
+  d.setDate(d.getDate() + (dow === 0 ? -6 : 1 - dow));
+  return d;
+}
+
+function endOfIsoWeek(monday: Date): Date {
+  const d = new Date(monday);
+  d.setDate(d.getDate() + 6);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+function resolveWeekWindow(weekStart?: string, weeksBackNum = 0): { startDate: Date; endDate: Date } {
+  let monday: Date;
+  if (weekStart && /^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
+    monday = startOfIsoWeek(parseDateKey(weekStart));
+  } else {
+    monday = startOfIsoWeek(new Date());
+    monday.setDate(monday.getDate() - weeksBackNum * 7);
+  }
+  return { startDate: monday, endDate: endOfIsoWeek(monday) };
+}
+
 const statsRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /stats/today — mai összesítő + makrók + étkezéstípus bontás
@@ -141,20 +179,14 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     });
   });
 
-  // GET /stats/weekly — heti adatok (7 nap visszamenőleg)
+  // GET /stats/weekly — naptári hét (hétfő–vasárnap)
   fastify.get('/weekly', { preHandler: [authenticate, weeklyStatsGuard] }, async (request, reply) => {
     const userId = request.user.userId;
-    const { weeksBack = '0' } = request.query as { weeksBack?: string };
+    const { weeksBack = '0', weekStart } = request.query as { weeksBack?: string; weekStart?: string };
 
     const weeksBackNum = parseInt(weeksBack) || 0;
-
-    const endDate = new Date();
-    endDate.setHours(23, 59, 59, 999);
-    endDate.setDate(endDate.getDate() - weeksBackNum * 7);
-
-    const startDate = new Date(endDate);
-    startDate.setDate(startDate.getDate() - 6);
-    startDate.setHours(0, 0, 0, 0);
+    const { startDate, endDate } = resolveWeekWindow(weekStart, weeksBackNum);
+    const todayKey = dateKey(new Date());
 
     const [logs, profile, weightLogs, bodyLogs, prevLogs] = await Promise.all([
       fastify.prisma.dailyLog.findMany({
@@ -192,10 +224,10 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     for (let i = 0; i < 7; i++) {
       const d = new Date(startDate);
       d.setDate(d.getDate() + i);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = dateKey(d);
 
       const dayLogs = logs.filter(
-        (l) => l.createdAt.toISOString().split('T')[0] === dateStr
+        (l) => dateKey(l.createdAt) === dateStr
       );
 
       days.push({
@@ -208,11 +240,14 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
 
+    const elapsedDays = days.filter((d) => d.date <= todayKey);
+    const avgDenom = Math.max(elapsedDays.length, 1);
+    const avgSource = elapsedDays.length > 0 ? elapsedDays : days;
     const avg = {
-      kcal:    Math.round(days.reduce((s, d) => s + d.kcal, 0) / 7),
-      protein: Math.round(days.reduce((s, d) => s + d.protein, 0) / 7 * 10) / 10,
-      carbs:   Math.round(days.reduce((s, d) => s + d.carbs, 0) / 7 * 10) / 10,
-      fat:     Math.round(days.reduce((s, d) => s + d.fat, 0) / 7 * 10) / 10,
+      kcal:    Math.round(avgSource.reduce((s, d) => s + d.kcal, 0) / avgDenom),
+      protein: Math.round(avgSource.reduce((s, d) => s + d.protein, 0) / avgDenom * 10) / 10,
+      carbs:   Math.round(avgSource.reduce((s, d) => s + d.carbs, 0) / avgDenom * 10) / 10,
+      fat:     Math.round(avgSource.reduce((s, d) => s + d.fat, 0) / avgDenom * 10) / 10,
     };
 
     const dailyKcalGoal = profile?.dailyKcalGoal ?? 2000;
@@ -288,7 +323,7 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
 
     for (const l of logs) {
       const mealType = l.mealType as string;
-      const dateStr = l.createdAt.toISOString().split('T')[0];
+      const dateStr = dateKey(l.createdAt);
       if (!mealDaySets[mealType]) mealDaySets[mealType] = new Map();
       const dayMap = mealDaySets[mealType];
       const prev = dayMap.get(dateStr) ?? { kcal: 0, protein: 0, carbs: 0, fat: 0 };
@@ -354,16 +389,16 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
 
-    // Previous week (rolling 7 days before current window)
+    // Previous calendar week (Monday–Sunday before current window)
     const prevDays: typeof days = [];
     const prevStart = new Date(startDate);
     prevStart.setDate(prevStart.getDate() - 7);
     for (let i = 0; i < 7; i++) {
       const d = new Date(prevStart);
       d.setDate(d.getDate() + i);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = dateKey(d);
       const dayLogs = prevLogs.filter(
-        (l) => l.createdAt.toISOString().split('T')[0] === dateStr,
+        (l) => dateKey(l.createdAt) === dateStr,
       );
       prevDays.push({
         date: dateStr,
@@ -433,8 +468,8 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       firstCm: v.firstCm,
       lastCm: v.lastCm,
       deltaCm: Math.round((v.lastCm - v.firstCm) * 10) / 10,
-      firstDate: v.firstDate.toISOString().split('T')[0],
-      lastDate: v.lastDate.toISOString().split('T')[0],
+      firstDate: dateKey(v.firstDate),
+      lastDate: dateKey(v.lastDate),
     }));
 
     if (weightLogs.length > 0 || measurements.length > 0) {
@@ -443,10 +478,10 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
         firstWeightKg: weightLogs[0]?.weightKg ?? null,
         lastWeightKg: weightLogs[weightLogs.length - 1]?.weightKg ?? null,
         firstWeightDate: weightLogs[0]
-          ? weightLogs[0].loggedDate.toISOString().split('T')[0]
+          ? dateKey(weightLogs[0].loggedDate)
           : null,
         lastWeightDate: weightLogs[weightLogs.length - 1]
-          ? weightLogs[weightLogs.length - 1].loggedDate.toISOString().split('T')[0]
+          ? dateKey(weightLogs[weightLogs.length - 1].loggedDate)
           : null,
         measurements,
       };
@@ -454,7 +489,7 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
 
     const weightByDate = new Map<string, number>();
     for (const w of weightLogs) {
-      const dateStr = w.loggedDate.toISOString().split('T')[0];
+      const dateStr = dateKey(w.loggedDate);
       weightByDate.set(dateStr, w.weightKg);
     }
     const weightDaily = days.map((d) => ({
@@ -470,8 +505,8 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
       mealAvg,
       mealDaily,
       weightDaily,
-      from: startDate.toISOString().split('T')[0],
-      to: endDate.toISOString().split('T')[0],
+      from: dateKey(startDate),
+      to: dateKey(endDate),
       goals: {
         dailyKcalGoal,
         dailyProteinGoal,
@@ -501,6 +536,29 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
         body,
       },
     });
+  });
+
+  // GET /stats/logged-days?year=2026&month=8 — napok, ahol van ételnapló
+  fastify.get('/logged-days', { preHandler: authenticate }, async (request, reply) => {
+    const userId = request.user.userId;
+    const { year, month } = request.query as { year?: string; month?: string };
+
+    const y = parseInt(year ?? String(new Date().getFullYear()), 10);
+    const m = parseInt(month ?? String(new Date().getMonth() + 1), 10);
+    if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) {
+      return reply.status(400).send({ error: 'Érvénytelen év vagy hónap.' });
+    }
+
+    const startDate = new Date(y, m - 1, 1, 0, 0, 0, 0);
+    const endDate = new Date(y, m, 0, 23, 59, 59, 999);
+
+    const logs = await fastify.prisma.dailyLog.findMany({
+      where: { userId, createdAt: { gte: startDate, lte: endDate } },
+      select: { createdAt: true },
+    });
+
+    const dates = [...new Set(logs.map((l) => dateKey(l.createdAt)))].sort();
+    return reply.send({ year: y, month: m, dates });
   });
 
   // GET /stats/monthly?year=2025&month=3 — havi adatok (PREMIUM)

@@ -11,6 +11,7 @@ import {
   IconExpandMore,
   IconFlag,
   IconLocalFire,
+  IconLockOutline,
   IconPieChartOutline,
   IconRestaurant,
   IconScaleOutline,
@@ -20,6 +21,7 @@ import { Colors } from '../../design/tokens';
 import {
   analysisApi,
   ApiError,
+  statsApi,
   type DailyAnalysisResult,
   type WeeklyStatsResult,
 } from '../../services/api';
@@ -27,6 +29,7 @@ import { getItem, setItem, deleteItem } from '../../services/storage';
 import { parseAnalysisContent } from '../../utils/parseAnalysisContent';
 import { MEAL_META, type MealType } from '../../utils/mealMeta';
 import { BODY_PART_META, isBodyPart } from '../../utils/bodyMeta';
+import { useTierStore } from '../../stores/tierStore';
 import styles from './WeeklyInsightsSheet.module.css';
 
 type Props = {
@@ -92,6 +95,62 @@ function collapseKey(weekTo: string) {
   return `weeklyAiCollapsed:${weekTo}`;
 }
 
+function mondayOf(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(12, 0, 0, 0);
+  const dow = x.getDay();
+  x.setDate(x.getDate() + (dow === 0 ? -6 : 1 - dow));
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function formatYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+type WeekOption = { from: string; to: string; weeksBack: number; weekNum: number; monthKey: string };
+
+function isoWeekNumber(d: Date): number {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+}
+
+function eachYmd(from: string, to: string): string[] {
+  const out: string[] = [];
+  const d = parseLocalDate(from);
+  const end = parseLocalDate(to);
+  while (d.getTime() <= end.getTime()) {
+    out.push(formatYmd(d));
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
+function buildWeekOptions(count = 24): WeekOption[] {
+  const currentMon = mondayOf(new Date());
+  const weeks: WeekOption[] = [];
+  for (let i = 0; i < count; i++) {
+    const start = new Date(currentMon);
+    start.setDate(start.getDate() - i * 7);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    weeks.push({
+      from: formatYmd(start),
+      to: formatYmd(end),
+      weeksBack: i,
+      weekNum: isoWeekNumber(start),
+      monthKey: `${start.getFullYear()}-${start.getMonth()}`,
+    });
+  }
+  return weeks;
+}
+
 const MEAL_ORDER: MealType[] = ['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK'];
 
 const MEAL_I18N: Record<MealType, string> = {
@@ -105,19 +164,63 @@ const MEAL_I18N: Record<MealType, string> = {
 
 export default function WeeklyInsightsSheet({
   open,
-  weekly,
-  analysis,
-  analysisLoading,
+  weekly: homeWeekly,
+  analysis: homeAnalysis,
+  analysisLoading: homeAnalysisLoading,
   onClose,
   onSelectDate,
   onAnalysisChange,
 }: Props) {
   const { t } = useTranslation();
   const titleId = useId();
+  const { fetch: fetchTier, isPremium } = useTierStore();
+  const [weekly, setWeekly] = useState<WeeklyStatsResult>(homeWeekly);
+  const [analysis, setAnalysis] = useState<DailyAnalysisResult | null>(homeAnalysis);
+  const [analysisLoading, setAnalysisLoading] = useState(homeAnalysisLoading);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aiCollapsed, setAiCollapsed] = useState(false);
   const [chartSpec, setChartSpec] = useState<WeeklyChartSpec | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [weekLoading, setWeekLoading] = useState(false);
+  const [loggedDateSet, setLoggedDateSet] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!open) return;
+    setWeekly(homeWeekly);
+    setAnalysis(homeAnalysis);
+    setAnalysisLoading(homeAnalysisLoading);
+    setPickerOpen(false);
+    setError(null);
+    fetchTier();
+  }, [open]);
+
+  useEffect(() => {
+    if (!pickerOpen) return;
+    let cancelled = false;
+    const weeks = buildWeekOptions();
+    const months = new Map<string, { year: number; month: number }>();
+    for (const w of weeks) {
+      const from = parseLocalDate(w.from);
+      const to = parseLocalDate(w.to);
+      months.set(`${from.getFullYear()}-${from.getMonth() + 1}`, {
+        year: from.getFullYear(),
+        month: from.getMonth() + 1,
+      });
+      months.set(`${to.getFullYear()}-${to.getMonth() + 1}`, {
+        year: to.getFullYear(),
+        month: to.getMonth() + 1,
+      });
+    }
+    Promise.all([...months.values()].map(({ year, month }) => statsApi.loggedDays(year, month).catch(() => ({ dates: [] as string[] }))))
+      .then((results) => {
+        if (cancelled) return;
+        setLoggedDateSet(new Set(results.flatMap((r) => r.dates)));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pickerOpen]);
 
   const summary = weekly.summary;
   const goals = weekly.goals;
@@ -144,11 +247,16 @@ export default function WeeklyInsightsSheet({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !chartSpec) onClose();
+      if (e.key !== 'Escape') return;
+      if (pickerOpen) {
+        setPickerOpen(false);
+        return;
+      }
+      if (!chartSpec) onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose, chartSpec]);
+  }, [open, onClose, chartSpec, pickerOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -265,7 +373,8 @@ export default function WeeklyInsightsSheet({
     try {
       const locale = i18n.language?.startsWith('en') ? 'en' : 'hu';
       const result = await analysisApi.generate(weekly.to, locale, 'weeklyNutrition');
-      onAnalysisChange(result);
+      setAnalysis(result);
+      if (weekly.from === homeWeekly.from) onAnalysisChange(result);
       const stored = await getItem(collapseKey(weekly.to));
       if (stored === '1') setAiCollapsed(true);
     } catch (err) {
@@ -277,6 +386,36 @@ export default function WeeklyInsightsSheet({
       }
     } finally {
       setBusy(false);
+    }
+  };
+
+  const selectWeek = async (opt: WeekOption) => {
+    if (opt.weeksBack > 1 && !isPremium()) return;
+    if (opt.from === weekly.from) {
+      setPickerOpen(false);
+      return;
+    }
+    setWeekLoading(true);
+    setError(null);
+    try {
+      const next = await statsApi.weekly({ weekStart: opt.from });
+      setWeekly(next);
+      setPickerOpen(false);
+      setAnalysisLoading(true);
+      try {
+        const wa = await analysisApi.get(next.to, 'weeklyNutrition').catch(() => null);
+        setAnalysis(wa);
+      } finally {
+        setAnalysisLoading(false);
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        setError(t('premiumMeta.fullHistoryDesc'));
+      } else {
+        setError(t('homeScreen.weeklyEvalError'));
+      }
+    } finally {
+      setWeekLoading(false);
     }
   };
 
@@ -325,17 +464,21 @@ export default function WeeklyInsightsSheet({
         <div className={styles.blobB} aria-hidden />
 
         <div className={styles.header}>
-          <div className={styles.headerText}>
-            <div className={styles.titleRow}>
-              <h2 id={titleId} className={styles.title}>
-                {t('homeScreen.weeklyInsightsTitle')}
-              </h2>
-              <span className={styles.dateChip}>
-                <IconCalendarToday size={14} color={Colors.dashboard.stroke} />
-                {formatRangeLabel(weekly.from, weekly.to)}
-              </span>
-            </div>
-          </div>
+          <span className={styles.headerSpacer} aria-hidden />
+          <button
+            type="button"
+            id={titleId}
+            className={styles.dateChip}
+            onClick={() => setPickerOpen(true)}
+            disabled={weekLoading}
+            aria-haspopup="listbox"
+            aria-expanded={pickerOpen}
+            aria-label={t('homeScreen.weeklyPickWeek')}
+          >
+            <IconCalendarToday size={18} color={Colors.dashboard.stroke} />
+            <span>{formatRangeLabel(weekly.from, weekly.to)}</span>
+            <IconExpandMore size={18} color={Colors.dashboard.stroke} />
+          </button>
           <button type="button" className={styles.closeBtn} onClick={onClose} aria-label={t('common.close')}>
             <IconClose size={20} color={Colors.dashboard.stroke} />
           </button>
@@ -835,6 +978,81 @@ export default function WeeklyInsightsSheet({
             </div>
           </section>
         </div>
+
+        {pickerOpen && (
+          <div
+            className={styles.pickerOverlay}
+            role="presentation"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setPickerOpen(false);
+            }}
+          >
+            <div className={styles.pickerSheet} role="listbox" aria-label={t('homeScreen.weeklyPickWeek')}>
+              <div className={styles.pickerHead}>
+                <h3 className={styles.pickerTitle}>{t('homeScreen.weeklyPickWeek')}</h3>
+                <button
+                  type="button"
+                  className={styles.closeBtn}
+                  onClick={() => setPickerOpen(false)}
+                  aria-label={t('common.close')}
+                >
+                  <IconClose size={20} color={Colors.dashboard.stroke} />
+                </button>
+              </div>
+              <div className={styles.pickerList}>
+                {buildWeekOptions().map((opt, index, all) => {
+                  const locked = opt.weeksBack > 1 && !isPremium();
+                  const selected = opt.from === weekly.from;
+                  const hasLog = eachYmd(opt.from, opt.to).some((d) => loggedDateSet.has(d));
+                  const prev = index > 0 ? all[index - 1] : null;
+                  const showMonth = !prev || prev.monthKey !== opt.monthKey;
+                  const monthLabel = parseLocalDate(opt.from).toLocaleDateString(
+                    i18n.language === 'hu' ? 'hu-HU' : 'en-US',
+                    { month: 'long', year: 'numeric' },
+                  );
+                  return (
+                    <div key={opt.from} className={styles.pickerBlock}>
+                      {showMonth ? (
+                        <div className={styles.pickerMonth} aria-hidden={false}>
+                          <span className={styles.pickerMonthLine} />
+                          <span className={styles.pickerMonthLabel}>{monthLabel}</span>
+                          <span className={styles.pickerMonthLine} />
+                        </div>
+                      ) : null}
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={selected}
+                        className={`${styles.pickerItem} ${selected ? styles.pickerItemSelected : ''} ${locked ? styles.pickerItemLocked : ''}`.trim()}
+                        disabled={weekLoading}
+                        onClick={() => selectWeek(opt)}
+                      >
+                        <span className={styles.pickerRange}>
+                          <span className={styles.pickerWeekNum}>
+                            {t('homeScreen.weeklyWeekNumber', { n: opt.weekNum })}
+                          </span>
+                          <span className={styles.pickerDates}>{formatRangeLabel(opt.from, opt.to)}</span>
+                          {opt.weeksBack === 0 ? (
+                            <span className={styles.pickerBadge}>{t('homeScreen.weeklyThisWeek')}</span>
+                          ) : null}
+                        </span>
+                        <span className={styles.pickerEnd}>
+                          {hasLog ? <span className={styles.pickerLoggedDot} aria-hidden /> : null}
+                          {locked ? (
+                            <IconLockOutline size={18} color={Colors.dashboard.stroke} />
+                          ) : null}
+                        </span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              {!isPremium() && (
+                <p className={styles.pickerHint}>{t('homeScreen.weeklyLockedWeek')}</p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <WeeklyMetricChartSheet

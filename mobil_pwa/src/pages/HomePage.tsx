@@ -307,7 +307,6 @@ export default function HomePage() {
         {weeklyStats?.summary && weeklyStats.goals && (
           <WeeklyCalorieEvalCard
             summary={weeklyStats.summary}
-            goalKcal={weeklyStats.goals.dailyKcalGoal}
             teaser={(() => {
               const parsed = parseAnalysisContent(weeklyAnalysis?.content);
               if (parsed?.kind === 'structured') {

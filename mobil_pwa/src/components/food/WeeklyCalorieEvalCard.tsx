@@ -1,13 +1,12 @@
 import { useTranslation } from 'react-i18next';
 import { GlassCardSimple } from '../ui/GlassCard';
-import { IconChevronRight } from '../ui/Icons';
+import { IconChevronRight, IconLocalFire } from '../ui/Icons';
 import { Colors } from '../../design/tokens';
 import type { WeeklyStatsSummary } from '../../services/api';
 import styles from './WeeklyCalorieEvalCard.module.css';
 
 type Props = {
   summary: WeeklyStatsSummary;
-  goalKcal: number;
   teaser?: string | null;
   onOpen: () => void;
 };
@@ -17,7 +16,7 @@ function formatDelta(delta: number): string {
   return String(delta);
 }
 
-export default function WeeklyCalorieEvalCard({ summary, goalKcal, teaser, onOpen }: Props) {
+export default function WeeklyCalorieEvalCard({ summary, teaser, onOpen }: Props) {
   const { t } = useTranslation();
   const delta = summary.avgDeltaVsGoal;
   const deltaClass =
@@ -36,11 +35,14 @@ export default function WeeklyCalorieEvalCard({ summary, goalKcal, teaser, onOpe
     >
       <button type="button" className={styles.root} onClick={onOpen} aria-haspopup="dialog">
         <div className={styles.header}>
-          <div className={styles.titleBlock}>
+          <div className={styles.headerLeft}>
+            <span className={styles.iconCircle}>
+              <span className={styles.iconShadow} />
+              <span className={styles.iconInner}>
+                <IconLocalFire size={20} color={Colors.dashboard.stroke} />
+              </span>
+            </span>
             <h2 className={styles.title}>{t('homeScreen.weeklyEvalTitle')}</h2>
-            <p className={styles.subtitle}>
-              {t('homeScreen.weeklyEvalDetails')} · {t('homeScreen.goal')}: {goalKcal} kcal
-            </p>
           </div>
           <span className={styles.chevron} aria-hidden>
             <IconChevronRight size={20} color={Colors.dashboard.stroke} />

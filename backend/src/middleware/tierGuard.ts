@@ -98,9 +98,24 @@ export async function requirePremium(req: FastifyRequest, reply: FastifyReply) {
 
 // ─── Middleware: heti stat múlt-korlát ────────────────────────────────────────
 
+function startOfIsoWeekLocal(ref: Date): Date {
+  const d = new Date(ref);
+  d.setHours(0, 0, 0, 0);
+  const dow = d.getDay();
+  d.setDate(d.getDate() + (dow === 0 ? -6 : 1 - dow));
+  return d;
+}
+
 export async function weeklyStatsGuard(req: FastifyRequest, reply: FastifyReply) {
-  const { weeksBack } = req.query as { weeksBack?: string };
-  if (!weeksBack || parseInt(weeksBack) <= 1) return;
+  const { weeksBack, weekStart } = req.query as { weeksBack?: string; weekStart?: string };
+  let back = parseInt(weeksBack || '0', 10) || 0;
+  if (weekStart && /^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
+    const [y, m, d] = weekStart.split('-').map(Number);
+    const requested = startOfIsoWeekLocal(new Date(y, m - 1, d));
+    const current = startOfIsoWeekLocal(new Date());
+    back = Math.round((current.getTime() - requested.getTime()) / (7 * 24 * 60 * 60 * 1000));
+  }
+  if (back <= 1) return;
   const prisma = (req.server as any).prisma;
   const userId = (req.user as any).id ?? (req.user as any).userId;
   const tier = await getUserTier(prisma, userId);
