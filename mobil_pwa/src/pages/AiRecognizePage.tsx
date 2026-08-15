@@ -188,7 +188,7 @@ export default function AiRecognizePage() {
   const [dishName, setDishName] = useState('');
   const [ingredients, setIngredients] = useState<IngredientDraft[]>([]);
   const [saveToLibrary, setSaveToLibrary] = useState(false);
-  const [logAsPrepared, setLogAsPrepared] = useState(false);
+  const [showIngredients, setShowIngredients] = useState(true);
   const [scaleWithAmount, setScaleWithAmount] = useState(true);
   const [dishBrand, setDishBrand] = useState('');
   const [dishBarcode, setDishBarcode] = useState('');
@@ -237,8 +237,8 @@ export default function AiRecognizePage() {
     });
     setIngredients(drafts);
     applyDishMeta(drafts);
-    // Meal suggest → default as prepared dish (not ingredient breakdown).
-    setLogAsPrepared(true);
+    // Meal suggest → default as one dish (not ingredient breakdown).
+    setShowIngredients(false);
     setMode('result');
   }, [prefillSuggestion, t]);
 
@@ -506,7 +506,7 @@ export default function AiRecognizePage() {
       const date = toLocalDateStr(selectedDate);
       const dishLabel = dishName.trim();
 
-      if (logAsPrepared) {
+      if (!showIngredients) {
         await logApi.create({
           ...(preparedFoodId ? { foodId: preparedFoodId } : {}),
           foodName: dishLabel || parsed[0]!.name,
@@ -691,21 +691,19 @@ export default function AiRecognizePage() {
                 value={dishName}
                 onChange={(e) => setDishName(e.target.value)}
               />
-              <label className={styles.preparedCheck}>
-                <span className={styles.preparedCheckBox} data-checked={logAsPrepared || undefined}>
-                  <input
-                    type="checkbox"
-                    checked={logAsPrepared}
-                    onChange={(e) => setLogAsPrepared(e.target.checked)}
-                  />
-                  {logAsPrepared ? '✓' : null}
-                </span>
-                <span className={styles.preparedCheckText}>
-                  <strong>{t('aiRecognize.logAsPrepared')}</strong>
-                  <small>{t('aiRecognize.logAsPreparedHint')}</small>
-                </span>
-              </label>
             </div>
+            <button
+              type="button"
+              className={styles.ingredientsToggle}
+              data-on={showIngredients || undefined}
+              aria-pressed={showIngredients}
+              onClick={() => setShowIngredients((v) => !v)}
+            >
+              <span className={styles.ingredientsToggleLabel}>{t('food.logAsPrepared')}</span>
+              <span className={styles.ingredientsSwitch} data-on={showIngredients || undefined}>
+                <span className={styles.ingredientsSwitchThumb} />
+              </span>
+            </button>
 
             {remaining != null && (
               <p className={styles.hint}>{t('aiRecognize.remaining', { count: remaining })}</p>
@@ -726,7 +724,7 @@ export default function AiRecognizePage() {
               </span>
             </label>
 
-            {logAsPrepared ? (
+            {!showIngredients ? (
               <div className={styles.preparedDishCard}>
                 <div className={styles.preparedDishHead}>
                   <span className={styles.preparedDishBadge}>{t('aiRecognize.preparedDishBadge')}</span>

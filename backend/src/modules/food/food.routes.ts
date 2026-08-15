@@ -7,6 +7,7 @@ import { searchUSDA, type USDANormalizedFood } from '../../services/usdaFoodData
 import { checkProfanity } from '../../utils/profanity';
 import {
   compareFoodsForSearch,
+  findFoodIdsByAccentInsensitiveName,
   foodHasCyrillic,
   mapFoodResponse,
   resolveOrigin,
@@ -237,23 +238,22 @@ export default async function foodRoutes(fastify: FastifyInstance) {
       where.source = 'USER_SCAN';
       where.externalId = null;
     }
-    if (query) {
-      where.OR = [
-        { name: { contains: query, mode: 'insensitive' } },
-        { nameHu: { contains: query, mode: 'insensitive' } },
-        { nameEn: { contains: query, mode: 'insensitive' } },
-        { brand: { contains: query, mode: 'insensitive' } },
-      ];
+    let foodsRaw: any[] = [];
+    let totalLocal = 0;
+    const matchedIds = query ? await findFoodIdsByAccentInsensitiveName(prisma, query) : null;
+    if (!matchedIds || matchedIds.length > 0) {
+      if (matchedIds && matchedIds.length > 0) {
+        where.id = { in: matchedIds };
+      }
+      [foodsRaw, totalLocal] = await Promise.all([
+        prisma.food.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          include: foodInclude,
+        }),
+        prisma.food.count({ where }),
+      ]);
     }
-
-    const [foodsRaw, totalLocal] = await Promise.all([
-      prisma.food.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        include: foodInclude,
-      }),
-      prisma.food.count({ where }),
-    ]);
 
     const localSorted = foodsRaw
       .filter((f: any) => !foodHasCyrillic(f))

@@ -1,6 +1,70 @@
 /** Cirill betűk — ilyen nevű ételeket nem jelenítünk meg. */
 const CYRILLIC_RE = /\p{Script=Cyrillic}/u;
 
+/**
+ * PostgreSQL `translate()` 1:1 mapping (NFC). Keep in sync with `foldDiacritics`.
+ * Hungarian: áéíóöőúüű → aeiou
+ */
+const ACCENT_PAIRS: Array<[string, string]> = [
+  ['á', 'a'], ['à', 'a'], ['â', 'a'], ['ä', 'a'], ['ã', 'a'], ['å', 'a'],
+  ['é', 'e'], ['è', 'e'], ['ê', 'e'], ['ë', 'e'],
+  ['í', 'i'], ['ì', 'i'], ['î', 'i'], ['ï', 'i'],
+  ['ó', 'o'], ['ò', 'o'], ['ô', 'o'], ['ö', 'o'], ['õ', 'o'], ['ő', 'o'], ['ø', 'o'],
+  ['ú', 'u'], ['ù', 'u'], ['û', 'u'], ['ü', 'u'], ['ű', 'u'],
+  ['ñ', 'n'], ['ç', 'c'], ['ÿ', 'y'],
+];
+export const SQL_ACCENT_FROM = ACCENT_PAIRS.map(([from]) => from).join('');
+export const SQL_ACCENT_TO = ACCENT_PAIRS.map(([, to]) => to).join('');
+
+/** Ékezetek eltávolítása, hogy a „tojas” és „tojás” ugyanazt találja. */
+export function foldDiacritics(input: string): string {
+  let s = input
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/ø/g, 'o')
+    .replace(/æ/g, 'ae')
+    .replace(/œ/g, 'oe')
+    .replace(/ß/g, 'ss');
+
+  let out = '';
+  for (const ch of s) {
+    const i = SQL_ACCENT_FROM.indexOf(ch);
+    out += i >= 0 ? SQL_ACCENT_TO[i]! : ch;
+  }
+  return out;
+}
+
+export function foldedLikePattern(query: string): string | null {
+  const folded = foldDiacritics(query).replace(/[%_\\]/g, '');
+  if (!folded) return null;
+  return `%${folded}%`;
+}
+
+type PrismaRaw = {
+  $queryRaw: <T = unknown>(query: TemplateStringsArray, ...values: unknown[]) => Promise<T>;
+};
+
+/** Ékezetfüggetlen név/márka egyezés a Food táblán. */
+export async function findFoodIdsByAccentInsensitiveName(
+  prisma: PrismaRaw,
+  query: string,
+): Promise<string[]> {
+  const pattern = foldedLikePattern(query);
+  if (!pattern) return [];
+  const from = SQL_ACCENT_FROM;
+  const to = SQL_ACCENT_TO;
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT id FROM "Food"
+    WHERE translate(lower(coalesce(name, '')), ${from}, ${to}) LIKE ${pattern}
+       OR translate(lower(coalesce("nameHu", '')), ${from}, ${to}) LIKE ${pattern}
+       OR translate(lower(coalesce("nameEn", '')), ${from}, ${to}) LIKE ${pattern}
+       OR translate(lower(coalesce(brand, '')), ${from}, ${to}) LIKE ${pattern}
+  `;
+  return rows.map((r) => r.id);
+}
+
 export function hasCyrillic(...parts: Array<string | null | undefined>): boolean {
   return parts.some((p) => p != null && CYRILLIC_RE.test(p));
 }
@@ -43,12 +107,12 @@ export function textRelevanceScore(
   },
   query: string,
 ): number {
-  const q = query.trim().toLowerCase();
+  const q = foldDiacritics(query);
   if (!q) return 0;
 
   const scoreField = (value: string | null | undefined, weight: number): number => {
     if (!value) return 0;
-    const v = value.trim().toLowerCase();
+    const v = foldDiacritics(value);
     if (!v) return 0;
     if (v === q) return 1000 * weight;
     if (v.startsWith(q)) return 800 * weight - Math.min(v.length, 200);

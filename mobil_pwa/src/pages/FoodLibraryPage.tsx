@@ -10,10 +10,12 @@ import {
   IconCalendarToday,
   IconChevronRight,
   IconContentCopy,
+  IconEdit,
   IconLocalFire,
   IconNoteOutline,
   IconPieChartOutline,
 } from '../components/ui/Icons';
+import { SwipeDeleteRow } from '../components/ui/SwipeDeleteRow';
 import {
   analysisApi,
   dayNoteApi,
@@ -49,7 +51,13 @@ const HU_WEEKDAY_ADJ = ['vasárnapi', 'hétfői', 'keddi', 'szerdai', 'csütört
 type DialogState =
   | null
   | { mode: 'alert'; title: string; message: string }
-  | { mode: 'confirm'; title: string; message: string; onConfirm: () => void };
+  | {
+      mode: 'confirm';
+      title: string;
+      message: string;
+      confirmLabel?: string;
+      onConfirm: () => void;
+    };
 
 type CopySheetState = {
   targetMeal: MealType;
@@ -96,6 +104,7 @@ export default function FoodLibraryPage() {
   const [prefillBarcode, setPrefillBarcode] = useState<string | undefined>();
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [selectedLog, setSelectedLog] = useState<DailyLogItem | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<DailyLogItem[] | null>(null);
   const [mealForAdd, setMealForAdd] = useState<MealType>('SNACK');
   const [analysis, setAnalysis] = useState<DailyAnalysisResult | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
@@ -443,6 +452,47 @@ export default function FoodLibraryPage() {
     void runGenerate();
   };
 
+  const confirmDeleteLog = (log: DailyLogItem) => {
+    setDialog({
+      mode: 'confirm',
+      title: t('common.delete', 'Törlés'),
+      message: t('food.confirmDeleteLog', 'Biztosan törölöd ezt a bejegyzést?'),
+      confirmLabel: t('common.delete', 'Törlés'),
+      onConfirm: () => {
+        void logApi
+          .delete(log.id)
+          .then(() => fetchData())
+          .catch(() => {});
+      },
+    });
+  };
+
+  const confirmDeleteGroup = (logGroupId: string) => {
+    setDialog({
+      mode: 'confirm',
+      title: t('food.deleteLogGroupTitle'),
+      message: t('food.deleteLogGroupMessage'),
+      confirmLabel: t('common.delete', 'Törlés'),
+      onConfirm: () => {
+        void logApi
+          .deleteGroup(logGroupId)
+          .then(() => fetchData())
+          .catch(() => {});
+      },
+    });
+  };
+
+  const openLogEdit = (log: DailyLogItem) => {
+    setSelectedGroup(null);
+    setSelectedLog(log);
+  };
+
+  const openGroupEdit = (logs: DailyLogItem[]) => {
+    if (logs.length === 0) return;
+    setSelectedLog(logs[0]!);
+    setSelectedGroup(logs);
+  };
+
   return (
     <div className={`${styles.screen} page-scroll`}>
       <header className={styles.header}>
@@ -540,99 +590,104 @@ export default function FoodLibraryPage() {
 
                 {groupDiaryLogs(logs).map((entry) => {
                   if (entry.kind === 'single') {
-                    const log = entry.log;
+                    const log = entry.log as DailyLogItem;
                     const brand = distinctBrand(log.foodName, log.brand);
                     return (
-                      <button
+                      <SwipeDeleteRow
                         key={log.id}
-                        type="button"
-                        className={styles.mealItem}
-                        onClick={() => setSelectedLog(log as DailyLogItem)}
+                        enabled
+                        deleteLabel={t('common.delete', 'Törlés')}
+                        onDelete={() => confirmDeleteLog(log)}
                       >
-                        <div className={styles.itemLeft}>
-                          <div className={styles.itemName}>{log.foodName}</div>
-                          {brand ? <div className={styles.itemBrand}>{brand}</div> : null}
-                          <div className={styles.itemMeta}>{Math.round(log.amount ?? 100)}g</div>
-                        </div>
-                        <div className={styles.itemRight}>
-                          <div className={styles.itemKcal}>{Math.round(log.kcal ?? 0)} kcal</div>
-                          <div className={styles.itemMacros}>
-                            F {fmt(log.protein ?? 0)} · Sz {fmt(log.carbs ?? 0)} · Zs {fmt(log.fat ?? 0)}
+                        <button
+                          type="button"
+                          className={styles.mealItem}
+                          onClick={() => openLogEdit(log)}
+                        >
+                          <div className={styles.itemLeft}>
+                            <div className={styles.itemName}>{log.foodName}</div>
+                            {brand ? <div className={styles.itemBrand}>{brand}</div> : null}
+                            <div className={styles.itemMeta}>{Math.round(log.amount ?? 100)}g</div>
                           </div>
-                        </div>
-                      </button>
+                          <div className={styles.itemRight}>
+                            <div className={styles.itemKcal}>{Math.round(log.kcal ?? 0)} kcal</div>
+                            <div className={styles.itemMacros}>
+                              F {fmt(log.protein ?? 0)} · Sz {fmt(log.carbs ?? 0)} · Zs {fmt(log.fat ?? 0)}
+                            </div>
+                          </div>
+                        </button>
+                      </SwipeDeleteRow>
                     );
                   }
 
+                  const groupLogs = entry.logs as DailyLogItem[];
                   const open = !!expandedGroups[entry.logGroupId];
                   return (
                     <div key={entry.logGroupId} className={styles.logGroup}>
-                      <button
-                        type="button"
-                        className={styles.mealItem}
-                        onClick={() =>
-                          setExpandedGroups((prev) => ({
-                            ...prev,
-                            [entry.logGroupId]: !prev[entry.logGroupId],
-                          }))
-                        }
+                      <SwipeDeleteRow
+                        enabled
+                        deleteLabel={t('common.delete', 'Törlés')}
+                        onDelete={() => confirmDeleteGroup(entry.logGroupId)}
+                        editAction={{
+                          label: t('common.edit', 'Szerkesztés'),
+                          icon: <IconEdit size={22} color="#E65100" />,
+                          onClick: () => openGroupEdit(groupLogs),
+                        }}
                       >
-                        <div className={styles.itemLeft}>
-                          <div className={styles.itemName}>{entry.title}</div>
-                          <div className={styles.itemMeta}>
-                            {t('food.logGroupParts', { count: entry.logs.length })} ·{' '}
-                            {Math.round(entry.totals.amount)}g
+                        <button
+                          type="button"
+                          className={styles.mealItem}
+                          onClick={() =>
+                            setExpandedGroups((prev) => ({
+                              ...prev,
+                              [entry.logGroupId]: !prev[entry.logGroupId],
+                            }))
+                          }
+                        >
+                          <div className={styles.itemLeft}>
+                            <div className={styles.itemName}>{entry.title}</div>
+                            <div className={styles.itemMeta}>
+                              {t('food.logGroupParts', { count: entry.logs.length })} ·{' '}
+                              {Math.round(entry.totals.amount)}g
+                            </div>
                           </div>
-                        </div>
-                        <div className={styles.itemRight}>
-                          <div className={styles.itemKcal}>{Math.round(entry.totals.kcal)} kcal</div>
-                          <div className={styles.itemMacros}>
-                            F {fmt(entry.totals.protein)} · Sz {fmt(entry.totals.carbs)} · Zs{' '}
-                            {fmt(entry.totals.fat)}
+                          <div className={styles.itemRight}>
+                            <div className={styles.itemKcal}>{Math.round(entry.totals.kcal)} kcal</div>
+                            <div className={styles.itemMacros}>
+                              F {fmt(entry.totals.protein)} · Sz {fmt(entry.totals.carbs)} · Zs{' '}
+                              {fmt(entry.totals.fat)}
+                            </div>
                           </div>
-                        </div>
-                      </button>
+                        </button>
+                      </SwipeDeleteRow>
                       {open && (
                         <div className={styles.logGroupBody}>
-                          {entry.logs.map((log) => (
-                            <button
+                          {groupLogs.map((log) => (
+                            <SwipeDeleteRow
                               key={log.id}
-                              type="button"
-                              className={styles.mealItemNested}
-                              onClick={() => setSelectedLog(log as DailyLogItem)}
+                              enabled
+                              deleteLabel={t('common.delete', 'Törlés')}
+                              onDelete={() => confirmDeleteLog(log)}
                             >
-                              <div className={styles.itemLeft}>
-                                <div className={styles.itemName}>{log.foodName}</div>
-                                <div className={styles.itemMeta}>
-                                  {Math.round(log.amount ?? 100)}g
+                              <button
+                                type="button"
+                                className={styles.mealItemNested}
+                                onClick={() => openLogEdit(log)}
+                              >
+                                <div className={styles.itemLeft}>
+                                  <div className={styles.itemName}>{log.foodName}</div>
+                                  <div className={styles.itemMeta}>
+                                    {Math.round(log.amount ?? 100)}g
+                                  </div>
                                 </div>
-                              </div>
-                              <div className={styles.itemRight}>
-                                <div className={styles.itemKcal}>
-                                  {Math.round(log.kcal ?? 0)} kcal
+                                <div className={styles.itemRight}>
+                                  <div className={styles.itemKcal}>
+                                    {Math.round(log.kcal ?? 0)} kcal
+                                  </div>
                                 </div>
-                              </div>
-                            </button>
+                              </button>
+                            </SwipeDeleteRow>
                           ))}
-                          <button
-                            type="button"
-                            className={styles.groupDeleteBtn}
-                            onClick={() => {
-                              setDialog({
-                                mode: 'confirm',
-                                title: t('food.deleteLogGroupTitle'),
-                                message: t('food.deleteLogGroupMessage'),
-                                onConfirm: () => {
-                                  void logApi
-                                    .deleteGroup(entry.logGroupId)
-                                    .then(() => fetchData())
-                                    .catch(() => {});
-                                },
-                              });
-                            }}
-                          >
-                            {t('food.deleteLogGroup')}
-                          </button>
                         </div>
                       )}
                     </div>
@@ -878,8 +933,12 @@ export default function FoodLibraryPage() {
       />
       <EditLogModal
         log={selectedLog}
+        groupLogs={selectedGroup}
         visible={!!selectedLog}
-        onClose={() => setSelectedLog(null)}
+        onClose={() => {
+          setSelectedLog(null);
+          setSelectedGroup(null);
+        }}
         onSaved={fetchData}
       />
       <CopyMealSheet
@@ -913,7 +972,7 @@ export default function FoodLibraryPage() {
         message={dialog?.message ?? ''}
         confirmLabel={
           dialog?.mode === 'confirm'
-            ? t('common.continue', 'Folytatás')
+            ? dialog.confirmLabel ?? t('common.continue', 'Folytatás')
             : t('common.ok', 'OK')
         }
         cancelLabel={t('common.cancel', 'Mégse')}

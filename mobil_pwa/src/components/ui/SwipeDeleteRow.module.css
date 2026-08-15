@@ -15,8 +15,20 @@
   z-index: 0;
 }
 
+.actionsLeft {
+  position: absolute;
+  top: 8px;
+  left: 4px;
+  bottom: 8px;
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  z-index: 0;
+}
+
 .deleteBtn,
-.extraBtn {
+.extraBtn,
+.editBtn {
   flex: 1;
   min-width: 0;
   border: 1.5px solid var(--stroke);
@@ -38,8 +50,14 @@
   box-shadow: 2px 2px 0 rgba(28, 27, 27, 0.1);
 }
 
+.editBtn {
+  background: #fff4ea;
+  box-shadow: 2px 2px 0 rgba(28, 27, 27, 0.1);
+}
+
 .deleteBtn:active,
-.extraBtn:active {
+.extraBtn:active,
+.editBtn:active {
   transform: translate(1px, 1px);
   box-shadow: 1px 1px 0 rgba(28, 27, 27, 0.1);
 }

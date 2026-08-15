@@ -1,5 +1,10 @@
 import { PrismaClient } from '@prisma/client';
-import { compareFoodsForSearch, textRelevanceScore } from '../../utils/foodSearch';
+import {
+  compareFoodsForSearch,
+  findFoodIdsByAccentInsensitiveName,
+  foldDiacritics,
+  textRelevanceScore,
+} from '../../utils/foodSearch';
 
 const SYNONYMS: Record<string, string[]> = {
   csirkemell: ['chicken breast', 'chickenbreast'],
@@ -73,13 +78,23 @@ function normalizeName(raw: string): string {
   let s = raw.trim().toLowerCase().replace(/\s+/g, ' ');
   s = s.replace(PREFIX_RE, '');
   s = s.replace(/[,.]$/g, '').trim();
-  return s;
+  return foldDiacritics(s);
 }
+
+const SYNONYMS_FOLDED: Record<string, string[]> = (() => {
+  const out: Record<string, string[]> = {};
+  for (const [key, vals] of Object.entries(SYNONYMS)) {
+    const fk = foldDiacritics(key);
+    const foldedVals = vals.map((v) => foldDiacritics(v));
+    out[fk] = Array.from(new Set([...(out[fk] ?? []), ...foldedVals]));
+  }
+  return out;
+})();
 
 function queriesFor(name: string): string[] {
   const n = normalizeName(name);
   if (!n) return [];
-  const extra = SYNONYMS[n] ?? [];
+  const extra = SYNONYMS_FOLDED[n] ?? [];
   return Array.from(new Set([n, ...extra]));
 }
 
@@ -128,18 +143,17 @@ function confidenceFromScore(score: number): number {
 }
 
 async function findCandidates(prisma: PrismaClient, queries: string[]): Promise<FoodRow[]> {
-  const or = queries.flatMap((q) => [
-    { name: { contains: q, mode: 'insensitive' as const } },
-    { nameHu: { contains: q, mode: 'insensitive' as const } },
-    { nameEn: { contains: q, mode: 'insensitive' as const } },
-  ]);
-  if (!or.length) return [];
+  const idLists = await Promise.all(
+    queries.map((q) => findFoodIdsByAccentInsensitiveName(prisma, q)),
+  );
+  const ids = Array.from(new Set(idLists.flat()));
+  if (!ids.length) return [];
   return prisma.food.findMany({
     where: {
+      id: { in: ids },
       status: { not: 'BANNED' },
       preparedFromRecipeId: null,
       isPrepared: false,
-      OR: or,
     },
     take: 40,
     select: {

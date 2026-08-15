@@ -312,6 +312,69 @@
   height: 18px;
 }
 
+.ingredientsToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1.5px solid var(--stroke);
+  border-radius: 18px;
+  box-shadow: 3px 3px 0 var(--stroke);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.ingredientsToggle:active {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0 var(--stroke);
+}
+
+.ingredientsToggle[data-on] {
+  background: #fff8f0;
+}
+
+.ingredientsToggleLabel {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--stroke);
+  line-height: 1.3;
+}
+
+.ingredientsSwitch {
+  position: relative;
+  width: 46px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1.5px solid var(--stroke);
+  background: #eee;
+  box-shadow: 1.5px 1.5px 0 rgba(28, 27, 27, 0.12);
+}
+
+.ingredientsSwitch[data-on] {
+  background: #ffb77d;
+}
+
+.ingredientsSwitchThumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1.5px solid var(--stroke);
+  transition: transform 0.16s ease;
+}
+
+.ingredientsSwitch[data-on] .ingredientsSwitchThumb {
+  transform: translateX(18px);
+}
+
 .preparedCheck {
   display: flex;
   align-items: flex-start;

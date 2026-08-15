@@ -9,6 +9,7 @@ import {
   setRefreshTokenCleanupConfig,
 } from '../system/refresh-token-cleanup.service';
 import { getRecipe, listAdminRecipes, mapRecipeDetail, moderateRecipe } from '../recipes/recipes.service';
+import { findFoodIdsByAccentInsensitiveName } from '../../utils/foodSearch';
 
 const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', authenticate);
@@ -190,11 +191,11 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     const where: any = {};
     if (query.status) where.status = query.status;
     if (query.q) {
-      where.OR = [
-        { name: { contains: query.q, mode: 'insensitive' } },
-        { nameHu: { contains: query.q, mode: 'insensitive' } },
-        { nameEn: { contains: query.q, mode: 'insensitive' } },
-      ];
+      const ids = await findFoodIdsByAccentInsensitiveName(fastify.prisma, query.q);
+      if (ids.length === 0) {
+        return reply.send({ foods: [], total: 0 });
+      }
+      where.id = { in: ids };
     }
 
     const [foods, total] = await fastify.prisma.$transaction([

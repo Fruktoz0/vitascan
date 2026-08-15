@@ -187,8 +187,8 @@ function ServingUnitInfoPopup({
 
 function foodNameSizeClass(name: string): string {
   const len = name.trim().length;
-  if (len > 36) return `${styles.foodName} ${styles.foodNameLg}`;
-  if (len > 18) return `${styles.foodName} ${styles.foodNameMd}`;
+  if (len > 32) return `${styles.foodName} ${styles.foodNameLg}`;
+  if (len > 16) return `${styles.foodName} ${styles.foodNameMd}`;
   return styles.foodName;
 }
 
@@ -511,7 +511,7 @@ export function FoodDetailModal({
   const [currentFood, setCurrentFood] = useState<Food | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [historyKey, setHistoryKey] = useState(0);
-  const [logAsPrepared, setLogAsPrepared] = useState(false);
+  const [showIngredients, setShowIngredients] = useState(false);
   const [confirmDeleteFood, setConfirmDeleteFood] = useState(false);
   const [deletingFood, setDeletingFood] = useState(false);
 
@@ -528,7 +528,7 @@ export function FoodDetailModal({
       const initial = defaultQtyForUnit(unit, gpu);
       setAmount(String(Number.isInteger(initial) ? initial : Math.round(initial * 10) / 10));
       setEditOpen(false);
-      setLogAsPrepared(false);
+      setShowIngredients(false);
       setConfirmDeleteFood(false);
       // Load components for prepared foods if missing
       if (food.isPrepared && !(food.components?.length) && isLocalFoodId(food.id)) {
@@ -637,7 +637,7 @@ export function FoodDetailModal({
           : components.reduce((s, c) => s + (c.amountG || 0), 0) || 100;
       const scale = g / recipeG;
 
-      if (isPrepared && !logAsPrepared) {
+      if (isPrepared && showIngredients) {
         const logGroupId = crypto.randomUUID();
         for (const c of components) {
           await logApi.create({
@@ -762,28 +762,27 @@ export function FoodDetailModal({
                 <span className={styles.portionText}>{portionLabel}</span>
               </span>
             </div>
-            {currentFood.isPrepared && (currentFood.components?.length ?? 0) > 0 && (
-              <label className={styles.preparedCheck}>
-                <span
-                  className={styles.preparedCheckBox}
-                  data-checked={logAsPrepared || undefined}
-                >
-                  <input
-                    type="checkbox"
-                    checked={logAsPrepared}
-                    onChange={(e) => setLogAsPrepared(e.target.checked)}
-                  />
-                  {logAsPrepared ? '✓' : null}
-                </span>
-                <span className={styles.preparedCheckText}>
-                  <strong>{t('food.logAsPrepared')}</strong>
-                </span>
-              </label>
-            )}
           </div>
         </div>
 
         {currentFood.isPrepared && (currentFood.components?.length ?? 0) > 0 && (
+          <button
+            type="button"
+            className={styles.ingredientsToggle}
+            data-on={showIngredients || undefined}
+            aria-pressed={showIngredients}
+            onClick={() => setShowIngredients((v) => !v)}
+          >
+            <span className={styles.ingredientsToggleLabel}>{t('food.logAsPrepared')}</span>
+            <span className={styles.ingredientsSwitch} data-on={showIngredients || undefined}>
+              <span className={styles.ingredientsSwitchThumb} />
+            </span>
+          </button>
+        )}
+
+        {currentFood.isPrepared &&
+          showIngredients &&
+          (currentFood.components?.length ?? 0) > 0 && (
           <div className={styles.componentsCard}>
             <div className={styles.sectionTitle}>{t('food.preparedIngredients')}</div>
             {(currentFood.components ?? []).map((c, i) => {
@@ -1031,15 +1030,66 @@ export type DailyLogItem = {
   servingUnit?: string | null;
 };
 
+type GroupIngDraft = {
+  id: string;
+  name: string;
+  amount: string;
+  kcal: string;
+  protein: string;
+  carbs: string;
+  fat: string;
+  fiber: string;
+  sugar: string;
+};
+
+function parseQty(v: string): number {
+  const n = parseFloat(v.replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatDraftQty(n: number): string {
+  return String(Number.isInteger(n) ? n : Math.round(n * 10) / 10);
+}
+
+function logToGroupDraft(log: DailyLogItem): GroupIngDraft {
+  return {
+    id: log.id,
+    name: log.foodName,
+    amount: formatDraftQty(log.amount),
+    kcal: formatDraftQty(log.kcal),
+    protein: formatDraftQty(log.protein),
+    carbs: formatDraftQty(log.carbs),
+    fat: formatDraftQty(log.fat),
+    fiber: log.fiber != null ? formatDraftQty(log.fiber) : '',
+    sugar: log.sugar != null ? formatDraftQty(log.sugar) : '',
+  };
+}
+
+function scaleGroupDraft(ing: GroupIngDraft, ratio: number): GroupIngDraft {
+  const mul = (s: string) => (s.trim() ? formatDraftQty(parseQty(s) * ratio) : '');
+  return {
+    ...ing,
+    amount: formatDraftQty(Math.max(0, parseQty(ing.amount) * ratio)),
+    kcal: mul(ing.kcal),
+    protein: mul(ing.protein),
+    carbs: mul(ing.carbs),
+    fat: mul(ing.fat),
+    fiber: mul(ing.fiber),
+    sugar: mul(ing.sugar),
+  };
+}
+
 interface EditLogModalProps {
   log: DailyLogItem | null;
+  groupLogs?: DailyLogItem[] | null;
   visible: boolean;
   onClose: () => void;
   onSaved?: () => void;
 }
 
-export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalProps) {
+export function EditLogModal({ log, groupLogs, visible, onClose, onSaved }: EditLogModalProps) {
   const { t } = useTranslation();
+  const selectedDate = useDateStore((s) => s.selectedDate);
   const [amount, setAmount] = useState('100');
   const [displayUnit, setDisplayUnit] = useState<ServingUnitCode>('g');
   const [mealType, setMealType] = useState<MealType>('SNACK');
@@ -1051,9 +1101,46 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
   const [editFood, setEditFood] = useState<Food | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
+  const [showIngredients, setShowIngredients] = useState(false);
+  const [preparedFood, setPreparedFood] = useState<Food | null>(null);
+  const [groupIngs, setGroupIngs] = useState<GroupIngDraft[]>([]);
+  const groupOrigRef = useRef<GroupIngDraft[]>([]);
+  const groupOrigTotalRef = useRef(1);
 
   useEffect(() => {
-    if (visible && log) {
+    if (!visible) return;
+    if (groupLogs && groupLogs.length > 1) {
+      const drafts = groupLogs.map(logToGroupDraft);
+      const total = drafts.reduce((s, d) => s + parseQty(d.amount), 0);
+      groupOrigRef.current = drafts;
+      groupOrigTotalRef.current = total || 1;
+      setGroupIngs(drafts);
+      const first = groupLogs[0]!;
+      setBase({
+        ...first,
+        foodName: first.sourcePreparedFoodName || first.foodName,
+        amount: total || 1,
+        kcal: groupLogs.reduce((s, l) => s + l.kcal, 0),
+        protein: groupLogs.reduce((s, l) => s + l.protein, 0),
+        carbs: groupLogs.reduce((s, l) => s + l.carbs, 0),
+        fat: groupLogs.reduce((s, l) => s + l.fat, 0),
+        fiber: groupLogs.reduce((s, l) => s + (l.fiber ?? 0), 0),
+        sugar: groupLogs.reduce((s, l) => s + (l.sugar ?? 0), 0),
+      });
+      setDisplayUnit('g');
+      setAmount(formatDraftQty(total || 1));
+      setMealType((first.mealType as MealType) || 'SNACK');
+      setConfirmDelete(false);
+      setDialog(null);
+      setEditOpen(false);
+      setEditFood(null);
+      setShowIngredients(true);
+      setPreparedFood(null);
+      return;
+    }
+    if (log) {
+      setGroupIngs([]);
+      groupOrigRef.current = [];
       setBase(log);
       const unit = normalizeServingUnit(log.servingUnit);
       const gpu =
@@ -1071,10 +1158,41 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
       setDialog(null);
       setEditOpen(false);
       setEditFood(null);
+      setShowIngredients(false);
+      setPreparedFood(null);
     }
-  }, [visible, log]);
+  }, [visible, log, groupLogs]);
+
+  useEffect(() => {
+    if (!visible || !log || log.logGroupId || (groupLogs && groupLogs.length > 1)) return;
+    const ids = [...new Set(
+      [log.foodId, log.sourcePreparedFoodId].filter((id): id is string => isLocalFoodId(id)),
+    )];
+    if (!ids.length) return;
+    let cancelled = false;
+    Promise.all(ids.map((id) => foodApi.getById(id).catch(() => null)))
+      .then((foods) => {
+        if (cancelled) return;
+        const match = foods.find((f) => f?.isPrepared && (f.components?.length ?? 0) > 0);
+        if (match) setPreparedFood(match);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, log, groupLogs]);
 
   if (!visible || !base) return null;
+
+  const isGroup = groupIngs.length > 1;
+  const preparedComponents = preparedFood?.components ?? [];
+  const hasPreparedIngredients =
+    !isGroup && !!preparedFood?.isPrepared && preparedComponents.length > 0;
+  const recipeG = hasPreparedIngredients
+    ? preparedFood!.servingSize && preparedFood!.servingSize > 0
+      ? preparedFood!.servingSize
+      : preparedComponents.reduce((s, c) => s + (c.amountG || 0), 0) || 100
+    : 100;
 
   const baseAmount = base.amount > 0 ? base.amount : 100;
   const brandLabel = distinctBrand(base.foodName, base.brand);
@@ -1102,17 +1220,38 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
     String(Number.isInteger(n) ? n : Math.round(n * 10) / 10);
 
   const qty = parseFloat(amount.replace(',', '.')) || 0;
-  const g = qtyToGrams(qty, displayUnit, gramsPerUnit);
+  const g = isGroup ? qty : qtyToGrams(qty, displayUnit, gramsPerUnit);
   const ratio = g / baseAmount;
   const round1 = (n: number) => Math.round(n * 10) / 10;
-  const calc = {
-    kcal: Math.round(base.kcal * ratio),
-    protein: round1(base.protein * ratio),
-    carbs: round1(base.carbs * ratio),
-    fat: round1(base.fat * ratio),
-    sugar: base.sugar != null ? round1(base.sugar * ratio) : null,
-    fiber: base.fiber != null ? round1(base.fiber * ratio) : null,
-  };
+  const groupTotals = groupIngs.reduce(
+    (acc, ing) => ({
+      kcal: acc.kcal + parseQty(ing.kcal),
+      protein: acc.protein + parseQty(ing.protein),
+      carbs: acc.carbs + parseQty(ing.carbs),
+      fat: acc.fat + parseQty(ing.fat),
+      sugar: acc.sugar + parseQty(ing.sugar),
+      fiber: acc.fiber + parseQty(ing.fiber),
+      amount: acc.amount + parseQty(ing.amount),
+    }),
+    { kcal: 0, protein: 0, carbs: 0, fat: 0, sugar: 0, fiber: 0, amount: 0 },
+  );
+  const calc = isGroup
+    ? {
+        kcal: Math.round(groupTotals.kcal),
+        protein: round1(groupTotals.protein),
+        carbs: round1(groupTotals.carbs),
+        fat: round1(groupTotals.fat),
+        sugar: groupTotals.sugar > 0 ? round1(groupTotals.sugar) : null,
+        fiber: groupTotals.fiber > 0 ? round1(groupTotals.fiber) : null,
+      }
+    : {
+        kcal: Math.round(base.kcal * ratio),
+        protein: round1(base.protein * ratio),
+        carbs: round1(base.carbs * ratio),
+        fat: round1(base.fat * ratio),
+        sugar: base.sugar != null ? round1(base.sugar * ratio) : null,
+        fiber: base.fiber != null ? round1(base.fiber * ratio) : null,
+      };
 
   const per100 = {
     protein: (base.protein / baseAmount) * 100,
@@ -1121,10 +1260,12 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
     sugar: base.sugar != null ? (base.sugar / baseAmount) * 100 : null,
     fiber: base.fiber != null ? (base.fiber / baseAmount) * 100 : null,
   };
-  const totalMacro = Math.max(0.1, per100.carbs + per100.protein + per100.fat);
-  const carbsPct = (per100.carbs / totalMacro) * 100;
-  const proteinPct = (per100.protein / totalMacro) * 100;
-  const fatPct = (per100.fat / totalMacro) * 100;
+  const totalMacro = isGroup
+    ? Math.max(0.1, calc.carbs + calc.protein + calc.fat)
+    : Math.max(0.1, per100.carbs + per100.protein + per100.fat);
+  const carbsPct = (isGroup ? calc.carbs : per100.carbs) / totalMacro * 100;
+  const proteinPct = (isGroup ? calc.protein : per100.protein) / totalMacro * 100;
+  const fatPct = (isGroup ? calc.fat : per100.fat) / totalMacro * 100;
 
   const mealLabel = (m: MealType) => {
     if (m === 'BREAKFAST') return t('food.breakfast');
@@ -1147,7 +1288,21 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
     setDisplayUnit(next);
   };
 
+  const commitGroupTotal = (newTotal: number) => {
+    const currentTotal = groupIngs.reduce((s, i) => s + parseQty(i.amount), 0) || 1;
+    const r = Math.max(0, newTotal) / currentTotal;
+    const next = groupIngs.map((ing) => scaleGroupDraft(ing, r));
+    groupOrigRef.current = next;
+    groupOrigTotalRef.current = Math.max(0, newTotal) || 1;
+    setGroupIngs(next);
+    setAmount(formatQty(Math.max(0, newTotal)));
+  };
+
   const adjustAmount = (dir: -1 | 1) => {
+    if (isGroup) {
+      commitGroupTotal(Math.max(0, Math.round(qty + dir * 10)));
+      return;
+    }
     if (displayUnit === 'g') {
       setAmount(String(Math.max(0, Math.round(qty + dir * 10))));
       return;
@@ -1163,7 +1318,53 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
     }
     setSaving(true);
     try {
-      await logApi.update(base.id, { amount: g, mealType });
+      if (isGroup) {
+        const currentTotal = groupIngs.reduce((s, i) => s + parseQty(i.amount), 0) || 1;
+        const ratio = qty / currentTotal;
+        const toSave =
+          Math.abs(ratio - 1) < 0.001
+            ? groupIngs
+            : groupIngs.map((ing) => scaleGroupDraft(ing, ratio));
+        for (const ing of toSave) {
+          const amt = Math.max(1, parseQty(ing.amount));
+          await logApi.update(ing.id, {
+            foodName: ing.name.trim() || t('food.ingredientName'),
+            amount: amt,
+            kcal: Math.max(0, parseQty(ing.kcal)),
+            protein: Math.max(0, parseQty(ing.protein)),
+            carbs: Math.max(0, parseQty(ing.carbs)),
+            fat: Math.max(0, parseQty(ing.fat)),
+            fiber: ing.fiber.trim() ? Math.max(0, parseQty(ing.fiber)) : null,
+            sugar: ing.sugar.trim() ? Math.max(0, parseQty(ing.sugar)) : null,
+            mealType,
+          });
+        }
+      } else if (hasPreparedIngredients && showIngredients) {
+        const scale = g / recipeG;
+        const logGroupId = crypto.randomUUID();
+        const date = toLocalDateStr(selectedDate);
+        const preparedId = preparedFood!.id;
+        for (const c of preparedComponents) {
+          await logApi.create({
+            foodName: c.name,
+            kcal: Math.round(c.kcal * scale * 10) / 10,
+            protein: Math.round(c.protein * scale * 10) / 10,
+            carbs: Math.round(c.carbs * scale * 10) / 10,
+            fat: Math.round(c.fat * scale * 10) / 10,
+            fiber: c.fiber != null ? Math.round(c.fiber * scale * 10) / 10 : undefined,
+            sugar: c.sugar != null ? Math.round(c.sugar * scale * 10) / 10 : undefined,
+            amount: Math.max(1, Math.round(c.amountG * scale * 10) / 10),
+            mealType,
+            source: 'MANUAL',
+            date,
+            logGroupId,
+            sourcePreparedFoodId: preparedId,
+          });
+        }
+        await logApi.delete(base.id);
+      } else {
+        await logApi.update(base.id, { amount: g, mealType });
+      }
       onSaved?.();
       onClose();
     } catch (e: any) {
@@ -1177,7 +1378,11 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
     setConfirmDelete(false);
     setDeleting(true);
     try {
-      await logApi.delete(base.id);
+      if (isGroup && base.logGroupId) {
+        await logApi.deleteGroup(base.logGroupId);
+      } else {
+        await logApi.delete(base.id);
+      }
       onSaved?.();
       onClose();
     } catch (e: any) {
@@ -1188,7 +1393,7 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
   };
 
   const busy = saving || deleting || editLoading;
-  const canEditLinkedFood = isLocalFoodId(base.foodId);
+  const canEditLinkedFood = !isGroup && isLocalFoodId(base.foodId);
 
   const openFoodEdit = async () => {
     if (!base.foodId || !isLocalFoodId(base.foodId)) return;
@@ -1246,14 +1451,110 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
             </span>
             <h3 className={foodNameSizeClass(base.foodName)}>{base.foodName}</h3>
             {brandLabel ? <p className={styles.foodBrand}>{brandLabel}</p> : null}
-            <div className={styles.portionBadgeWrap}>
-              <span className={styles.portionBadgeShadow} />
-              <span className={styles.portionBadgeInner}>
-                <span className={styles.portionText}>{portionLabel}</span>
-              </span>
-            </div>
+            {!isGroup ? (
+              <div className={styles.portionBadgeWrap}>
+                <span className={styles.portionBadgeShadow} />
+                <span className={styles.portionBadgeInner}>
+                  <span className={styles.portionText}>{portionLabel}</span>
+                </span>
+              </div>
+            ) : null}
           </div>
         </div>
+
+        {isGroup && (
+          <div className={styles.componentsCard}>
+            <div className={styles.sectionTitle}>{t('food.preparedIngredients')}</div>
+            <p className={styles.recipeHint}>{t('food.editLogDiaryHint')}</p>
+            {groupIngs.map((ing, index) => (
+              <div key={ing.id} className={styles.recipeCard}>
+                <div className={styles.recipeCardHead}>
+                  <span className={styles.recipeIndex}>{index + 1}</span>
+                  <input
+                    className={styles.formInput}
+                    value={ing.name}
+                    placeholder={t('food.ingredientName')}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      setGroupIngs((prev) =>
+                        prev.map((row) => (row.id === ing.id ? { ...row, name } : row)),
+                      );
+                    }}
+                  />
+                </div>
+                <div className={styles.recipeGrid}>
+                  {(
+                    [
+                      { field: 'amount', label: t('food.ingredientAmountG') },
+                      { field: 'kcal', label: 'kcal' },
+                      { field: 'protein', label: t('food.protein') },
+                      { field: 'carbs', label: t('food.carbs') },
+                      { field: 'fat', label: t('food.fat') },
+                    ] as const
+                  ).map(({ field, label }) => (
+                    <label key={field} className={styles.recipeField}>
+                      <span>{label}</span>
+                      <input
+                        className={styles.formInput}
+                        inputMode="decimal"
+                        value={ing[field]}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/[^\d.,]/g, '');
+                          setGroupIngs((prev) =>
+                            prev.map((row) => {
+                              if (row.id !== ing.id) return row;
+                              if (field !== 'amount') return { ...row, [field]: raw };
+                              const orig = groupOrigRef.current.find((o) => o.id === ing.id);
+                              const origAmt = orig ? parseQty(orig.amount) : 0;
+                              const newAmt = parseQty(raw);
+                              if (!orig || origAmt <= 0) return { ...row, amount: raw };
+                              return { ...scaleGroupDraft(orig, newAmt / origAmt), name: row.name };
+                            }),
+                          );
+                        }}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {hasPreparedIngredients && (
+          <button
+            type="button"
+            className={styles.ingredientsToggle}
+            data-on={showIngredients || undefined}
+            aria-pressed={showIngredients}
+            onClick={() => setShowIngredients((v) => !v)}
+          >
+            <span className={styles.ingredientsToggleLabel}>{t('food.logAsPrepared')}</span>
+            <span className={styles.ingredientsSwitch} data-on={showIngredients || undefined}>
+              <span className={styles.ingredientsSwitchThumb} />
+            </span>
+          </button>
+        )}
+
+        {hasPreparedIngredients && showIngredients && (
+          <div className={styles.componentsCard}>
+            <div className={styles.sectionTitle}>{t('food.preparedIngredients')}</div>
+            {preparedComponents.map((c, i) => {
+              const scale = g / recipeG;
+              return (
+                <div key={c.id ?? `${c.name}-${i}`} className={styles.componentRow}>
+                  <div className={styles.componentName}>{c.name}</div>
+                  <div className={styles.componentMeta}>
+                    {Math.round(c.amountG * scale)}g · {Math.round(c.kcal * scale)} kcal · F{' '}
+                    {Math.round(c.protein * scale * 10) / 10} · Sz{' '}
+                    {Math.round(c.carbs * scale * 10) / 10} · Zs{' '}
+                    {Math.round(c.fat * scale * 10) / 10}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         <div className={styles.sections}>
           <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
@@ -1269,6 +1570,9 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
                   className={styles.amountInputCompact}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value.replace(/[^\d.,]/g, ''))}
+                  onBlur={() => {
+                    if (isGroup) commitGroupTotal(qty);
+                  }}
                   inputMode="decimal"
                   placeholder={displayUnit === 'g' ? '100' : '1'}
                 />
@@ -1281,7 +1585,7 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
                 </span>
               </button>
             </div>
-            {foodUnit !== 'g' ? (
+            {!isGroup && foodUnit !== 'g' ? (
               <div className={styles.unitSegment} role="group" aria-label={t('food.servingUnit')}>
                 <button
                   type="button"
@@ -1417,8 +1721,12 @@ export function EditLogModal({ log, visible, onClose, onSaved }: EditLogModalPro
 
       <ConfirmDialog
         visible={confirmDelete}
-        title={t('common.delete', 'Törlés')}
-        message={t('food.confirmDeleteLog', 'Biztosan törölöd ezt a bejegyzést?')}
+        title={isGroup ? t('food.deleteLogGroupTitle') : t('common.delete', 'Törlés')}
+        message={
+          isGroup
+            ? t('food.deleteLogGroupMessage')
+            : t('food.confirmDeleteLog', 'Biztosan törölöd ezt a bejegyzést?')
+        }
         confirmLabel={t('common.delete', 'Törlés')}
         cancelLabel={t('common.cancel', 'Mégse')}
         destructive
@@ -1737,16 +2045,6 @@ export function AddFoodManualModal({
                     ) : (
                       <IconHeartOutline size={18} color={Colors.dashboard.stroke} />
                     )}
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.quickAddBtn}
-                    aria-label={t('food.addToLog')}
-                    onClick={() => {
-                      onCreated?.(item);
-                    }}
-                  >
-                    <IconAdd size={18} color={Colors.dashboard.stroke} />
                   </button>
                 </div>
                 </SwipeDeleteRow>

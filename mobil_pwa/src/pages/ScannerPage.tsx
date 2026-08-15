@@ -7,6 +7,39 @@ import { FoodDetailModal } from '../components/food/FoodModals';
 import { ApiError, foodApi, type Food } from '../services/api';
 import styles from './ScannerPage.module.css';
 
+/** 0 = no rotate, 1 = 90° CW, 3 = 90° CCW. 1D readers need horizontal bars. */
+function drawVideoForDecode(
+  video: HTMLVideoElement,
+  canvas: HTMLCanvasElement,
+  quarterTurns: 0 | 1 | 3,
+): boolean {
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  if (!vw || !vh) return false;
+
+  const destW = quarterTurns === 0 ? vw : vh;
+  const destH = quarterTurns === 0 ? vh : vw;
+  if (canvas.width !== destW || canvas.height !== destH) {
+    canvas.width = destW;
+    canvas.height = destH;
+  }
+
+  const ctx = canvas.getContext('2d', { willReadFrequently: true }) ?? canvas.getContext('2d');
+  if (!ctx) return false;
+
+  ctx.save();
+  if (quarterTurns === 1) {
+    ctx.translate(destW, 0);
+    ctx.rotate(Math.PI / 2);
+  } else if (quarterTurns === 3) {
+    ctx.translate(0, destH);
+    ctx.rotate(-Math.PI / 2);
+  }
+  ctx.drawImage(video, 0, 0);
+  ctx.restore();
+  return true;
+}
+
 type ScanState = 'idle' | 'scanning' | 'found' | 'not_found' | 'error';
 type FrameOrientation = 'landscape' | 'portrait';
 
@@ -78,6 +111,9 @@ export default function ScannerPage() {
   const busy = useRef(false);
   const navigatingAway = useRef(false);
   const focusRestoreTimer = useRef<number | null>(null);
+  const scanTimerRef = useRef<number | null>(null);
+  const frameOrientationRef = useRef<FrameOrientation>('landscape');
+  const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const [permission, setPermission] = useState<'prompt' | 'granted' | 'denied'>('prompt');
   const [scanState, setScanState] = useState<ScanState>('idle');
@@ -96,6 +132,10 @@ export default function ScannerPage() {
     if (focusRestoreTimer.current != null) {
       window.clearTimeout(focusRestoreTimer.current);
       focusRestoreTimer.current = null;
+    }
+    if (scanTimerRef.current != null) {
+      window.clearTimeout(scanTimerRef.current);
+      scanTimerRef.current = null;
     }
     try {
       controlsRef.current?.stop();
@@ -185,6 +225,10 @@ export default function ScannerPage() {
   }, [detailVisible]);
 
   useEffect(() => {
+    frameOrientationRef.current = frameOrientation;
+  }, [frameOrientation]);
+
+  useEffect(() => {
     if (detailVisible) return;
 
     let active = true;
@@ -219,17 +263,48 @@ export default function ScannerPage() {
 
         const reader = new BrowserMultiFormatReader();
         readerRef.current = reader;
-        // Reuse the already-opened stream to avoid a second camera session
-        await reader.decodeFromStream(stream, videoRef.current!, (result, _err, controls) => {
-          controlsRef.current = controls;
-          if (!active) {
-            controls.stop();
-            return;
+        const canvas = captureCanvasRef.current ?? document.createElement('canvas');
+        captureCanvasRef.current = canvas;
+
+        let stopped = false;
+        let decodePass = 0;
+        const controls: IScannerControls = {
+          stop() {
+            stopped = true;
+            if (scanTimerRef.current != null) {
+              window.clearTimeout(scanTimerRef.current);
+              scanTimerRef.current = null;
+            }
+          },
+        };
+        controlsRef.current = controls;
+
+        const tick = () => {
+          if (!active || stopped) return;
+          const video = videoRef.current;
+          if (
+            video &&
+            video.readyState >= 2 &&
+            video.videoWidth > 0 &&
+            !busy.current &&
+            !detailVisibleRef.current
+          ) {
+            const portrait = frameOrientationRef.current === 'portrait';
+            const sequence: Array<0 | 1 | 3> = portrait ? [1, 3, 0] : [0];
+            const turn = sequence[decodePass % sequence.length]!;
+            decodePass += 1;
+            try {
+              if (drawVideoForDecode(video, canvas, turn)) {
+                const result = reader.decodeFromCanvas(canvas);
+                if (result) handleBarcode(result.getText());
+              }
+            } catch {
+              /* NotFoundException — expected until a barcode is in view */
+            }
           }
-          if (result && !detailVisibleRef.current) {
-            handleBarcode(result.getText());
-          }
-        });
+          scanTimerRef.current = window.setTimeout(tick, 120);
+        };
+        tick();
       } catch {
         if (active) setPermission('denied');
       }

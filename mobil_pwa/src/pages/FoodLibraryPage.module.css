@@ -249,18 +249,6 @@
   cursor: pointer;
 }
 
-.groupDeleteBtn {
-  margin-top: 6px;
-  border: 1.5px solid var(--stroke);
-  background: #fff;
-  border-radius: 12px;
-  padding: 8px 12px;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  color: #b33;
-}
-
 .itemLeft {
   display: flex;
   flex-direction: column;
