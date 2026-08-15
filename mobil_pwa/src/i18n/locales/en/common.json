@@ -806,7 +806,16 @@
     "weightLastMeasuredToday": "Measured today",
     "weightLastMeasuredOn": "Last measured: {{date}}",
     "weightMeasuredOnDay": "Measured: {{date}}",
-    "weightNoMeasurement": "No measurement"
+    "weightNoMeasurement": "No measurement",
+    "breakdownTitleKcal": "Calories",
+    "breakdownTitleProtein": "Protein",
+    "breakdownTitleCarbs": "Carbs",
+    "breakdownTitleFat": "Fat",
+    "breakdownEmpty": "No entries for this day yet.",
+    "breakdownOther": "Other",
+    "breakdownOfGoal": "/ {{goal}}",
+    "breakdownUnitKcal": "kcal",
+    "breakdownUnitG": "g"
   },
   "dataVault": {
     "premiumMember": "Premium member",

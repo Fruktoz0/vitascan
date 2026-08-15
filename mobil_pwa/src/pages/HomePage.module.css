@@ -122,6 +122,24 @@
   gap: 12px;
 }
 
+.kcalCardBtn {
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.kcalCardBtn:active {
+  opacity: 0.92;
+  transform: scale(0.99);
+}
+
 .kcalLabel {
   font-size: 14px;
   font-weight: 700;

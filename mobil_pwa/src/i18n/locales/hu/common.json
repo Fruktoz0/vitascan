@@ -822,7 +822,16 @@
     "weightLastMeasuredToday": "Mai mérés",
     "weightLastMeasuredOn": "Utolsó mérés: {{date}}",
     "weightMeasuredOnDay": "Mérés: {{date}}",
-    "weightNoMeasurement": "Nincs mérés"
+    "weightNoMeasurement": "Nincs mérés",
+    "breakdownTitleKcal": "Kalória",
+    "breakdownTitleProtein": "Fehérje",
+    "breakdownTitleCarbs": "Szénhidrát",
+    "breakdownTitleFat": "Zsír",
+    "breakdownEmpty": "Erre a napra még nincs bejegyzés.",
+    "breakdownOther": "Egyéb",
+    "breakdownOfGoal": "/ {{goal}}",
+    "breakdownUnitKcal": "kcal",
+    "breakdownUnitG": "g"
   },
   "dataVault": {
     "premiumMember": "Premium tag",

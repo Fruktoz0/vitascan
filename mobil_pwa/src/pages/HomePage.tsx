@@ -235,44 +235,51 @@ export default function HomePage() {
       </header>
 
       <div className={styles.content}>
-        <GlassCardSimple
-          backgroundColor={Colors.dashboard.card}
-          padding={24}
-          customRadius={{
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 16,
-            borderBottomRightRadius: 32,
-            borderBottomLeftRadius: 16,
-          }}
+        <button
+          type="button"
+          className={styles.kcalCardBtn}
+          onClick={() => navigate('/home/breakdown/kcal')}
+          aria-label={t('homeScreen.breakdownTitleKcal')}
         >
-          <div className={styles.kcalRow}>
-            <div>
-              <div className={styles.kcalLabel}>CALORIES</div>
-              <div className={styles.kcalValue}>{Math.round(totals.kcal).toLocaleString('en-US')}</div>
-              <div className={styles.kcalSub}>/ {Math.round(goals.dailyKcalGoal).toLocaleString('en-US')} kcal</div>
+          <GlassCardSimple
+            backgroundColor={Colors.dashboard.card}
+            padding={24}
+            customRadius={{
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 16,
+              borderBottomRightRadius: 32,
+              borderBottomLeftRadius: 16,
+            }}
+          >
+            <div className={styles.kcalRow}>
+              <div>
+                <div className={styles.kcalLabel}>CALORIES</div>
+                <div className={styles.kcalValue}>{Math.round(totals.kcal).toLocaleString('en-US')}</div>
+                <div className={styles.kcalSub}>/ {Math.round(goals.dailyKcalGoal).toLocaleString('en-US')} kcal</div>
+              </div>
+              <KcalRing consumed={totals.kcal} goal={goals.dailyKcalGoal} size={100} strokeWidth={8} />
             </div>
-            <KcalRing consumed={totals.kcal} goal={goals.dailyKcalGoal} size={100} strokeWidth={8} />
-          </div>
-        </GlassCardSimple>
+          </GlassCardSimple>
+        </button>
 
         <div className={styles.macroRow}>
           <MacroChip
             type="protein"
             value={totals.protein}
             goal={goals.dailyProteinGoal ?? 140}
-            onClick={() => navigate('/goals?focus=protein')}
+            onClick={() => navigate('/home/breakdown/protein')}
           />
           <MacroChip
             type="carbs"
             value={totals.carbs}
             goal={goals.dailyCarbsGoal ?? 250}
-            onClick={() => navigate('/goals?focus=carbs')}
+            onClick={() => navigate('/home/breakdown/carbs')}
           />
           <MacroChip
             type="fat"
             value={totals.fat}
             goal={goals.dailyFatGoal ?? 65}
-            onClick={() => navigate('/goals?focus=fat')}
+            onClick={() => navigate('/home/breakdown/fat')}
           />
         </div>
 

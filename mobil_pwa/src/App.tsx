@@ -7,6 +7,7 @@ import { RedirectIfAuth, RequireAuth } from './layout/AuthGate';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import HomePage from './pages/HomePage';
+import DayNutrientPage from './pages/DayNutrientPage';
 import FoodLibraryPage from './pages/FoodLibraryPage';
 import ScannerPage from './pages/ScannerPage';
 import ProfilePage from './pages/ProfilePage';
@@ -59,6 +60,7 @@ export default function App() {
         <Route element={<RequireAuth />}>
           <Route element={<AppShell />}>
             <Route path="/home" element={<HomePage />} />
+            <Route path="/home/breakdown/:metric" element={<DayNutrientPage />} />
             <Route path="/food-library" element={<FoodLibraryPage />} />
             <Route path="/body" element={<BodyMeasurementsPage />} />
             <Route path="/fitness" element={<FitnessPage />} />
