@@ -579,48 +579,68 @@ export default function CopyMealSheet({
                 );
               })}
             </ul>
-            {sourceDate ? (
-              <div className={styles.saveBlock}>
-                {showNameField ? (
-                  <input
-                    className={styles.nameInput}
-                    value={templateName}
-                    onChange={(e) => {
-                      setTemplateName(e.target.value);
-                      setTemplateSaved(false);
-                    }}
-                    maxLength={60}
-                    placeholder={t('foodLibraryScreen.copyTemplateName')}
-                    aria-label={t('foodLibraryScreen.copyTemplateName')}
-                  />
-                ) : null}
-                <button
-                  type="button"
-                  className={styles.saveBtn}
-                  onClick={() => {
-                    if (!showNameField) {
-                      setShowNameField(true);
-                      if (!templateName) {
-                        setTemplateName(
-                          t('foodLibraryScreen.copyTemplateDefaultName', {
-                            meal: mealLabel(sourceMealType),
-                          }),
-                        );
+            <div className={styles.stepActions}>
+              {sourceDate ? (
+                <div className={styles.saveBlock}>
+                  {showNameField ? (
+                    <input
+                      className={styles.nameInput}
+                      value={templateName}
+                      onChange={(e) => {
+                        setTemplateName(e.target.value);
+                        setTemplateSaved(false);
+                      }}
+                      maxLength={60}
+                      placeholder={t('foodLibraryScreen.copyTemplateName')}
+                      aria-label={t('foodLibraryScreen.copyTemplateName')}
+                    />
+                  ) : null}
+                  <button
+                    type="button"
+                    className={styles.saveBtn}
+                    onClick={() => {
+                      if (!showNameField) {
+                        setShowNameField(true);
+                        if (!templateName) {
+                          setTemplateName(
+                            t('foodLibraryScreen.copyTemplateDefaultName', {
+                              meal: mealLabel(sourceMealType),
+                            }),
+                          );
+                        }
+                        return;
                       }
-                      return;
-                    }
-                    void saveTemplate();
-                  }}
-                  disabled={savingTemplate || selected.size === 0 || templateSaved}
-                >
-                  {savingTemplate
-                    ? t('foodLibraryScreen.copyTemplateSaving')
-                    : templateSaved
-                      ? t('foodLibraryScreen.copyTemplateSaved')
-                      : t('foodLibraryScreen.copyTemplateSave')}
-                </button>
-              </div>
-            ) : null}
+                      void saveTemplate();
+                    }}
+                    disabled={savingTemplate || selected.size === 0 || templateSaved}
+                  >
+                    {savingTemplate
+                      ? t('foodLibraryScreen.copyTemplateSaving')
+                      : templateSaved
+                        ? t('foodLibraryScreen.copyTemplateSaved')
+                        : t('foodLibraryScreen.copyTemplateSave')}
+                  </button>
+                </div>
+              ) : null}
+              {warning ? <p className={styles.warning}>{warning}</p> : null}
+              <button
+                type="button"
+                className={styles.cta}
+                onClick={() => void submit()}
+                disabled={
+                  submitting ||
+                  selected.size === 0 ||
+                  (remaining != null && selectedMeta.logCount > remaining)
+                }
+              >
+                {submitting
+                  ? t('common.loading', 'Betöltés...')
+                  : t('foodLibraryScreen.copyAdd', {
+                      count: selectedMeta.entryCount,
+                      kcal: Math.round(selectedMeta.kcal),
+                    })}
+              </button>
+            </div>
             </>
           )}
         </div>
@@ -646,28 +666,7 @@ export default function CopyMealSheet({
               );
             })}
           </div>
-        ) : (
-          <div className={styles.footer}>
-            {warning ? <p className={styles.warning}>{warning}</p> : null}
-            <button
-              type="button"
-              className={styles.cta}
-              onClick={() => void submit()}
-              disabled={
-                submitting ||
-                selected.size === 0 ||
-                (remaining != null && selectedMeta.logCount > remaining)
-              }
-            >
-              {submitting
-                ? t('common.loading', 'Betöltés...')
-                : t('foodLibraryScreen.copyAdd', {
-                    count: selectedMeta.entryCount,
-                    kcal: Math.round(selectedMeta.kcal),
-                  })}
-            </button>
-          </div>
-        )}
+        ) : null}
       </div>
       <ConfirmDialog
         visible={!!deleteTarget}

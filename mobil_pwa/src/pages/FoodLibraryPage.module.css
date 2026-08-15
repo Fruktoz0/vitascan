@@ -315,26 +315,29 @@
 
 .ghostWrap {
   display: flex;
-  align-items: stretch;
-  gap: 8px;
-  margin: 6px 0 2px;
+  align-items: center;
+  gap: 2px;
+  margin: 8px 0 2px;
+  padding: 4px 4px 4px 6px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--primary-fixed) 34%, var(--card));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nutrition-icon) 12%, transparent);
 }
 
 .ghostRow {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   flex: 1;
   min-width: 0;
   text-align: left;
-  padding: 12px;
-  border: 1.5px dashed var(--stroke);
+  padding: 8px 8px 8px 6px;
+  border: none;
   border-radius: 14px;
   background: transparent;
   gap: 10px;
   cursor: pointer;
-  opacity: 0.88;
   font-family: inherit;
+  color: inherit;
 }
 
 .ghostRow:disabled {
@@ -343,23 +346,66 @@
 }
 
 .ghostRow:active {
-  opacity: 0.7;
+  background: color-mix(in srgb, var(--card) 55%, transparent);
+}
+
+.ghostIcon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--card) 45%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ghostName {
+  font-size: 14px;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--nutrition-icon) 70%, var(--tab-inactive));
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ghostMeta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tab-inactive);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ghostKcal {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--nutrition-icon) 55%, var(--tab-inactive));
 }
 
 .ghostMore {
   flex-shrink: 0;
-  width: 44px;
-  border: 1.5px dashed var(--stroke);
-  border-radius: 14px;
-  background: transparent;
+  width: 32px;
+  height: 32px;
+  margin-right: 4px;
+  border: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--card) 50%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
 }
 
+.ghostMore:active {
+  background: var(--card);
+}
+
 .ghostHint {
-  margin: 8px 2px 0;
+  margin: 8px 8px 0;
   font-size: 11px;
   font-weight: 600;
   color: var(--tab-inactive);

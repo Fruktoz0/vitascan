@@ -9,6 +9,7 @@ import {
   IconBrain,
   IconCalendarToday,
   IconChevronRight,
+  IconContentCopy,
   IconLocalFire,
   IconNoteOutline,
   IconPieChartOutline,
@@ -647,18 +648,19 @@ export default function FoodLibraryPage() {
                         disabled={copyingMeal === meal}
                         onClick={() => void handleCopyAll(meal, hint)}
                       >
+                        <span className={styles.ghostIcon} aria-hidden>
+                          <IconContentCopy size={16} color={Colors.dashboard.nutritionIcon} />
+                        </span>
                         <div className={styles.itemLeft}>
-                          <div className={styles.itemName}>{ghostTitle(hint, meal)}</div>
-                          <div className={styles.itemMeta}>
+                          <div className={styles.ghostName}>{ghostTitle(hint, meal)}</div>
+                          <div className={styles.ghostMeta}>
                             {hint.previewNames.join(', ')}
                             {hint.itemCount > 0
                               ? ` · ${t('foodLibraryScreen.copyItemCount', { count: hint.itemCount })}`
                               : ''}
                           </div>
                         </div>
-                        <div className={styles.itemRight}>
-                          <div className={styles.itemKcal}>{Math.round(hint.totals.kcal)} kcal</div>
-                        </div>
+                        <div className={styles.ghostKcal}>{Math.round(hint.totals.kcal)} kcal</div>
                       </button>
                       <button
                         type="button"
@@ -666,7 +668,7 @@ export default function FoodLibraryPage() {
                         aria-label={t('foodLibraryScreen.copyOpenSheet')}
                         onClick={() => openCopySheet(meal)}
                       >
-                        <IconChevronRight size={22} color={Colors.dashboard.stroke} />
+                        <IconChevronRight size={18} color={Colors.dashboard.nutritionIcon} />
                       </button>
                     </div>
                     {showCopyHint && firstGhostMeal === meal ? (
