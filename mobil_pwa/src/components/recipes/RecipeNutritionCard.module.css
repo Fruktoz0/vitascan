@@ -12,6 +12,25 @@
   box-shadow: 3px 3px 0 var(--shadow-hard);
 }
 
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.headIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  border: 1.5px solid var(--stroke);
+  background: #fff4ea;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 2px 2px 0 var(--shadow-hard);
+  flex-shrink: 0;
+}
+
 .title {
   margin: 0;
   font-size: 16px;
@@ -19,78 +38,118 @@
   letter-spacing: -0.2px;
 }
 
-.kcalRow {
+.cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.col {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 12px 14px;
-  border-radius: 16px;
+  flex-direction: column;
+  min-width: 0;
+  padding: 10px 8px 8px;
+  border-radius: 18px;
   border: 1.5px solid var(--stroke);
+  background: #fff;
+  box-shadow: 2px 2px 0 var(--shadow-hard);
+}
+
+.colHead {
+  align-self: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1.2px solid var(--stroke);
+  background: var(--blob-mint);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  box-shadow: 1px 1px 0 var(--shadow-hard);
+}
+
+.kcalBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin: 10px 0 8px;
+  padding: 10px 6px 8px;
+  border-radius: 14px;
+  border: 1.2px solid var(--stroke);
   background: linear-gradient(135deg, #fff4ea 0%, #ffe8d4 100%);
 }
 
 .kcalIcon {
-  width: 28px;
-  height: 28px;
-  border-radius: 14px;
+  width: 26px;
+  height: 26px;
+  border-radius: 13px;
   border: 1px solid var(--stroke);
   background: #fff;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  align-self: center;
+  box-shadow: 1px 1px 0 var(--shadow-hard);
 }
 
-.kcalValue {
-  font-size: 28px;
+.kcal {
+  font-size: 22px;
   font-weight: 900;
-  letter-spacing: -0.6px;
-  line-height: 1;
+  letter-spacing: -0.5px;
+  line-height: 1.05;
 }
 
 .kcalUnit {
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
   color: rgba(0, 0, 0, 0.45);
 }
 
-.macros {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-
-.macro {
+.macroList {
   display: flex;
   flex-direction: column;
+  gap: 5px;
+}
+
+.macroRow {
+  display: flex;
   align-items: center;
   gap: 4px;
-  padding: 10px 6px;
-  border-radius: 16px;
+  min-width: 0;
+  padding: 3px 5px 3px 3px;
+  border-radius: 10px;
   border: 1.2px solid var(--stroke);
   background: #f7f4f1;
 }
 
 .macroIcon {
-  width: 28px;
-  height: 28px;
-  border-radius: 14px;
+  width: 18px;
+  height: 18px;
+  border-radius: 9px;
   border: 1px solid var(--stroke);
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.macroVal {
-  font-size: 15px;
-  font-weight: 800;
+  flex-shrink: 0;
 }
 
 .macroLbl {
-  font-size: 10px;
-  font-weight: 700;
-  color: rgba(0, 0, 0, 0.45);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+  flex: 1;
+  min-width: 0;
+  font-size: 9px;
+  font-weight: 800;
+  color: rgba(0, 0, 0, 0.5);
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.macroVal {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--stroke);
 }

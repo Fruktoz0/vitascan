@@ -7,6 +7,7 @@ import { PrimaryButton } from '../components/ui/Button';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import {
   IconArrowBack,
+  IconCalendarToday,
   IconCheck,
   IconEdit,
   IconHeart,
@@ -19,6 +20,7 @@ import {
 import { RecipeNutritionCard } from '../components/recipes/RecipeNutritionCard';
 import { getErrorMessage, recipesApi, type RecipeDetail, type RecipeSourceType } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import { fileToCompressedJpegFile } from '../utils/imageToJpeg';
 import { MEAL_META, type MealType } from '../utils/mealMeta';
 import { RECIPE_CATEGORY_META } from '../utils/recipeMeta';
@@ -44,13 +46,6 @@ const MEAL_I18N: Record<MealType, string> = {
   SNACK: 'food.snack',
 };
 
-function todayIso() {
-  const d = new Date();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${m}-${day}`;
-}
-
 function gramsPerServingOf(recipe: RecipeDetail): number {
   if (recipe.nutrition?.gramsPerServing && recipe.nutrition.gramsPerServing > 0) {
     return recipe.nutrition.gramsPerServing;
@@ -63,11 +58,13 @@ function gramsPerServingOf(recipe: RecipeDetail): number {
 }
 
 export default function RecipeDetailPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams();
   const isAdmin = useAuthStore((s) => s.user?.role === 'ADMIN');
+  const diaryDate = useDateStore((s) => s.selectedDate);
   const fileRef = useRef<HTMLInputElement>(null);
+  const dateInputRef = useRef<HTMLInputElement>(null);
   const [recipe, setRecipe] = useState<RecipeDetail | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -76,10 +73,20 @@ export default function RecipeDetailPage() {
   const [servings, setServings] = useState(1);
   const [grams, setGrams] = useState(100);
   const [mealType, setMealType] = useState<MealType>('LUNCH');
-  const [date, setDate] = useState(todayIso);
+  const [date, setDate] = useState(() => toLocalDateStr(diaryDate));
   const [logging, setLogging] = useState(false);
   const [logMsg, setLogMsg] = useState('');
   const [imageRev, setImageRev] = useState<number | string>(0);
+
+  const dateLabel = useMemo(
+    () =>
+      new Date(`${date}T12:00:00`).toLocaleDateString(i18n.language === 'hu' ? 'hu-HU' : 'en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }),
+    [date, i18n.language],
+  );
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -318,18 +325,21 @@ export default function RecipeDetailPage() {
                   }}
                 >
                   {matched ? (
-                    <IconCheck size={16} color={Colors.dashboard.stroke} />
+                    <IconCheck size={14} color={Colors.dashboard.stroke} />
                   ) : (
-                    <IconRestaurant size={16} color={Colors.dashboard.stroke} />
+                    <IconRestaurant size={14} color={Colors.dashboard.stroke} />
                   )}
                 </span>
-                <span className={styles.ingBody}>
-                  <span className={styles.ingName}>{ing.name}</span>
+                <span className={styles.ingMain}>
+                  <span className={styles.ingLine}>
+                    <span className={styles.ingName}>{ing.name}</span>
+                    <span className={styles.ingDots} aria-hidden />
+                    <span className={styles.ingAmt}>{amount || '—'}</span>
+                  </span>
                   {ing.matchedFoodName && ing.matchedFoodName !== ing.name ? (
                     <span className={styles.ingMatch}>{ing.matchedFoodName}</span>
                   ) : null}
                 </span>
-                <span className={styles.ingAmt}>{amount || '—'}</span>
               </div>
             );
           })}
@@ -350,6 +360,7 @@ export default function RecipeDetailPage() {
         </section>
       )}
 
+      {(recipe.sourceType !== 'MANUAL' && recipe.sourceType !== 'IMAGE') && (
       <section className={styles.card}>
         <h3 className={styles.sectionTitle}>{t('recipes.source')}</h3>
         <p className={styles.meta}>{t(SOURCE_KEY[recipe.sourceType] ?? 'recipes.sourceManual')}</p>
@@ -368,6 +379,7 @@ export default function RecipeDetailPage() {
           </a>
         ) : null}
       </section>
+      )}
 
       {recipe.status !== 'REJECTED' && (
         <section className={styles.card}>
@@ -446,7 +458,25 @@ export default function RecipeDetailPage() {
             })}
           </div>
           <span className={styles.fieldLabel}>{t('recipes.logDate')}</span>
-          <input className={styles.date} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <div className={styles.dateWrap}>
+            <button
+              type="button"
+              className={styles.dateBtn}
+              onClick={() => dateInputRef.current?.showPicker?.() ?? dateInputRef.current?.click()}
+            >
+              <span>{dateLabel}</span>
+              <span className={styles.dateBtnIcon}>
+                <IconCalendarToday size={18} color={Colors.dashboard.stroke} />
+              </span>
+            </button>
+            <input
+              ref={dateInputRef}
+              className={styles.hiddenDate}
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value || toLocalDateStr())}
+            />
+          </div>
           {logMsg && <p className={styles.warn}>{logMsg}</p>}
           <div className={styles.logCta}>
             <PrimaryButton
