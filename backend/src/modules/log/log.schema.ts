@@ -40,5 +40,74 @@ export const UpdateLogSchema = z.object({
   { message: 'Legalább egy mezőt meg kell adni.' }
 );
 
+export const MealTypeEnum = z.enum([
+  'BREAKFAST',
+  'TIZORAI',
+  'LUNCH',
+  'UZSONNA',
+  'DINNER',
+  'SNACK',
+  'OTHER',
+]);
+
+const DateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Dátum formátum: YYYY-MM-DD');
+
+export const MealHistoryQuerySchema = z.object({
+  before: DateStr,
+  days: z.coerce.number().int().min(1).max(90).optional(),
+  mealType: MealTypeEnum.optional(),
+});
+
+export const CopyLogsSchema = z
+  .object({
+    date: DateStr,
+    mealType: MealTypeEnum,
+    sourceDate: DateStr.optional(),
+    sourceMealType: MealTypeEnum.optional(),
+    templateId: z.string().uuid().optional(),
+    copyAll: z.boolean().optional(),
+    items: z
+      .array(
+        z.object({
+          type: z.enum(['log', 'group']),
+          id: z.string().uuid(),
+        }),
+      )
+      .optional(),
+  })
+  .refine((d) => d.copyAll === true || (d.items && d.items.length > 0), {
+    message: 'copyAll vagy items megadása kötelező.',
+  })
+  .refine((d) => !!d.templateId || (!!d.sourceDate && !!d.sourceMealType), {
+    message: 'templateId vagy sourceDate+sourceMealType megadása kötelező.',
+  });
+
+export const MealTemplateQuerySchema = z.object({
+  mealType: MealTypeEnum.optional(),
+});
+
+export const CreateMealTemplateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(60),
+    mealType: MealTypeEnum,
+    sourceDate: DateStr,
+    sourceMealType: MealTypeEnum,
+    copyAll: z.boolean().optional(),
+    items: z
+      .array(
+        z.object({
+          type: z.enum(['log', 'group']),
+          id: z.string().uuid(),
+        }),
+      )
+      .optional(),
+  })
+  .refine((d) => d.copyAll === true || (d.items && d.items.length > 0), {
+    message: 'copyAll vagy items megadása kötelező.',
+  });
+
 export type CreateLogInput = z.infer<typeof CreateLogSchema>;
 export type UpdateLogInput = z.infer<typeof UpdateLogSchema>;
+export type MealHistoryQuery = z.infer<typeof MealHistoryQuerySchema>;
+export type CopyLogsInput = z.infer<typeof CopyLogsSchema>;
+export type CreateMealTemplateInput = z.infer<typeof CreateMealTemplateSchema>;

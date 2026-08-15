@@ -167,7 +167,8 @@
     "delete": "Törlés",
     "ok": "OK",
     "continue": "Folytatás",
-    "loading": "Betöltés..."
+    "loading": "Betöltés...",
+    "back": "Vissza"
   },
   "language": {
     "hungarian": "Magyar",
@@ -1102,6 +1103,35 @@
     "dayNotePlaceholder": "Pl. fáj a hasam, puffadás, fejfájás…",
     "dayNoteSave": "Mentés",
     "dayNoteSaved": "Mentve",
-    "dayNoteError": "A megjegyzés mentése sikertelen."
+    "dayNoteError": "A megjegyzés mentése sikertelen.",
+    "copyYesterday": "Tegnapi {{meal}}",
+    "copyWeekdayMeal": "{{weekday}} {{meal}}",
+    "copyLastMeal": "Utolsó {{meal}} · {{weekday}}",
+    "copyItemCount": "{{count}} tétel",
+    "copyHint": "Más naphoz tartsd nyomva az étkezés címét.",
+    "copySheetTitle": "{{meal}} másolása",
+    "copySheetSubtitle": "A tételek a {{date}} nap {{meal}} étkezéséhez kerülnek.",
+    "copyFrequent": "Leggyakoribb {{meal}}",
+    "copyFrequentTimes": "{{count}} alkalommal",
+    "copyOlder": "Korábbi nap…",
+    "copyEmpty": "Még nincs korábbi {{meal}}.",
+    "copyAdd": "Hozzáadás · {{count}} tétel · {{kcal}} kcal",
+    "copyAlreadyLogged": "Már szerepel",
+    "copyUndo": "{{count}} tétel másolva",
+    "copyUndoAction": "Visszavonás",
+    "copyLimit": "Még {{remaining}} bejegyzés fér bele erre a napra.",
+    "copyError": "A másolás sikertelen.",
+    "copyOpenSheet": "Korábbi étkezések",
+    "copyTemplates": "Sablonok",
+    "copyTemplateDefaultName": "Hétköznapi {{meal}}",
+    "copyTemplateSave": "Mentés sablonnak",
+    "copyTemplateSaving": "Mentés...",
+    "copyTemplateSaved": "Sablon mentve",
+    "copyTemplateName": "Sablon neve",
+    "copyTemplateDeleteTitle": "Sablon törlése",
+    "copyTemplateDeleteMessage": "Törlöd a(z) „{{name}}” sablont?",
+    "copyTemplateDelete": "Törlés",
+    "copyTemplateLimit": "Legfeljebb 20 mentett étkezés tárolható.",
+    "copyTemplateError": "A sablon mentése sikertelen."
   }
 }

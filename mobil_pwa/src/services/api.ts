@@ -507,13 +507,101 @@ export const foodApi = {
       earnedExpertBadge?: boolean;
     }>(`/foods/${foodId}/vote`, { method: 'POST', body: JSON.stringify({ value }) }),
 };
+export type MealDaySummary = {
+  date: string;
+  mealType: string;
+  totals: { kcal: number; protein: number; carbs: number; fat: number };
+  previewNames: string[];
+  itemCount: number;
+};
+
+export type MealSlotHistory = {
+  yesterday: MealDaySummary | null;
+  lastFilled: MealDaySummary | null;
+  days: MealDaySummary[];
+  frequent: (MealDaySummary & { times: number }) | null;
+};
+
+export type MealHistoryResult = {
+  before: string;
+  days: number;
+  slots: Partial<Record<string, MealSlotHistory>>;
+};
+
+export type CopyLogsBody = {
+  date: string;
+  mealType: string;
+  sourceDate?: string;
+  sourceMealType?: string;
+  templateId?: string;
+  copyAll?: boolean;
+  items?: { type: 'log' | 'group'; id: string }[];
+};
+
+export type CopyLogsResult = {
+  logs: unknown[];
+  logIds: string[];
+  groupIds: string[];
+};
+
+export type MealTemplateItem = {
+  id: string;
+  foodId: string | null;
+  foodName: string;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number | null;
+  sugar: number | null;
+  amount: number;
+  sortOrder: number;
+  groupKey: string | null;
+  sourcePreparedFoodId: string | null;
+  sourcePreparedFoodName: string | null;
+};
+
+export type MealTemplate = {
+  id: string;
+  name: string;
+  mealType: string;
+  createdAt: string;
+  updatedAt: string;
+  totals: { kcal: number; protein: number; carbs: number; fat: number };
+  previewNames: string[];
+  itemCount: number;
+  items: MealTemplateItem[];
+};
+
 export const logApi = {
   getToday: () => {
     const today = new Date().toISOString().split('T')[0];
     return request<any>(`/logs?date=${today}`);
   },
-  getByDate: (date: string) => request<any>(`/logs?date=${date}`),
+  getByDate: (date: string, mealType?: string) =>
+    request<any>(`/logs?date=${date}${mealType ? `&mealType=${mealType}` : ''}`),
   getRange: (from: string, to: string) => request<any>(`/logs?from=${from}&to=${to}`),
+  mealHistory: (opts: { before: string; days?: number; mealType?: string }) => {
+    const q = new URLSearchParams({ before: opts.before });
+    if (opts.days != null) q.set('days', String(opts.days));
+    if (opts.mealType) q.set('mealType', opts.mealType);
+    return request<MealHistoryResult>(`/logs/meal-history?${q.toString()}`);
+  },
+  copy: (data: CopyLogsBody) =>
+    request<CopyLogsResult>('/logs/copy', { method: 'POST', body: JSON.stringify(data) }),
+  templates: (mealType?: string) =>
+    request<{ templates: MealTemplate[] }>(
+      `/logs/templates${mealType ? `?mealType=${mealType}` : ''}`,
+    ),
+  createTemplate: (data: {
+    name: string;
+    mealType: string;
+    sourceDate: string;
+    sourceMealType: string;
+    copyAll?: boolean;
+    items?: { type: 'log' | 'group'; id: string }[];
+  }) => request<MealTemplate>('/logs/templates', { method: 'POST', body: JSON.stringify(data) }),
+  deleteTemplate: (id: string) => request<{ message: string }>(`/logs/templates/${id}`, { method: 'DELETE' }),
   create: (data: unknown) => request('/logs', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: unknown) =>
     request(`/logs/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),

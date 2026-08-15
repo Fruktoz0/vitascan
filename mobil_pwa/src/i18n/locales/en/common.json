@@ -151,7 +151,8 @@
     "delete": "Delete",
     "ok": "OK",
     "continue": "Continue",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "back": "Back"
   },
   "language": {
     "hungarian": "Hungarian",
@@ -1101,6 +1102,35 @@
     "dayNotePlaceholder": "e.g. stomach ache, bloating, headache…",
     "dayNoteSave": "Save",
     "dayNoteSaved": "Saved",
-    "dayNoteError": "Could not save the note."
+    "dayNoteError": "Could not save the note.",
+    "copyYesterday": "Yesterday's {{meal}}",
+    "copyWeekdayMeal": "{{weekday}} {{meal}}",
+    "copyLastMeal": "Last {{meal}} · {{weekday}}",
+    "copyItemCount": "{{count}} items",
+    "copyHint": "Long-press the meal title to copy from another day.",
+    "copySheetTitle": "Copy {{meal}}",
+    "copySheetSubtitle": "Items will be added to {{meal}} on {{date}}.",
+    "copyFrequent": "Most frequent {{meal}}",
+    "copyFrequentTimes": "{{count}} times",
+    "copyOlder": "Older days…",
+    "copyEmpty": "No previous {{meal}} yet.",
+    "copyAdd": "Add · {{count}} items · {{kcal}} kcal",
+    "copyAlreadyLogged": "Already logged",
+    "copyUndo": "{{count}} items copied",
+    "copyUndoAction": "Undo",
+    "copyLimit": "{{remaining}} log entries left for this day.",
+    "copyError": "Could not copy the meal.",
+    "copyOpenSheet": "Previous meals",
+    "copyTemplates": "Templates",
+    "copyTemplateDefaultName": "Usual {{meal}}",
+    "copyTemplateSave": "Save as template",
+    "copyTemplateSaving": "Saving...",
+    "copyTemplateSaved": "Template saved",
+    "copyTemplateName": "Template name",
+    "copyTemplateDeleteTitle": "Delete template",
+    "copyTemplateDeleteMessage": "Delete the “{{name}}” template?",
+    "copyTemplateDelete": "Delete",
+    "copyTemplateLimit": "You can save up to 20 meal templates.",
+    "copyTemplateError": "Could not save the template."
   }
 }

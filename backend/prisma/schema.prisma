@@ -41,6 +41,7 @@ model User {
   aiBodyAnalyses AiBodyAnalysis[]
   workoutLogs     WorkoutLog[]
   dailyStepLogs   DailyStepLog[]
+  mealTemplates   MealTemplate[]
 
   deletedAt DateTime? // Soft delete (GDPR - 30 napos türelmi idő)
   createdAt DateTime  @default(now())
@@ -173,6 +174,8 @@ model Food {
   editLogs  FoodEditLog[]
   components FoodComponent[]
   sourcedLogs DailyLog[] @relation("PreparedFoodSource")
+  templateItems MealTemplateItem[] @relation("TemplateItemFood")
+  templatePreparedItems MealTemplateItem[] @relation("TemplatePreparedFood")
   recipeIngredients RecipeIngredient[]
   /** Receptből materializált prepared Food — ne jelenjen meg ételkeresésben. */
   preparedFromRecipeId String? @unique
@@ -264,6 +267,43 @@ model DailyLog {
 
   @@index([userId, logGroupId])
   @@index([sourcePreparedFoodId])
+}
+
+model MealTemplate {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  mealType  MealType
+  items     MealTemplateItem[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, mealType])
+}
+
+model MealTemplateItem {
+  id         String @id @default(uuid())
+  templateId String
+  template   MealTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  foodId   String?
+  food     Food?   @relation("TemplateItemFood", fields: [foodId], references: [id], onDelete: SetNull)
+  foodName String
+  kcal     Float
+  protein  Float
+  carbs    Float
+  fat      Float
+  fiber    Float?
+  sugar    Float?
+  amount   Float
+
+  sortOrder            Int     @default(0)
+  groupKey             String?
+  sourcePreparedFoodId String?
+  sourcePreparedFood   Food?   @relation("TemplatePreparedFood", fields: [sourcePreparedFoodId], references: [id], onDelete: SetNull)
+
+  @@index([templateId])
 }
 
 model RefreshToken {

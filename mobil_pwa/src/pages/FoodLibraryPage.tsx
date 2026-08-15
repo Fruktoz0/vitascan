@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
@@ -8,29 +8,79 @@ import {
   IconAdd,
   IconBrain,
   IconCalendarToday,
+  IconChevronRight,
   IconLocalFire,
   IconNoteOutline,
   IconPieChartOutline,
 } from '../components/ui/Icons';
-import { analysisApi, dayNoteApi, logApi, statsApi, ApiError, type DailyAnalysisResult, type Food } from '../services/api';
+import {
+  analysisApi,
+  dayNoteApi,
+  logApi,
+  statsApi,
+  ApiError,
+  type CopyLogsResult,
+  type DailyAnalysisResult,
+  type Food,
+  type MealDaySummary,
+  type MealHistoryResult,
+} from '../services/api';
 import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import { useProfileStore } from '../stores/profileStore';
 import { UserAvatar } from '../components/ui/AvatarPicker';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { AnalysisResultView } from '../components/food/AnalysisResult';
+import CopyMealSheet from '../components/food/CopyMealSheet';
+import CopyUndoBar from '../components/food/CopyUndoBar';
 import { parseAnalysisContent } from '../utils/parseAnalysisContent';
 import { Colors } from '../design/tokens';
 import { MEAL_META, type MealType } from '../utils/mealMeta';
 import { getNearestMealType, mealKcalGoal } from '../utils/mealInsights';
 import { groupDiaryLogs } from '../utils/groupDiaryLogs';
+import { useLongPress } from '../hooks/useLongPress';
+import { getItem, setItem } from '../services/storage';
 import styles from './FoodLibraryPage.module.css';
 
 const VALID_MEALS: MealType[] = ['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK'];
+const COPY_HINT_KEY = 'vitascan.copyMealHintSeen';
+const HU_WEEKDAY_ADJ = ['vasárnapi', 'hétfői', 'keddi', 'szerdai', 'csütörtöki', 'pénteki', 'szombati'];
 
 type DialogState =
   | null
   | { mode: 'alert'; title: string; message: string }
   | { mode: 'confirm'; title: string; message: string; onConfirm: () => void };
+
+type CopySheetState = {
+  targetMeal: MealType;
+  sourceDate?: string;
+  sourceMeal?: MealType;
+  limitWarning?: string;
+  limitRemaining?: number;
+};
+
+type UndoState = CopyLogsResult & { count: number };
+
+function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function MealHeadPressable({
+  className,
+  onCopyMenu,
+  children,
+}: {
+  className?: string;
+  onCopyMenu: () => void;
+  children: ReactNode;
+}) {
+  const handlers = useLongPress({ onLongPress: onCopyMenu });
+  return (
+    <div className={className} {...handlers}>
+      {children}
+    </div>
+  );
+}
 
 
 export default function FoodLibraryPage() {
@@ -58,22 +108,32 @@ export default function FoodLibraryPage() {
   const [createBarcode, setCreateBarcode] = useState<string | undefined>();
   const [highlightMeal, setHighlightMeal] = useState<MealType | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [mealHistory, setMealHistory] = useState<MealHistoryResult | null>(null);
+  const [copySheet, setCopySheet] = useState<CopySheetState | null>(null);
+  const [undo, setUndo] = useState<UndoState | null>(null);
+  const [copyingMeal, setCopyingMeal] = useState<MealType | null>(null);
+  const [showCopyHint, setShowCopyHint] = useState(false);
   const notFoundChoiceRef = useRef<'add' | 'back' | null>(null);
   const mealRefs = useRef<Partial<Record<MealType, HTMLDivElement | null>>>({});
   const scrolledMealRef = useRef<string | null>(null);
+  const undoTimerRef = useRef<number | null>(null);
 
   const dateStr = toLocalDateStr(selectedDate);
+  const todayStr = toLocalDateStr(new Date());
+  const diaryIsToday = dateStr === todayStr;
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [summary, analysisRes, noteRes] = await Promise.all([
+      const [summary, analysisRes, noteRes, historyRes] = await Promise.all([
         statsApi.day(dateStr),
         analysisApi.get(dateStr).catch(() => null),
         dayNoteApi.getByDate(dateStr).catch(() => ({ note: null })),
+        logApi.mealHistory({ before: dateStr }).catch(() => null),
       ]);
       setData(summary);
       setAnalysis(analysisRes);
+      setMealHistory(historyRes);
       const content = noteRes?.note?.content ?? '';
       setDayNoteDraft(content);
       setDayNoteSaved(content);
@@ -85,6 +145,22 @@ export default function FoodLibraryPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getItem(COPY_HINT_KEY).then((v) => {
+      if (!cancelled && !v) setShowCopyHint(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (undoTimerRef.current != null) window.clearTimeout(undoTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (loading && !data) return;
@@ -150,6 +226,137 @@ export default function FoodLibraryPage() {
     SNACK: t('food.snack'),
   };
   const fmt = (n: number) => Math.round(n * 10) / 10;
+  const isHu = i18n.language === 'hu';
+
+  const weekdayAdj = (dateStrValue: string) => {
+    const d = parseLocalDate(dateStrValue);
+    if (isHu) return HU_WEEKDAY_ADJ[d.getDay()] ?? '';
+    return d.toLocaleDateString('en-US', { weekday: 'long' });
+  };
+
+  const ghostSource = (meal: MealType): MealDaySummary | null => {
+    const slot = mealHistory?.slots[meal];
+    if (!slot) return null;
+    return slot.yesterday ?? slot.lastFilled ?? null;
+  };
+
+  const ghostTitle = (source: MealDaySummary, meal: MealType) => {
+    const mealName = labels[meal];
+    const yest = new Date(selectedDate);
+    yest.setDate(yest.getDate() - 1);
+    const yestKey = toLocalDateStr(yest);
+    if (source.date === yestKey && diaryIsToday) {
+      return t('foodLibraryScreen.copyYesterday', { meal: mealName });
+    }
+    if (source.date === yestKey) {
+      return t('foodLibraryScreen.copyWeekdayMeal', {
+        weekday: weekdayAdj(source.date),
+        meal: mealName,
+      });
+    }
+    return t('foodLibraryScreen.copyLastMeal', {
+      meal: mealName,
+      weekday: weekdayAdj(source.date),
+    });
+  };
+
+  const showUndo = (result: CopyLogsResult) => {
+    if (undoTimerRef.current != null) window.clearTimeout(undoTimerRef.current);
+    setUndo({ ...result, count: result.logIds.length });
+    undoTimerRef.current = window.setTimeout(() => setUndo(null), 5000);
+  };
+
+  const handleCopied = (result: CopyLogsResult) => {
+    showUndo(result);
+    void fetchData();
+  };
+
+  const handleCopyAll = async (meal: MealType, source: MealDaySummary) => {
+    if (copyingMeal) return;
+    setCopyingMeal(meal);
+    if (showCopyHint) {
+      setShowCopyHint(false);
+      void setItem(COPY_HINT_KEY, '1');
+    }
+    try {
+      const result = await logApi.copy({
+        date: dateStr,
+        mealType: meal,
+        sourceDate: source.date,
+        sourceMealType: meal,
+        copyAll: true,
+      });
+      handleCopied(result);
+    } catch (e: unknown) {
+      if (e instanceof ApiError && e.status === 403) {
+        const remainingSlots = Math.max(
+          0,
+          Number(e.payload?.limit ?? 10) - Number(e.payload?.currentCount ?? 0),
+        );
+        setCopySheet({
+          targetMeal: meal,
+          sourceDate: source.date,
+          sourceMeal: meal,
+          limitWarning: t('foodLibraryScreen.copyLimit', { remaining: remainingSlots }),
+          limitRemaining: remainingSlots,
+        });
+      } else {
+        setDialog({
+          mode: 'alert',
+          title: t('foodLibraryScreen.copySheetTitle', { meal: labels[meal] }),
+          message: e instanceof ApiError ? e.message : t('foodLibraryScreen.copyError'),
+        });
+      }
+    } finally {
+      setCopyingMeal(null);
+    }
+  };
+
+  const openCopySheet = (meal: MealType, sourceDate?: string) => {
+    if (showCopyHint) {
+      setShowCopyHint(false);
+      void setItem(COPY_HINT_KEY, '1');
+    }
+    setCopySheet({
+      targetMeal: meal,
+      sourceDate,
+      sourceMeal: meal,
+    });
+  };
+
+  const handleUndo = async () => {
+    if (!undo) return;
+    const current = undo;
+    setUndo(null);
+    if (undoTimerRef.current != null) {
+      window.clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+    try {
+      await Promise.all([
+        ...current.groupIds.map((id) => logApi.deleteGroup(id).catch(() => {})),
+        ...current.logIds.map((id) => logApi.delete(id).catch(() => {})),
+      ]);
+      await fetchData();
+    } catch (e: unknown) {
+      setDialog({
+        mode: 'alert',
+        title: t('foodLibraryScreen.copySheetTitle', { meal: t('foodLibrary') }),
+        message: e instanceof ApiError ? e.message : t('foodLibraryScreen.copyError'),
+      });
+    }
+  };
+
+  const firstGhostMeal = meals.find((m) => {
+    const logs = data?.byMealType?.[m] ?? [];
+    return logs.length === 0 && !!ghostSource(m);
+  });
+
+  useEffect(() => {
+    if (!showCopyHint || !firstGhostMeal) return;
+    void setItem(COPY_HINT_KEY, '1');
+  }, [showCopyHint, firstGhostMeal]);
+
   const hasLogs = (data?.logs?.length ?? 0) > 0 || meals.some((m) => (data?.byMealType?.[m]?.length ?? 0) > 0);
   const remaining = analysis?.remaining ?? 5;
   const canGenerate = hasLogs && remaining > 0 && !analysisLoading;
@@ -285,6 +492,7 @@ export default function FoodLibraryPage() {
             const MealIcon = meta.Icon;
             const goal = mealKcalGoal(dailyKcalGoal, meal);
             const goalPct = goal > 0 ? Math.min(mealTotals.kcal / goal, 1) : 0;
+            const hint = logs.length === 0 ? ghostSource(meal) : null;
             return (
               <div
                 key={meal}
@@ -294,7 +502,10 @@ export default function FoodLibraryPage() {
                 className={highlightMeal === meal ? styles.mealHighlight : undefined}
               >
               <BentoCard backgroundColor={Colors.dashboard.card} padding={16}>
-                <div className={styles.mealHead}>
+                <MealHeadPressable
+                  className={styles.mealHead}
+                  onCopyMenu={() => openCopySheet(meal)}
+                >
                   <div className={styles.mealTitleRow}>
                     <span className={styles.iconCircle} style={{ background: meta.bg }}>
                       <MealIcon size={28} color={Colors.dashboard.stroke} />
@@ -324,7 +535,7 @@ export default function FoodLibraryPage() {
                       </div>
                     )}
                   </div>
-                </div>
+                </MealHeadPressable>
 
                 {groupDiaryLogs(logs).map((entry) => {
                   if (entry.kind === 'single') {
@@ -426,6 +637,43 @@ export default function FoodLibraryPage() {
                     </div>
                   );
                 })}
+
+                {hint ? (
+                  <>
+                    <div className={styles.ghostWrap}>
+                      <button
+                        type="button"
+                        className={styles.ghostRow}
+                        disabled={copyingMeal === meal}
+                        onClick={() => void handleCopyAll(meal, hint)}
+                      >
+                        <div className={styles.itemLeft}>
+                          <div className={styles.itemName}>{ghostTitle(hint, meal)}</div>
+                          <div className={styles.itemMeta}>
+                            {hint.previewNames.join(', ')}
+                            {hint.itemCount > 0
+                              ? ` · ${t('foodLibraryScreen.copyItemCount', { count: hint.itemCount })}`
+                              : ''}
+                          </div>
+                        </div>
+                        <div className={styles.itemRight}>
+                          <div className={styles.itemKcal}>{Math.round(hint.totals.kcal)} kcal</div>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.ghostMore}
+                        aria-label={t('foodLibraryScreen.copyOpenSheet')}
+                        onClick={() => openCopySheet(meal)}
+                      >
+                        <IconChevronRight size={22} color={Colors.dashboard.stroke} />
+                      </button>
+                    </div>
+                    {showCopyHint && firstGhostMeal === meal ? (
+                      <p className={styles.ghostHint}>{t('foodLibraryScreen.copyHint')}</p>
+                    ) : null}
+                  </>
+                ) : null}
 
                 <div className={styles.actions}>
                   <button
@@ -632,6 +880,31 @@ export default function FoodLibraryPage() {
         onClose={() => setSelectedLog(null)}
         onSaved={fetchData}
       />
+      <CopyMealSheet
+        open={!!copySheet}
+        targetDate={dateStr}
+        targetMealType={copySheet?.targetMeal ?? 'LUNCH'}
+        history={mealHistory}
+        targetLogs={copySheet ? data?.byMealType?.[copySheet.targetMeal] ?? [] : []}
+        initialSourceDate={copySheet?.sourceDate}
+        initialSourceMealType={copySheet?.sourceMeal}
+        limitWarning={copySheet?.limitWarning ?? null}
+        limitRemaining={copySheet?.limitRemaining ?? null}
+        onClose={() => setCopySheet(null)}
+        onCopied={handleCopied}
+        onError={(message) =>
+          setDialog({
+            mode: 'alert',
+            title: t('foodLibraryScreen.copySheetTitle', {
+              meal: copySheet ? labels[copySheet.targetMeal] : t('foodLibrary'),
+            }),
+            message,
+          })
+        }
+      />
+      {undo ? (
+        <CopyUndoBar count={undo.count} onUndo={() => void handleUndo()} onDismiss={() => setUndo(null)} />
+      ) : null}
       <ConfirmDialog
         visible={!!dialog}
         title={dialog?.title ?? ''}

@@ -1,0 +1,56 @@
+.bar {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: var(--tab-clearance);
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1.5px solid var(--stroke, #1c1b1b);
+  background: #1c1b1b;
+  color: #fcf9f8;
+  box-shadow: 3px 3px 0 rgba(28, 27, 27, 0.25);
+  animation: rise 0.2s ease-out;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.text {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 700;
+  min-width: 0;
+}
+
+.undo {
+  border: none;
+  background: transparent;
+  color: #ffb77d;
+  font-weight: 800;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.dismiss {
+  border: none;
+  background: transparent;
+  color: #fcf9f8;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
