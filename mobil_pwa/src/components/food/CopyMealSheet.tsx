@@ -539,6 +539,7 @@ export default function CopyMealSheet({
               <div className="spinner" />
             </div>
           ) : (
+            <>
             <ul className={styles.checkList}>
               {entries.map((entry) => {
                 const key = entryKey(entry);
@@ -578,6 +579,49 @@ export default function CopyMealSheet({
                 );
               })}
             </ul>
+            {sourceDate ? (
+              <div className={styles.saveBlock}>
+                {showNameField ? (
+                  <input
+                    className={styles.nameInput}
+                    value={templateName}
+                    onChange={(e) => {
+                      setTemplateName(e.target.value);
+                      setTemplateSaved(false);
+                    }}
+                    maxLength={60}
+                    placeholder={t('foodLibraryScreen.copyTemplateName')}
+                    aria-label={t('foodLibraryScreen.copyTemplateName')}
+                  />
+                ) : null}
+                <button
+                  type="button"
+                  className={styles.saveBtn}
+                  onClick={() => {
+                    if (!showNameField) {
+                      setShowNameField(true);
+                      if (!templateName) {
+                        setTemplateName(
+                          t('foodLibraryScreen.copyTemplateDefaultName', {
+                            meal: mealLabel(sourceMealType),
+                          }),
+                        );
+                      }
+                      return;
+                    }
+                    void saveTemplate();
+                  }}
+                  disabled={savingTemplate || selected.size === 0 || templateSaved}
+                >
+                  {savingTemplate
+                    ? t('foodLibraryScreen.copyTemplateSaving')
+                    : templateSaved
+                      ? t('foodLibraryScreen.copyTemplateSaved')
+                      : t('foodLibraryScreen.copyTemplateSave')}
+                </button>
+              </div>
+            ) : null}
+            </>
           )}
         </div>
 
@@ -622,48 +666,6 @@ export default function CopyMealSheet({
                     kcal: Math.round(selectedMeta.kcal),
                   })}
             </button>
-            {sourceDate ? (
-              <div className={styles.saveBlock}>
-                {showNameField ? (
-                  <input
-                    className={styles.nameInput}
-                    value={templateName}
-                    onChange={(e) => {
-                      setTemplateName(e.target.value);
-                      setTemplateSaved(false);
-                    }}
-                    maxLength={60}
-                    placeholder={t('foodLibraryScreen.copyTemplateName')}
-                    aria-label={t('foodLibraryScreen.copyTemplateName')}
-                  />
-                ) : null}
-                <button
-                  type="button"
-                  className={styles.saveBtn}
-                  onClick={() => {
-                    if (!showNameField) {
-                      setShowNameField(true);
-                      if (!templateName) {
-                        setTemplateName(
-                          t('foodLibraryScreen.copyTemplateDefaultName', {
-                            meal: mealLabel(sourceMealType),
-                          }),
-                        );
-                      }
-                      return;
-                    }
-                    void saveTemplate();
-                  }}
-                  disabled={savingTemplate || selected.size === 0 || templateSaved}
-                >
-                  {savingTemplate
-                    ? t('foodLibraryScreen.copyTemplateSaving')
-                    : templateSaved
-                      ? t('foodLibraryScreen.copyTemplateSaved')
-                      : t('foodLibraryScreen.copyTemplateSave')}
-                </button>
-              </div>
-            ) : null}
           </div>
         )}
       </div>
