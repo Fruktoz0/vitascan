@@ -31,7 +31,7 @@ const fastify = Fastify({
   },
   bodyLimit: 12 * 1024 * 1024, // AI photo recognize (base64) — images are not stored
   connectionTimeout: 0,
-  requestTimeout: 180_000,
+  requestTimeout: 600_000,
 });
 
 async function bootstrap() {
@@ -64,7 +64,7 @@ async function bootstrap() {
   });
 
   await fastify.register(multipart, {
-    limits: { fileSize: 512 * 1024 * 1024 },
+    limits: { fileSize: 1024 * 1024 * 1024 },
   });
 
   // ─── DB plugin ───────────────────────────────────────────────────────────

@@ -31,13 +31,13 @@ Ha csak a db-tools logokat nézed lokálisan: `http://127.0.0.1:3010` (compose-b
 
 | Útvonal | Szerep |
 |---------|--------|
-| `web/db-admin-stack/backups/` | Mentések (`*.dump`) |
+| `web/db-admin-stack/backups/` | Mentések (`*.tar.gz` teljes csomag, régi `*.dump` is) |
 | `web/db-admin-stack/config/schedule.json` | Cron ütemezés |
 | `web/db-admin-stack/rclone/` | rclone config (Google Drive OAuth) — ne commitold |
 
 ## Google Drive feltöltés (rclone)
 
-Kézi és ütemezett mentés után a db-tools `rclone copy`-val feltölti a `.dump` fájlt a megadott remote mappába. Alapból **ki van kapcsolva**.
+Kézi és ütemezett mentés után a db-tools `rclone copy`-val feltölti a `.tar.gz` csomagot (adatbázis + receptképek) a megadott remote mappába. Alapból **ki van kapcsolva**.
 
 ### Setup (My Drive, OAuth)
 
@@ -67,7 +67,7 @@ Kézi és ütemezett mentés után a db-tools `rclone copy`-val feltölti a `.du
 
 7. Admin → Adatbázis → **Mentés most**, majd ellenőrizd a Drive mappát. Az Overview kártyán megjelenik a „Google Drive” státusz.
 
-Feltöltési hiba esetén a **lokális dump megmarad**; a kézi mentés válaszában `driveUpload: failed` + hibaüzenet. A Drive-on nincs külön retention — csak a lokális `retentionDays` töröl.
+Feltöltési hiba esetén a **lokális csomag megmarad**; a kézi mentés válaszában `driveUpload: failed` + hibaüzenet. A Drive-on nincs külön retention — csak a lokális `retentionDays` töröl.
 
 Service account / Shared Drive nem az alapút; személyes My Drive-hoz az OAuth config a javasolt.
 
@@ -75,10 +75,21 @@ Service account / Shared Drive nem az alapút; személyes My Drive-hoz az OAuth 
 
 Az admin webfelület **Adatbázis** lapja az API `/admin/database/*` végpontjain keresztül hívja a db-tools-t.
 
+A db-tools a `vitascan_media` volume-ot is látja (`RECIPE_STORAGE_DIR`, alapból `/data/vitascan/recipes`) — ugyanaz, mint az API.
+
+### Mentés (`POST /backup`, ütemezett cron)
+
+- `pg_dump -Fc` → `database.dump`, majd GNU `tar` csomag: `{manual|auto}-vitascan-<időbélyeg>.tar.gz`.
+- A csomag tartalma: `database.dump` + `recipes/*.webp` (a `tmp/` feltöltési mappa nélkül).
+- Ha a recepttár üres / nincs felcsatolva, a csomag csak a dumpot tartalmazza.
+- Régi, csak-DB `.dump` fájlok továbbra is listázhatók és visszaállíthatók.
+
 ### Szelektív adatfrissítés (`POST /data-update`)
 
+- `.tar.gz` / `.tgz` / `.tar`: kicsomagolás, dump merge, receptképek bemásolása.
 - `.dump` / `.backup`: ideiglenes DB + `postgres_fdw` merge a célba.
-- Preferált FK-sorrend (Prisma modellek): User → UserProfile → SystemSetting → RefreshToken → Food → FoodComponent → Vote → FoodFavorite → FoodEditLog → DailyLog → WaterLog → WeightLog → DayNote → DailyAnalysis → AiFoodRecognition → BodyMeasurement* → AiBodyAnalysis → WorkoutLog → DailyStepLog (egyéb közös táblák ABC-ben a végén).
+- Preferált FK-sorrend (Prisma modellek): User → UserProfile → SystemSetting → RefreshToken → **Recipe** → Food → FoodComponent → Vote → FoodFavorite → FoodEditLog → RecipeIngredient → RecipeImage → RecipeFavorite → AiRecipeImport → DailyLog → MealTemplate → MealTemplateItem → WaterLog → WeightLog → DayNote → DailyAnalysis → AiFoodRecognition → BodyMeasurement* → AiBodyAnalysis → WorkoutLog → DailyStepLog (egyéb közös táblák ABC-ben a végén).
+- A Recipe a Food előtt van, mert `Food.preparedFromRecipeId` a Recipe-re mutat.
 - Merge előtt a dump oldali legacy **WaterLog** (`amountMl`) napi `totalMl` + `loggedDate` formára konvertálódik, ha kell.
 - Csak **közös oszlopok** kerülnek át (séma-drift nem bontja el az importot).
 - `INSERT … ON CONFLICT DO NOTHING` — meglévő PK / unique (pl. Food `barcode`, `externalId`) **nem frissül**.
@@ -87,7 +98,9 @@ Az admin webfelület **Adatbázis** lapja az API `/admin/database/*` végpontjai
 
 ### Teljes visszaállítás (`/restore`, `/restore-upload`)
 
-`pg_restore --clean` / `psql` — felülírja a DB-t. Régi dump után a hiányzó újabb sémát a stack újraindítása / `prisma db push` pótolhatja; automatikus push a restore után nincs.
+- `.tar.gz`: `pg_restore --clean` a `database.dump`-ra, majd a `recipes/` fájlok másolása a `RECIPE_STORAGE_DIR`-be (felülírás, extra régi fájlok nem törlődnek).
+- `.dump` / `.backup` / `.sql`: csak adatbázis (képek nélkül).
+- Régi dump után a hiányzó újabb sémát a stack újraindítása / `prisma db push` pótolhatja; automatikus push a restore után nincs.
 
 Részletek és curl példa a korábbi szekciókban maradtak – a **szolgáltatás neve** Docker DNS szerint: `db-tools` (nem kötelező a `vitascan_db_tools` konténernév).
 

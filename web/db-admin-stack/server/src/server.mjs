@@ -1,6 +1,6 @@
 import { createReadStream, createWriteStream, promises as fs } from 'node:fs';
 import { createInterface } from 'node:readline';
-import { join, resolve, relative, sep } from 'node:path';
+import { basename, dirname, join, resolve, relative, sep } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import Fastify from 'fastify';
@@ -23,6 +23,10 @@ const PG_CLI_URL = postgresCliConnectionUri(DATABASE_URL);
 
 const BACKUP_DIR = resolve(process.env.BACKUP_DIR ?? '/backups');
 const SCHEDULE_FILE = resolve(process.env.SCHEDULE_FILE ?? '/config/schedule.json');
+/** API-val közös volume: receptképek (uuid.webp). Üres, ha a db-tools nem látja a tárat. */
+const RECIPE_STORAGE_DIR = process.env.RECIPE_STORAGE_DIR
+  ? resolve(process.env.RECIPE_STORAGE_DIR)
+  : '';
 
 const RCLONE_UPLOAD_ENABLED = /^(1|true|yes|on)$/i.test(
   String(process.env.RCLONE_UPLOAD_ENABLED ?? '').trim(),
@@ -124,6 +128,7 @@ async function filterPgRestoreSqlFile(srcPath, destPath) {
 
 /**
  * Preferált merge sorrend (FK-barát) — igazítva a Prisma schema.prisma modellekhez.
+ * Recipe a Food előtt: Food.preparedFromRecipeId → Recipe.id (körkörös 1:1 a Food oldalon).
  * A cél séma egyéb public táblái (kivéve _prisma_migrations) a lista végére kerülnek,
  * ha a dumpban is megvannak.
  */
@@ -132,12 +137,19 @@ const MERGE_TABLE_ORDER = [
   'UserProfile',
   'SystemSetting',
   'RefreshToken',
+  'Recipe',
   'Food',
   'FoodComponent',
   'Vote',
   'FoodFavorite',
   'FoodEditLog',
+  'RecipeIngredient',
+  'RecipeImage',
+  'RecipeFavorite',
+  'AiRecipeImport',
   'DailyLog',
+  'MealTemplate',
+  'MealTemplateItem',
   'WaterLog',
   'WeightLog',
   'DayNote',
@@ -640,6 +652,203 @@ function detectSource(filename) {
   return 'legacy';
 }
 
+function isArchiveBackupName(name) {
+  const l = String(name || '').toLowerCase();
+  return l.endsWith('.tar.gz') || l.endsWith('.tgz') || l.endsWith('.tar');
+}
+
+function isDumpBackupName(name) {
+  const l = String(name || '').toLowerCase();
+  return l.endsWith('.dump') || l.endsWith('.backup');
+}
+
+function isSqlBackupName(name) {
+  return String(name || '').toLowerCase().endsWith('.sql');
+}
+
+function tarListArgs(archivePath) {
+  return String(archivePath).toLowerCase().endsWith('.tar')
+    ? ['-tf', archivePath]
+    : ['-tzf', archivePath];
+}
+
+function tarExtractArgs(archivePath, dest) {
+  return String(archivePath).toLowerCase().endsWith('.tar')
+    ? ['-xf', archivePath, '-C', dest]
+    : ['-xzf', archivePath, '-C', dest];
+}
+
+/** Elutasítjuk a `/` és a túl rövid útvonalakat — ne pakoljuk a teljes fájlrendszert. */
+function recipeStorageReady() {
+  if (!RECIPE_STORAGE_DIR) return null;
+  const root = resolve(RECIPE_STORAGE_DIR);
+  if (root === '/' || root === resolve('/') || root.length < 8) return null;
+  return root;
+}
+
+async function countPermanentRecipeFiles(root) {
+  try {
+    const entries = await fs.readdir(root, { withFileTypes: true });
+    return entries.filter((e) => e.isFile() && !e.name.startsWith('.')).length;
+  } catch {
+    return 0;
+  }
+}
+
+async function assertSafeTarMembers(archivePath) {
+  const { stdout } = await execFileAsync('tar', tarListArgs(archivePath), {
+    maxBuffer: 32 * 1024 * 1024,
+  });
+  const lines = String(stdout)
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  for (const line of lines) {
+    const n = line.replace(/^\.\//, '');
+    if (!n || n.includes('\0') || n.startsWith('/') || n.includes('..')) {
+      throw new Error('A csomag érvénytelen útvonalat tartalmaz.');
+    }
+  }
+  return lines;
+}
+
+async function findExtractedDump(dir) {
+  const preferred = ['database.dump', 'database.backup'];
+  for (const name of preferred) {
+    const abs = join(dir, name);
+    try {
+      await fs.access(abs);
+      return abs;
+    } catch {
+      /* next */
+    }
+  }
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  for (const ent of entries) {
+    if (ent.isFile() && isDumpBackupName(ent.name)) return join(dir, ent.name);
+  }
+  throw new Error('A csomagban nincs database.dump.');
+}
+
+async function findExtractedRecipesDir(dir) {
+  const abs = join(dir, 'recipes');
+  try {
+    const st = await fs.stat(abs);
+    if (st.isDirectory()) return abs;
+  } catch {
+    /* absent */
+  }
+  return null;
+}
+
+async function copyRecipeImagesFromDir(recipesDir, log) {
+  const dest = recipeStorageReady();
+  if (!dest) {
+    log?.warn?.('[db-tools] receptképek kihagyva: RECIPE_STORAGE_DIR nincs beállítva.');
+    return { recipeImages: 'skipped', recipeImageCount: 0 };
+  }
+  if (!recipesDir) {
+    return { recipeImages: 'absent', recipeImageCount: 0 };
+  }
+  await fs.mkdir(dest, { recursive: true });
+  let count = 0;
+  const entries = await fs.readdir(recipesDir, { withFileTypes: true });
+  for (const ent of entries) {
+    if (!ent.isFile() || ent.name.startsWith('.') || ent.name === 'tmp') continue;
+    const from = join(recipesDir, ent.name);
+    const to = join(dest, ent.name);
+    if (!fileIsInsideDir(dest, to)) continue;
+    await fs.copyFile(from, to);
+    count += 1;
+  }
+  log?.info?.(`[db-tools] receptképek: ${count} fájl → ${dest}`);
+  return { recipeImages: count > 0 ? 'ok' : 'absent', recipeImageCount: count };
+}
+
+/**
+ * Csomag (.tar.gz) vagy nyers dump megnyitása. A fn dumpPath + opcionális recipesDir-t kap.
+ * Archívum esetén a kicsomagolás temp könyvtára a fn után törlődik.
+ */
+async function withBackupPayload(filePath, originalName, fn) {
+  const lower = String(originalName || filePath).toLowerCase();
+  if (isArchiveBackupName(lower)) {
+    const extractDir = join(
+      BACKUP_DIR,
+      `_extract_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    );
+    await fs.mkdir(extractDir, { recursive: true });
+    try {
+      await assertSafeTarMembers(filePath);
+      await execFileAsync('tar', tarExtractArgs(filePath, extractDir), {
+        maxBuffer: 512 * 1024 * 1024,
+      });
+      const dumpPath = await findExtractedDump(extractDir);
+      const recipesDir = await findExtractedRecipesDir(extractDir);
+      return await fn({ dumpPath, recipesDir, kind: 'archive' });
+    } finally {
+      await fs.rm(extractDir, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+  if (isDumpBackupName(lower)) {
+    return await fn({ dumpPath: filePath, recipesDir: null, kind: 'dump' });
+  }
+  throw new Error('Csak .tar.gz (teljes mentés), .dump / .backup vagy .sql támogatott.');
+}
+
+async function pgRestoreDump(dumpPath) {
+  await execFileAsync(
+    'pg_restore',
+    ['--clean', '--if-exists', '--no-owner', '-d', PG_CLI_URL, dumpPath],
+    { maxBuffer: 64 * 1024 * 1024 },
+  );
+}
+
+async function pgRestoreDumpAllowTimeout(dumpPath, log) {
+  try {
+    await pgRestoreDump(dumpPath);
+    return { timeoutIgnored: false };
+  } catch (e) {
+    const stderr = e?.stderr?.toString?.() || '';
+    if (isIgnorablePgRestoreTransactionTimeoutError(stderr)) {
+      log?.warn?.(
+        '[db-tools] pg_restore transaction_timeout SET figyelmen kívül hagyva (PG dump/client ujabb, mint a szerver).',
+      );
+      return { timeoutIgnored: true };
+    }
+    throw e;
+  }
+}
+
+function restoreMessage(base, media, timeoutIgnored) {
+  const parts = [base];
+  if (media?.recipeImages === 'ok' && media.recipeImageCount > 0) {
+    parts.push(`${media.recipeImageCount} receptkép visszaállítva.`);
+  } else if (media?.recipeImages === 'skipped') {
+    parts.push('A receptképek kimaradtak (RECIPE_STORAGE_DIR nincs a db-tools konténerben).');
+  }
+  if (timeoutIgnored) {
+    parts.push(
+      'Megjegyzés: a transaction_timeout beállítást a szerver nem ismeri, ez figyelmen kívül lett hagyva.',
+    );
+  }
+  return parts.join(' ');
+}
+
+async function restoreDumpAndMedia(filePath, originalName, log) {
+  const lower = String(originalName).toLowerCase();
+  if (isSqlBackupName(lower)) {
+    await execFileAsync('psql', [PG_CLI_URL, '-v', 'ON_ERROR_STOP=1', '-f', filePath], {
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    return { media: { recipeImages: 'absent', recipeImageCount: 0 }, timeoutIgnored: false };
+  }
+  return await withBackupPayload(filePath, originalName, async ({ dumpPath, recipesDir }) => {
+    const { timeoutIgnored } = await pgRestoreDumpAllowTimeout(dumpPath, log);
+    const media = await copyRecipeImagesFromDir(recipesDir, log);
+    return { media, timeoutIgnored };
+  });
+}
+
 async function resolveBackupFile(name) {
   const safe = safeBasename(name);
   if (!safe) return null;
@@ -666,13 +875,56 @@ async function runBackup(source = 'manual') {
   await fs.mkdir(dir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const prefix = source === 'auto' ? 'auto' : 'manual';
-  const filename = `${prefix}-vitascan-${stamp}.dump`;
+  const filename = `${prefix}-vitascan-${stamp}.tar.gz`;
   const outPath = join(dir, filename);
-  await execFileAsync('pg_dump', ['-Fc', '-f', outPath, '-d', PG_CLI_URL], {
-    maxBuffer: 64 * 1024 * 1024,
-  });
+  const staging = join(dir, `_staging_${stamp}_${process.pid}`);
+  await fs.mkdir(staging, { recursive: true });
+  const dumpPath = join(staging, 'database.dump');
+  let containsMedia = false;
+  let recipeFileCount = 0;
+  try {
+    await execFileAsync('pg_dump', ['-Fc', '-f', dumpPath, '-d', PG_CLI_URL], {
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    const tarArgs = ['-czf', outPath, '-C', staging, 'database.dump'];
+    const recipeRoot = recipeStorageReady();
+    if (recipeRoot) {
+      try {
+        const st = await fs.stat(recipeRoot);
+        if (st.isDirectory()) {
+          recipeFileCount = await countPermanentRecipeFiles(recipeRoot);
+          if (recipeFileCount > 0) {
+            tarArgs.push(
+              '--exclude=tmp',
+              '--exclude=recipes/tmp',
+              '-C',
+              dirname(recipeRoot),
+              basename(recipeRoot),
+            );
+            containsMedia = true;
+          }
+        }
+      } catch {
+        /* recepttár nem olvasható — csak DB kerül a csomagba */
+      }
+    }
+    await execFileAsync('tar', tarArgs, { maxBuffer: 64 * 1024 * 1024 });
+  } catch (e) {
+    await fs.unlink(outPath).catch(() => {});
+    throw e;
+  } finally {
+    await fs.rm(staging, { recursive: true, force: true }).catch(() => {});
+  }
   const st = await fs.stat(outPath);
-  return { filename, path: outPath, size: st.size, mtime: st.mtime.toISOString(), source };
+  return {
+    filename,
+    path: outPath,
+    size: st.size,
+    mtime: st.mtime.toISOString(),
+    source,
+    containsMedia,
+    recipeFileCount,
+  };
 }
 
 /**
@@ -721,7 +973,11 @@ async function cleanupOldBackups() {
     try {
       const entries = await fs.readdir(dir, { withFileTypes: true });
       for (const ent of entries) {
-        if (!ent.isFile() || ent.name.startsWith('.')) continue;
+        if (ent.isDirectory() && (ent.name.startsWith('_staging_') || ent.name.startsWith('_extract_'))) {
+          await fs.rm(join(dir, ent.name), { recursive: true, force: true }).catch(() => {});
+          continue;
+        }
+        if (!ent.isFile() || ent.name.startsWith('.') || ent.name.startsWith('_')) continue;
         const abs = join(dir, ent.name);
         const st = await fs.stat(abs);
         if (st.mtime < cutoff) {
@@ -820,7 +1076,7 @@ app.get('/dirs', async (req, reply) => {
 });
 
 await app.register(multipart, {
-  limits: { fileSize: 512 * 1024 * 1024 },
+  limits: { fileSize: 1024 * 1024 * 1024 },
 });
 
 app.addHook('onReady', async () => {
@@ -850,6 +1106,7 @@ app.get('/health', async (req, reply) => {
     databaseConfigured: !!DATABASE_URL,
     rcloneUploadEnabled: RCLONE_UPLOAD_ENABLED,
     rcloneRemote: RCLONE_UPLOAD_ENABLED ? RCLONE_REMOTE || null : null,
+    recipeStorageDir: recipeStorageReady() || null,
   });
 });
 
@@ -877,7 +1134,7 @@ app.get('/backups', async (req, reply) => {
     try {
       const entries = await fs.readdir(dir, { withFileTypes: true });
       for (const ent of entries) {
-        if (!ent.isFile() || ent.name.startsWith('.') || seen.has(ent.name)) continue;
+        if (!ent.isFile() || ent.name.startsWith('.') || ent.name.startsWith('_') || seen.has(ent.name)) continue;
         seen.add(ent.name);
         const abs = join(dir, ent.name);
         const st = await fs.stat(abs);
@@ -886,6 +1143,7 @@ app.get('/backups', async (req, reply) => {
           size: st.size,
           mtime: st.mtime.toISOString(),
           source: detectSource(ent.name),
+          containsMedia: isArchiveBackupName(ent.name),
         });
       }
     } catch { /* dir might not exist */ }
@@ -928,8 +1186,8 @@ app.post('/data-update', async (req, reply) => {
   const safe = safeBasename(part.filename || 'update.sql');
   if (!safe) return reply.code(400).send({ error: 'Érvénytelen fájlnév.' });
   const lower = safe.toLowerCase();
-  if (!lower.endsWith('.dump') && !lower.endsWith('.backup') && !lower.endsWith('.sql')) {
-    return reply.code(400).send({ error: 'Csak .dump, .backup vagy .sql engedélyezett.' });
+  if (!isDumpBackupName(lower) && !isSqlBackupName(lower) && !isArchiveBackupName(lower)) {
+    return reply.code(400).send({ error: 'Csak .tar.gz, .dump, .backup vagy .sql engedélyezett.' });
   }
   const target = join(BACKUP_DIR, `update-${Date.now()}-${safe}`);
 
@@ -937,13 +1195,21 @@ app.post('/data-update', async (req, reply) => {
   await fs.writeFile(target, buf);
 
   try {
-    if (lower.endsWith('.sql')) {
+    if (isSqlBackupName(lower)) {
       await execFileAsync('psql', [PG_CLI_URL, '-v', 'ON_ERROR_STOP=1', '-f', target], {
         maxBuffer: 64 * 1024 * 1024,
       });
       return reply.send({ message: 'SQL fájl lefuttatva.' });
     }
-    const result = await mergeDataFromCustomFormat(target, req.log);
+    const result = await withBackupPayload(target, safe, async ({ dumpPath, recipesDir }) => {
+      const merge = await mergeDataFromCustomFormat(dumpPath, req.log);
+      const media = await copyRecipeImagesFromDir(recipesDir, req.log);
+      let message = merge.message;
+      if (media.recipeImageCount > 0) {
+        message += ` Receptképek: ${media.recipeImageCount} fájl bemásolva.`;
+      }
+      return { message };
+    });
     return reply.send(result);
   } catch (e) {
     const stderr = e?.stderr?.toString?.() || '';
@@ -992,34 +1258,19 @@ app.post('/restore', async (req, reply) => {
   if (!abs) return reply.code(404).send({ error: 'Fájl nem található.' });
 
   const lower = name.toLowerCase();
+  if (!isDumpBackupName(lower) && !isSqlBackupName(lower) && !isArchiveBackupName(lower)) {
+    return reply
+      .code(400)
+      .send({ error: 'Csak .tar.gz (teljes mentés), .dump / .backup vagy .sql támogatott.' });
+  }
   try {
-    if (lower.endsWith('.dump') || lower.endsWith('.backup')) {
-      await execFileAsync(
-        'pg_restore',
-        ['--clean', '--if-exists', '--no-owner', '-d', PG_CLI_URL, abs],
-        { maxBuffer: 64 * 1024 * 1024 },
-      );
-    } else if (lower.endsWith('.sql')) {
-      await execFileAsync('psql', [PG_CLI_URL, '-v', 'ON_ERROR_STOP=1', '-f', abs], {
-        maxBuffer: 64 * 1024 * 1024,
-      });
-    } else {
-      return reply
-        .code(400)
-        .send({ error: 'Csak .dump / .backup (pg_restore) vagy .sql (psql) támogatott.' });
-    }
-    reply.send({ message: 'Visszaállítás lefutott.' });
+    const { media, timeoutIgnored } = await restoreDumpAndMedia(abs, name, req.log);
+    reply.send({
+      message: restoreMessage('Visszaállítás lefutott.', media, timeoutIgnored),
+      ...media,
+    });
   } catch (e) {
     const stderr = e?.stderr?.toString?.() || '';
-    if (isIgnorablePgRestoreTransactionTimeoutError(stderr)) {
-      req.log.warn(
-        '[db-tools] pg_restore transaction_timeout SET figyelmen kívül hagyva (PG dump/client ujabb, mint a szerver).',
-      );
-      return reply.send({
-        message:
-          'Visszaállítás lefutott. Megjegyzés: a transaction_timeout beállítást a szerver nem ismeri, ez figyelmen kívül lett hagyva.',
-      });
-    }
     req.log.error(e);
     reply.code(500).send({ error: stderr || e?.message || 'pg_restore/psql hiba.' });
   }
@@ -1033,8 +1284,8 @@ app.post('/restore-upload', async (req, reply) => {
   const safe = safeBasename(part.filename || 'upload.dump');
   if (!safe) return reply.code(400).send({ error: 'Érvénytelen fájlnév.' });
   const lower = safe.toLowerCase();
-  if (!lower.endsWith('.dump') && !lower.endsWith('.backup') && !lower.endsWith('.sql')) {
-    return reply.code(400).send({ error: 'Csak .dump, .backup vagy .sql engedélyezett.' });
+  if (!isDumpBackupName(lower) && !isSqlBackupName(lower) && !isArchiveBackupName(lower)) {
+    return reply.code(400).send({ error: 'Csak .tar.gz, .dump, .backup vagy .sql engedélyezett.' });
   }
   const target = join(BACKUP_DIR, `upload-${Date.now()}-${safe}`);
 
@@ -1042,30 +1293,13 @@ app.post('/restore-upload', async (req, reply) => {
   await fs.writeFile(target, buf);
 
   try {
-    if (lower.endsWith('.sql')) {
-      await execFileAsync('psql', [PG_CLI_URL, '-v', 'ON_ERROR_STOP=1', '-f', target], {
-        maxBuffer: 64 * 1024 * 1024,
-      });
-    } else {
-      await execFileAsync(
-        'pg_restore',
-        ['--clean', '--if-exists', '--no-owner', '-d', PG_CLI_URL, target],
-        { maxBuffer: 64 * 1024 * 1024 },
-      );
-    }
-    reply.send({ message: 'Feltöltött mentés visszaállítva.', tempFile: target });
+    const { media, timeoutIgnored } = await restoreDumpAndMedia(target, safe, req.log);
+    reply.send({
+      message: restoreMessage('Feltöltött mentés visszaállítva.', media, timeoutIgnored),
+      ...media,
+    });
   } catch (e) {
     const stderr = e?.stderr?.toString?.() || '';
-    if (isIgnorablePgRestoreTransactionTimeoutError(stderr)) {
-      req.log.warn(
-        '[db-tools] pg_restore transaction_timeout SET figyelmen kívül hagyva (PG dump/client ujabb, mint a szerver).',
-      );
-      return reply.send({
-        message:
-          'Feltöltött mentés visszaállítva. Megjegyzés: a transaction_timeout beállítást a szerver nem ismeri, ez figyelmen kívül lett hagyva.',
-        tempFile: target,
-      });
-    }
     req.log.error(e);
     reply.code(500).send({ error: stderr || e?.message || 'Visszaállítás hiba.' });
   } finally {

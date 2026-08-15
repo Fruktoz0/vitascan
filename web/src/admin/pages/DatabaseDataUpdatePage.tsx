@@ -107,14 +107,16 @@ export function DatabaseDataUpdatePage() {
                 <div>
                   <strong>Ami történik</strong>
                   <p>
-                    A cél séma tábláira (User, UserProfile, Food, FoodComponent, Vote, FoodFavorite, FoodEditLog,
-                    DailyLog, WaterLog, WeightLog, DayNote, DailyAnalysis, AiFoodRecognition, testmérések,
-                    WorkoutLog, DailyStepLog stb.) csak az új sorok kerülnek be. Meglévő elsődleges / egyedi
-                    kulcsok (pl. étel <code>id</code>, <code>barcode</code>, <code>externalId</code>){' '}
-                    <strong>nem frissülnek</strong> — a mentésbeli értékük kimarad. Oszlopeltérésnél csak a
-                    közös mezők mennek át; hiányzó creator / FK miatt árva sorok kimaradnak (az import nem áll
-                    le). Régi WaterLog (<code>amountMl</code>) mentésből napi <code>totalMl</code>/<code>loggedDate</code>{' '}
-                    formára konvertálódik import előtt. A <code>_prisma_migrations</code> táblát nem módosítjuk.
+                    A cél séma tábláira (User, UserProfile, Recipe, Food, FoodComponent, recept- és
+                    ételsablon-táblák, Vote, FoodFavorite, FoodEditLog, DailyLog, WaterLog, WeightLog, DayNote,
+                    DailyAnalysis, AiFoodRecognition, testmérések, WorkoutLog, DailyStepLog stb.) csak az új sorok
+                    kerülnek be. Meglévő elsődleges / egyedi kulcsok (pl. étel <code>id</code>, <code>barcode</code>,{' '}
+                    <code>externalId</code>) <strong>nem frissülnek</strong> — a mentésbeli értékük kimarad.
+                    Oszlopeltérésnél csak a közös mezők mennek át; hiányzó creator / FK miatt árva sorok kimaradnak
+                    (az import nem áll le). Régi WaterLog (<code>amountMl</code>) mentésből napi{' '}
+                    <code>totalMl</code>/<code>loggedDate</code> formára konvertálódik import előtt. A{' '}
+                    <code>_prisma_migrations</code> táblát nem módosítjuk. <code>.tar.gz</code> csomagból a
+                    receptképek is bemásolódnak (meglévő fájlnevek felülíródnak, más fájlok megmaradnak).
                   </p>
                 </div>
               </div>
@@ -130,6 +132,7 @@ export function DatabaseDataUpdatePage() {
                   <strong>Támogatott formátumok</strong>
                   <p>
                     <code>.sql</code> — közvetlenül psql-lel fut (bármit csinálhat a SQL — óvatosan).<br />
+                    <code>.tar.gz</code> — teljes mentés (database.dump + receptképek); a dump merge + képek másolása.<br />
                     <code>.dump</code> / <code>.backup</code> — PostgreSQL 15+ és <code>postgres_fdw</code> kiterjesztés
                     szükséges; a régi kliens <code>transaction_timeout</code> sorai szűrve vannak.
                   </p>
@@ -178,13 +181,13 @@ export function DatabaseDataUpdatePage() {
                     </span>
                   </>
                 ) : (
-                  'Válassz egy .sql, .dump vagy .backup fájlt'
+                  'Válassz egy .tar.gz, .sql, .dump vagy .backup fájlt'
                 )}
               </p>
               <input
                 type="file"
                 className="db-update-file-input"
-                accept=".dump,.backup,.sql,application/octet-stream"
+                accept=".tar.gz,.tgz,.tar,.dump,.backup,.sql,application/gzip,application/octet-stream"
                 disabled={busy}
                 onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
               />
@@ -216,7 +219,7 @@ export function DatabaseDataUpdatePage() {
       <ConfirmDialog
         open={confirmUpload}
         title="Adatfrissítés indítása"
-        message={`A „${uploadFile?.name}" fájl tartalmát importáljuk: csak új sorok (létező étel / barcode / unique kulcsok érintetlenek). A meglévő adatok nem törlődnek és nem frissülnek. Folytatod?`}
+        message={`A „${uploadFile?.name}" fájl tartalmát importáljuk: csak új sorok (létező étel / barcode / unique kulcsok érintetlenek). A meglévő adatok nem törlődnek és nem frissülnek. .tar.gz esetén a receptképek is bemásolódnak. Folytatod?`}
         confirmLabel="Frissítés indítása"
         onCancel={() => setConfirmUpload(false)}
         onConfirm={() => void doUpload()}

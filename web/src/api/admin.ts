@@ -370,6 +370,7 @@ export type DatabaseStatusResponse = {
   databaseConfigured?: boolean;
   rcloneUploadEnabled?: boolean;
   rcloneRemote?: string | null;
+  recipeStorageDir?: string | null;
   error?: string;
 };
 
@@ -385,6 +386,8 @@ export function runDatabaseBackup() {
     filename: string;
     size: number;
     mtime: string;
+    containsMedia?: boolean;
+    recipeFileCount?: number;
     driveUpload?: DriveUploadStatus;
     driveUploadError?: string;
   }>('/admin/database/backup', { method: 'POST' });
@@ -392,7 +395,13 @@ export function runDatabaseBackup() {
 
 export type BackupSource = 'manual' | 'auto' | 'legacy';
 
-export type BackupFileRow = { name: string; size: number; mtime: string; source?: BackupSource };
+export type BackupFileRow = {
+  name: string;
+  size: number;
+  mtime: string;
+  source?: BackupSource;
+  containsMedia?: boolean;
+};
 
 export function listDatabaseBackups() {
   return request<{ files: BackupFileRow[] }>('/admin/database/backups');

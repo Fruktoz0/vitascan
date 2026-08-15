@@ -208,7 +208,7 @@ export async function registerAdminDatabaseRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.post('/database/data-update', async (request, reply) => {
+  fastify.post('/database/data-update', { bodyLimit: 1024 * 1024 * 1024 }, async (request, reply) => {
     if (!isDatabaseToolsConfigured()) {
       return reply.status(503).send({ error: 'Mentő szolgáltatás nincs konfigurálva.' });
     }
@@ -254,7 +254,7 @@ export async function registerAdminDatabaseRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.post('/database/restore-upload', async (request, reply) => {
+  fastify.post('/database/restore-upload', { bodyLimit: 1024 * 1024 * 1024 }, async (request, reply) => {
     if (!isDatabaseToolsConfigured()) {
       return reply.status(503).send({ error: 'Mentő szolgáltatás nincs konfigurálva.' });
     }

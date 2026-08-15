@@ -93,8 +93,8 @@ export function DatabaseRestorePage() {
     setBusy(true);
     setError(null);
     try {
-      await adminApi.restoreDatabaseFromFile(restoreTarget);
-      setMessage('Rendszer-visszaállítás lefutott.');
+      const r = await adminApi.restoreDatabaseFromFile(restoreTarget);
+      setMessage(r.message || 'Rendszer-visszaállítás lefutott.');
       setRestoreTarget(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Visszaállítás sikertelen.');
@@ -108,8 +108,8 @@ export function DatabaseRestorePage() {
     setBusy(true);
     setError(null);
     try {
-      await adminApi.restoreDatabaseFromUpload(uploadFile);
-      setMessage('Feltöltött mentés alapján a rendszer-visszaállítás lefutott.');
+      const r = await adminApi.restoreDatabaseFromUpload(uploadFile);
+      setMessage(r.message || 'Feltöltött mentés alapján a rendszer-visszaállítás lefutott.');
       setConfirmUpload(false);
       setUploadFile(null);
     } catch (e) {
@@ -167,12 +167,12 @@ export function DatabaseRestorePage() {
           <section className="admin-panel">
             <h2 className="admin-panel-title">Mentések a szerveren</h2>
             <p className="admin-muted">
-              Teljes adatbázis-visszaállítás (felülírás). Csak megbízható <code>.dump</code> / <code>.sql</code> fájl.
-              Régi mentés felülírhatja / eltüntetheti az újabb táblákat és oszlopokat (pl. <code>FoodComponent</code>,{' '}
-              <code>DayNote</code>, <code>WorkoutLog</code>, <code>DailyStepLog</code>, étel <code>isPrepared</code> /{' '}
-              <code>fiber</code>/<code>sugar</code>, DailyLog <code>logGroupId</code>). Restore után indítsd újra a
-              stacket, hogy a compose <code>prisma db push</code> (és a WaterLog napi migráció) visszaállítsa a
-              hiányzó sémát — óvatosan, adatvesztés nélkül ellenőrizd.
+              Teljes visszaállítás (felülírás): új <code>.tar.gz</code> csomag az adatbázist <em>és</em> a
+              receptképeket is visszaállítja. Régi <code>.dump</code> / <code>.sql</code> csak a DB-t.
+              Régi mentés felülírhatja / eltüntetheti az újabb táblákat és oszlopokat (pl. <code>Recipe</code>,{' '}
+              <code>MealTemplate</code>, <code>FoodComponent</code>, DailyLog <code>logGroupId</code>). Restore után
+              indítsd újra a stacket, hogy a compose <code>prisma db push</code> (és a WaterLog napi migráció)
+              visszaállítsa a hiányzó sémát — óvatosan, adatvesztés nélkül ellenőrizd.
             </p>
             <div className="admin-table-wrap">
               <table className="admin-table">
@@ -187,7 +187,14 @@ export function DatabaseRestorePage() {
                 <tbody>
                   {files.map((f) => (
                     <tr key={f.name}>
-                      <td className="admin-table-strong">{f.name}</td>
+                      <td className="admin-table-strong">
+                        {f.name}
+                        {f.containsMedia ? (
+                          <span className="admin-muted"> · DB + képek</span>
+                        ) : (
+                          <span className="admin-muted"> · csak DB</span>
+                        )}
+                      </td>
                       <td>{formatBytes(f.size)}</td>
                       <td className="admin-muted">{new Date(f.mtime).toLocaleString('hu-HU')}</td>
                       <td>
@@ -219,14 +226,14 @@ export function DatabaseRestorePage() {
           <section className="admin-panel admin-panel-danger-zone">
             <h2 className="admin-panel-title">Helyi fájl feltöltése</h2>
             <p className="admin-muted">
-              <strong>Figyelem:</strong> ugyanaz, mint a táblázatos visszaállítás – felülírja az adatbázis tartalmát.
-              Régi dump + újabb app séma esetén a hiányzó táblák / oszlopok restore után is hiányozhatnak, amíg a
-              stack újraindulása (séma push) le nem fut.
+              <strong>Figyelem:</strong> ugyanaz, mint a táblázatos visszaállítás – felülírja az adatbázis tartalmát
+              és a receptképeket a csomagból. Régi dump + újabb app séma esetén a hiányzó táblák / oszlopok restore
+              után is hiányozhatnak, amíg a stack újraindulása (séma push) le nem fut.
             </p>
             <div className="admin-toolbar-row" style={{ marginTop: '0.75rem' }}>
               <input
                 type="file"
-                accept=".dump,.backup,.sql,application/octet-stream"
+                accept=".tar.gz,.tgz,.tar,.dump,.backup,.sql,application/gzip,application/octet-stream"
                 disabled={busy}
                 onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
               />
@@ -246,7 +253,7 @@ export function DatabaseRestorePage() {
       <ConfirmDialog
         open={!!restoreTarget}
         title="Rendszer visszaállítása fájlból"
-        message={`A „${restoreTarget}” fájlból történő visszaállítás törli / felülírja a jelenlegi adatokat. Régi mentés esetén újabb táblák eltűnhetnek a sémából. Biztosan folytatod?`}
+        message={`A „${restoreTarget}” fájlból történő visszaállítás törli / felülírja a jelenlegi adatokat. .tar.gz csomag esetén a receptképek is felülíródnak. Régi mentés esetén újabb táblák eltűnhetnek a sémából. Biztosan folytatod?`}
         confirmLabel="Visszaállítás"
         danger
         onCancel={() => setRestoreTarget(null)}
@@ -256,7 +263,7 @@ export function DatabaseRestorePage() {
       <ConfirmDialog
         open={confirmUpload}
         title="Rendszer visszaállítása feltöltött fájlból"
-        message={`A kiválasztott fájl (${uploadFile?.name}) teljes adatbázis-visszaállítást végez. Ez nem vonható vissza.`}
+        message={`A kiválasztott fájl (${uploadFile?.name}) teljes visszaállítást végez (adatbázis, és .tar.gz esetén receptképek). Ez nem vonható vissza.`}
         confirmLabel="Visszaállítás"
         danger
         onCancel={() => setConfirmUpload(false)}

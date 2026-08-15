@@ -159,6 +159,11 @@ export function DatabaseOverviewPage() {
     try {
       const r = await adminApi.runDatabaseBackup();
       let msg = `Mentés kész: ${r.filename} (${formatBytes(r.size)})`;
+      if (r.containsMedia && (r.recipeFileCount ?? 0) > 0) {
+        msg += ` — ${r.recipeFileCount} receptképpel.`;
+      } else {
+        msg += ' — receptképek nélkül (üres tár vagy a volume nincs a db-toolsön).';
+      }
       if (r.driveUpload === 'ok') {
         msg += ' — Google Drive feltöltés OK.';
       } else if (r.driveUpload === 'failed') {
@@ -366,7 +371,7 @@ export function DatabaseOverviewPage() {
               <div>
                 <h2 className="admin-panel-title">Pillanatnyi mentés</h2>
                 <p className="admin-muted">
-                  PostgreSQL custom formátum (<code>.dump</code>) — azonnali kézi mentés
+                  PostgreSQL dump + receptképek egy <code>.tar.gz</code> csomagban — azonnali kézi mentés
                   {status?.rcloneUploadEnabled
                     ? '; sikeres mentés után feltöltés Google Drive-ra is.'
                     : '.'}
@@ -589,7 +594,9 @@ export function DatabaseOverviewPage() {
               <div>
                 <h2 className="admin-panel-title">Mentések ({files.length})</h2>
                 <p className="admin-muted">
-                  Letöltés, törlés; teljes visszaállítás a <strong>Rendszer visszaállítás</strong> menüpontban.
+                  Letöltés, törlés; teljes visszaállítás (adatbázis + receptképek) a{' '}
+                  <strong>Rendszer visszaállítás</strong> menüpontban. Új mentések <code>.tar.gz</code> csomagok;
+                  a régi <code>.dump</code> fájlok továbbra is visszaállíthatók (képek nélkül).
                 </p>
               </div>
             </div>
@@ -622,6 +629,7 @@ export function DatabaseOverviewPage() {
                           </div>
                           <span className="db-backup-meta">
                             {formatBytes(f.size)} &middot; {new Date(f.mtime).toLocaleString('hu-HU')}
+                            {f.containsMedia ? ' · adatbázis + receptképek' : ' · csak adatbázis'}
                           </span>
                         </div>
                         <div className="db-backup-actions">
