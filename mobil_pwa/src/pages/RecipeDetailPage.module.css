@@ -88,18 +88,21 @@
 
 .imageWrap {
   position: relative;
+  height: 220px;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1.5px solid var(--stroke);
+  background: #f3efe6;
 }
 
 .hero,
 .heroEmpty {
   width: 100%;
-  height: 220px;
-  object-fit: contain;
+  height: 100%;
+  object-fit: cover;
   object-position: center;
-  border-radius: 18px;
-  border: 1.5px solid var(--stroke);
-  background: #f3efe6;
   display: block;
+  background: #f3efe6;
 }
 
 .heroEmpty {
@@ -562,10 +565,6 @@
   justify-content: center;
 }
 
-.dateWrap {
-  position: relative;
-}
-
 .dateBtn {
   display: flex;
   align-items: center;
@@ -595,14 +594,6 @@
   justify-content: center;
   box-shadow: 2px 2px 0 var(--shadow-hard);
   flex-shrink: 0;
-}
-
-.hiddenDate {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-  width: 0;
-  height: 0;
 }
 
 .logCta {

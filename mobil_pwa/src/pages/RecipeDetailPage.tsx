@@ -26,6 +26,8 @@ import { MEAL_META, type MealType } from '../utils/mealMeta';
 import { RECIPE_CATEGORY_META } from '../utils/recipeMeta';
 import styles from './RecipeDetailPage.module.css';
 
+const RETURN_TO_LOG_KEY = 'vitascan.recipeReturnToLog';
+
 const SOURCE_KEY: Record<RecipeSourceType, string> = {
   MANUAL: 'recipes.sourceManual',
   IMAGE: 'recipes.sourceImage',
@@ -64,7 +66,7 @@ export default function RecipeDetailPage() {
   const isAdmin = useAuthStore((s) => s.user?.role === 'ADMIN');
   const diaryDate = useDateStore((s) => s.selectedDate);
   const fileRef = useRef<HTMLInputElement>(null);
-  const dateInputRef = useRef<HTMLInputElement>(null);
+  const logCtaRef = useRef<HTMLDivElement>(null);
   const [recipe, setRecipe] = useState<RecipeDetail | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -73,20 +75,16 @@ export default function RecipeDetailPage() {
   const [servings, setServings] = useState(1);
   const [grams, setGrams] = useState(100);
   const [mealType, setMealType] = useState<MealType>('LUNCH');
-  const [date, setDate] = useState(() => toLocalDateStr(diaryDate));
   const [logging, setLogging] = useState(false);
   const [logMsg, setLogMsg] = useState('');
   const [imageRev, setImageRev] = useState<number | string>(0);
 
-  const dateLabel = useMemo(
-    () =>
-      new Date(`${date}T12:00:00`).toLocaleDateString(i18n.language === 'hu' ? 'hu-HU' : 'en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      }),
-    [date, i18n.language],
-  );
+  const date = toLocalDateStr(diaryDate);
+  const dateLabel = diaryDate.toLocaleDateString(i18n.language === 'hu' ? 'hu-HU' : 'en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -107,6 +105,22 @@ export default function RecipeDetailPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (loading || !recipe) return;
+    if (sessionStorage.getItem(RETURN_TO_LOG_KEY) !== '1') return;
+    sessionStorage.removeItem(RETURN_TO_LOG_KEY);
+    const jump = () => {
+      logCtaRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
+    };
+    jump();
+    const frame = requestAnimationFrame(jump);
+    const timer = window.setTimeout(jump, 80);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [loading, recipe]);
 
   const canLog = useMemo(
     () => Boolean(recipe?.nutrition && recipe.nutrition.matchedCount > 0 && recipe.status !== 'REJECTED'),
@@ -458,27 +472,21 @@ export default function RecipeDetailPage() {
             })}
           </div>
           <span className={styles.fieldLabel}>{t('recipes.logDate')}</span>
-          <div className={styles.dateWrap}>
-            <button
-              type="button"
-              className={styles.dateBtn}
-              onClick={() => dateInputRef.current?.showPicker?.() ?? dateInputRef.current?.click()}
-            >
-              <span>{dateLabel}</span>
-              <span className={styles.dateBtnIcon}>
-                <IconCalendarToday size={18} color={Colors.dashboard.stroke} />
-              </span>
-            </button>
-            <input
-              ref={dateInputRef}
-              className={styles.hiddenDate}
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value || toLocalDateStr())}
-            />
-          </div>
+          <button
+            type="button"
+            className={styles.dateBtn}
+            onClick={() => {
+              sessionStorage.setItem(RETURN_TO_LOG_KEY, '1');
+              navigate('/date-picker');
+            }}
+          >
+            <span>{dateLabel}</span>
+            <span className={styles.dateBtnIcon}>
+              <IconCalendarToday size={18} color={Colors.dashboard.stroke} />
+            </span>
+          </button>
           {logMsg && <p className={styles.warn}>{logMsg}</p>}
-          <div className={styles.logCta}>
+          <div className={styles.logCta} ref={logCtaRef}>
             <PrimaryButton
               label={logging ? t('recipes.logging') : t('recipes.addToDiary')}
               onClick={() => void handleLog()}
