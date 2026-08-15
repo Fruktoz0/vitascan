@@ -56,6 +56,12 @@ function isLocalFoodId(id: string | null | undefined): boolean {
   return typeof id === 'string' && UUID_RE.test(id);
 }
 
+/** Component macros are stored for these grams — never use servingSize for this scale. */
+function preparedRecipeGrams(components: Array<{ amountG?: number | null }>): number {
+  const sum = components.reduce((s, c) => s + (c.amountG || 0), 0);
+  return sum > 0 ? sum : 1;
+}
+
 function normalizeServingUnit(raw?: string | null): ServingUnitCode {
   const v = String(raw || 'g').trim().toLowerCase();
   return (SERVING_UNITS as readonly string[]).includes(v) ? (v as ServingUnitCode) : 'g';
@@ -631,10 +637,7 @@ export function FoodDetailModal({
         );
       const components = currentFood.components ?? [];
       const isPrepared = currentFood.isPrepared && components.length > 0;
-      const recipeG =
-        currentFood.servingSize && currentFood.servingSize > 0
-          ? currentFood.servingSize
-          : components.reduce((s, c) => s + (c.amountG || 0), 0) || 100;
+      const recipeG = preparedRecipeGrams(components);
       const scale = g / recipeG;
 
       if (isPrepared && showIngredients) {
@@ -786,11 +789,7 @@ export function FoodDetailModal({
           <div className={styles.componentsCard}>
             <div className={styles.sectionTitle}>{t('food.preparedIngredients')}</div>
             {(currentFood.components ?? []).map((c, i) => {
-              const recipeG =
-                currentFood.servingSize && currentFood.servingSize > 0
-                  ? currentFood.servingSize
-                  : (currentFood.components ?? []).reduce((s, x) => s + (x.amountG || 0), 0) || 100;
-              const scale = g / recipeG;
+              const scale = g / preparedRecipeGrams(currentFood.components ?? []);
               return (
                 <div key={c.id ?? `${c.name}-${i}`} className={styles.componentRow}>
                   <div className={styles.componentName}>{c.name}</div>
@@ -1079,6 +1078,28 @@ function scaleGroupDraft(ing: GroupIngDraft, ratio: number): GroupIngDraft {
   };
 }
 
+type RecipeCompDraft = {
+  key: string;
+  name: string;
+  amountG: string;
+  kcal: string;
+  protein: string;
+  carbs: string;
+  fat: string;
+};
+
+function scaleRecipeComp(row: RecipeCompDraft, ratio: number): RecipeCompDraft {
+  const mul = (s: string) => (s.trim() ? formatDraftQty(parseQty(s) * ratio) : '');
+  return {
+    ...row,
+    amountG: formatDraftQty(Math.max(0, parseQty(row.amountG) * ratio)),
+    kcal: mul(row.kcal),
+    protein: mul(row.protein),
+    carbs: mul(row.carbs),
+    fat: mul(row.fat),
+  };
+}
+
 interface EditLogModalProps {
   log: DailyLogItem | null;
   groupLogs?: DailyLogItem[] | null;
@@ -1164,9 +1185,11 @@ export function EditLogModal({ log, groupLogs, visible, onClose, onSaved }: Edit
   }, [visible, log, groupLogs]);
 
   useEffect(() => {
-    if (!visible || !log || log.logGroupId || (groupLogs && groupLogs.length > 1)) return;
+    if (!visible) return;
+    const row = groupLogs && groupLogs.length > 1 ? groupLogs[0] : log;
+    if (!row) return;
     const ids = [...new Set(
-      [log.foodId, log.sourcePreparedFoodId].filter((id): id is string => isLocalFoodId(id)),
+      [row.foodId, row.sourcePreparedFoodId].filter((id): id is string => isLocalFoodId(id)),
     )];
     if (!ids.length) return;
     let cancelled = false;
@@ -1188,11 +1211,8 @@ export function EditLogModal({ log, groupLogs, visible, onClose, onSaved }: Edit
   const preparedComponents = preparedFood?.components ?? [];
   const hasPreparedIngredients =
     !isGroup && !!preparedFood?.isPrepared && preparedComponents.length > 0;
-  const recipeG = hasPreparedIngredients
-    ? preparedFood!.servingSize && preparedFood!.servingSize > 0
-      ? preparedFood!.servingSize
-      : preparedComponents.reduce((s, c) => s + (c.amountG || 0), 0) || 100
-    : 100;
+  const canToggleIngredients = isGroup || hasPreparedIngredients;
+  const recipeG = preparedRecipeGrams(preparedComponents);
 
   const baseAmount = base.amount > 0 ? base.amount : 100;
   const brandLabel = distinctBrand(base.foodName, base.brand);
@@ -1318,7 +1338,46 @@ export function EditLogModal({ log, groupLogs, visible, onClose, onSaved }: Edit
     }
     setSaving(true);
     try {
-      if (isGroup) {
+      if (isGroup && !showIngredients) {
+        const currentTotal = groupIngs.reduce((s, i) => s + parseQty(i.amount), 0) || 1;
+        const ratio = qty / currentTotal;
+        const toSave =
+          Math.abs(ratio - 1) < 0.001
+            ? groupIngs
+            : groupIngs.map((ing) => scaleGroupDraft(ing, ratio));
+        const totals = toSave.reduce(
+          (acc, ing) => ({
+            amount: acc.amount + Math.max(1, parseQty(ing.amount)),
+            kcal: acc.kcal + Math.max(0, parseQty(ing.kcal)),
+            protein: acc.protein + Math.max(0, parseQty(ing.protein)),
+            carbs: acc.carbs + Math.max(0, parseQty(ing.carbs)),
+            fat: acc.fat + Math.max(0, parseQty(ing.fat)),
+            fiber: acc.fiber + (ing.fiber.trim() ? Math.max(0, parseQty(ing.fiber)) : 0),
+            sugar: acc.sugar + (ing.sugar.trim() ? Math.max(0, parseQty(ing.sugar)) : 0),
+          }),
+          { amount: 0, kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 },
+        );
+        const preparedId = isLocalFoodId(base.sourcePreparedFoodId)
+          ? base.sourcePreparedFoodId
+          : isLocalFoodId(base.foodId)
+            ? base.foodId
+            : undefined;
+        await logApi.create({
+          foodName: base.foodName.trim() || t('food.foodName'),
+          kcal: Math.round(totals.kcal * 10) / 10,
+          protein: Math.round(totals.protein * 10) / 10,
+          carbs: Math.round(totals.carbs * 10) / 10,
+          fat: Math.round(totals.fat * 10) / 10,
+          fiber: totals.fiber > 0 ? Math.round(totals.fiber * 10) / 10 : undefined,
+          sugar: totals.sugar > 0 ? Math.round(totals.sugar * 10) / 10 : undefined,
+          amount: Math.max(1, Math.round(totals.amount * 10) / 10),
+          mealType,
+          source: 'MANUAL',
+          date: toLocalDateStr(selectedDate),
+          ...(preparedId ? { foodId: preparedId, sourcePreparedFoodId: preparedId } : {}),
+        });
+        if (base.logGroupId) await logApi.deleteGroup(base.logGroupId);
+      } else if (isGroup) {
         const currentTotal = groupIngs.reduce((s, i) => s + parseQty(i.amount), 0) || 1;
         const ratio = qty / currentTotal;
         const toSave =
@@ -1462,7 +1521,22 @@ export function EditLogModal({ log, groupLogs, visible, onClose, onSaved }: Edit
           </div>
         </div>
 
-        {isGroup && (
+        {canToggleIngredients && (
+          <button
+            type="button"
+            className={styles.ingredientsToggle}
+            data-on={showIngredients || undefined}
+            aria-pressed={showIngredients}
+            onClick={() => setShowIngredients((v) => !v)}
+          >
+            <span className={styles.ingredientsToggleLabel}>{t('food.logAsPrepared')}</span>
+            <span className={styles.ingredientsSwitch} data-on={showIngredients || undefined}>
+              <span className={styles.ingredientsSwitchThumb} />
+            </span>
+          </button>
+        )}
+
+        {isGroup && showIngredients && (
           <div className={styles.componentsCard}>
             <div className={styles.sectionTitle}>{t('food.preparedIngredients')}</div>
             <p className={styles.recipeHint}>{t('food.editLogDiaryHint')}</p>
@@ -1519,21 +1593,6 @@ export function EditLogModal({ log, groupLogs, visible, onClose, onSaved }: Edit
               </div>
             ))}
           </div>
-        )}
-
-        {hasPreparedIngredients && (
-          <button
-            type="button"
-            className={styles.ingredientsToggle}
-            data-on={showIngredients || undefined}
-            aria-pressed={showIngredients}
-            onClick={() => setShowIngredients((v) => !v)}
-          >
-            <span className={styles.ingredientsToggleLabel}>{t('food.logAsPrepared')}</span>
-            <span className={styles.ingredientsSwitch} data-on={showIngredients || undefined}>
-              <span className={styles.ingredientsSwitchThumb} />
-            </span>
-          </button>
         )}
 
         {hasPreparedIngredients && showIngredients && (
@@ -2149,17 +2208,8 @@ function FoodDataFormModal({
   const [approxNote, setApproxNote] = useState<string | null>(null);
   const [servingInfoOpen, setServingInfoOpen] = useState(false);
   const [isPreparedRecipe, setIsPreparedRecipe] = useState(false);
-  const [recipeComponents, setRecipeComponents] = useState<
-    Array<{
-      key: string;
-      name: string;
-      amountG: string;
-      kcal: string;
-      protein: string;
-      carbs: string;
-      fat: string;
-    }>
-  >([]);
+  const [recipeComponents, setRecipeComponents] = useState<RecipeCompDraft[]>([]);
+  const recipeOrigRef = useRef<RecipeCompDraft[]>([]);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -2196,17 +2246,17 @@ function FoodDataFormModal({
       );
       const comps = initialFood.components ?? [];
       setIsPreparedRecipe(!!initialFood.isPrepared && comps.length > 0);
-      setRecipeComponents(
-        comps.map((c, i) => ({
-          key: c.id ?? `c-${i}`,
-          name: c.name,
-          amountG: String(c.amountG),
-          kcal: String(c.kcal),
-          protein: String(c.protein),
-          carbs: String(c.carbs),
-          fat: String(c.fat),
-        })),
-      );
+      const mapped: RecipeCompDraft[] = comps.map((c, i) => ({
+        key: c.id ?? `c-${i}`,
+        name: c.name,
+        amountG: String(c.amountG),
+        kcal: String(c.kcal),
+        protein: String(c.protein),
+        carbs: String(c.carbs),
+        fat: String(c.fat),
+      }));
+      recipeOrigRef.current = mapped;
+      setRecipeComponents(mapped);
     } else {
       setName('');
       setBrand('');
@@ -2220,6 +2270,7 @@ function FoodDataFormModal({
       setServingUnit('g');
       setServingGrams('100');
       setIsPreparedRecipe(false);
+      recipeOrigRef.current = [];
       setRecipeComponents([]);
     }
     setServingEstimateBusy(false);
@@ -2609,7 +2660,7 @@ function FoodDataFormModal({
                             const n = num(raw);
                             return Number.isFinite(n) ? String(Math.round(n * factor * 10) / 10) : '';
                           };
-                          setRecipeComponents([
+                          const seeded: RecipeCompDraft[] = [
                             {
                               key: `c-${Date.now()}`,
                               name: name.trim(),
@@ -2619,7 +2670,9 @@ function FoodDataFormModal({
                               carbs: scale(carbs),
                               fat: scale(fat),
                             },
-                          ]);
+                          ];
+                          recipeOrigRef.current = seeded;
+                          setRecipeComponents(seeded);
                         }
                       }}
                     />
@@ -2677,9 +2730,12 @@ function FoodDataFormModal({
                           className={styles.recipeDeleteBtn}
                           aria-label={t('common.delete', 'Törlés')}
                           disabled={recipeComponents.length <= 1}
-                          onClick={() =>
-                            setRecipeComponents((prev) => prev.filter((r) => r.key !== row.key))
-                          }
+                          onClick={() => {
+                            recipeOrigRef.current = recipeOrigRef.current.filter(
+                              (r) => r.key !== row.key,
+                            );
+                            setRecipeComponents((prev) => prev.filter((r) => r.key !== row.key));
+                          }}
                         >
                           <IconClose size={18} color="#B83B3B" />
                         </button>
@@ -2700,15 +2756,30 @@ function FoodDataFormModal({
                               className={styles.formInput}
                               inputMode="decimal"
                               value={row[field]}
-                              onChange={(e) =>
+                              onChange={(e) => {
+                                const raw = e.target.value.replace(/[^\d.,]/g, '');
                                 setRecipeComponents((prev) =>
-                                  prev.map((r) =>
-                                    r.key === row.key
-                                      ? { ...r, [field]: e.target.value.replace(/[^\d.,]/g, '') }
-                                      : r,
-                                  ),
-                                )
-                              }
+                                  prev.map((r) => {
+                                    if (r.key !== row.key) return r;
+                                    if (field !== 'amountG') {
+                                      const next = { ...r, [field]: raw };
+                                      recipeOrigRef.current = recipeOrigRef.current.map((o) =>
+                                        o.key === row.key ? next : o,
+                                      );
+                                      return next;
+                                    }
+                                    const orig = recipeOrigRef.current.find((o) => o.key === row.key);
+                                    const origAmt = orig ? parseQty(orig.amountG) : 0;
+                                    const newAmt = parseQty(raw);
+                                    if (!orig || origAmt <= 0) return { ...r, amountG: raw };
+                                    return {
+                                      ...scaleRecipeComp(orig, newAmt / origAmt),
+                                      name: r.name,
+                                      key: r.key,
+                                    };
+                                  }),
+                                );
+                              }}
                             />
                           </label>
                         ))}
@@ -2718,20 +2789,19 @@ function FoodDataFormModal({
                   <button
                     type="button"
                     className={styles.recipeAddBtn}
-                    onClick={() =>
-                      setRecipeComponents((prev) => [
-                        ...prev,
-                        {
-                          key: `c-${Date.now()}`,
-                          name: '',
-                          amountG: '100',
-                          kcal: '',
-                          protein: '',
-                          carbs: '',
-                          fat: '',
-                        },
-                      ])
-                    }
+                    onClick={() => {
+                      const next: RecipeCompDraft = {
+                        key: `c-${Date.now()}`,
+                        name: '',
+                        amountG: '100',
+                        kcal: '',
+                        protein: '',
+                        carbs: '',
+                        fat: '',
+                      };
+                      recipeOrigRef.current = [...recipeOrigRef.current, next];
+                      setRecipeComponents((prev) => [...prev, next]);
+                    }}
                   >
                     <IconAdd size={18} color={Colors.dashboard.stroke} />
                     {t('food.addIngredient')}

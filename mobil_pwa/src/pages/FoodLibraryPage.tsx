@@ -688,6 +688,13 @@ export default function FoodLibraryPage() {
                               </button>
                             </SwipeDeleteRow>
                           ))}
+                          <button
+                            type="button"
+                            className={styles.groupDeleteBtn}
+                            onClick={() => confirmDeleteGroup(entry.logGroupId)}
+                          >
+                            {t('food.deleteLogGroup')}
+                          </button>
                         </div>
                       )}
                     </div>
