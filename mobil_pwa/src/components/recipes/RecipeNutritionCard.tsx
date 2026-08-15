@@ -1,10 +1,17 @@
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../../design/tokens';
 import { IconEggAlt, IconFire, IconGrain, IconOpacity } from '../ui/Icons';
-import type { RecipeNutrition } from '../../services/api';
+import { RecipeDietBadges } from './RecipeDietBadges';
+import type { RecipeDietTag, RecipeNutrition } from '../../services/api';
 import styles from './RecipeNutritionCard.module.css';
 
-export function RecipeNutritionCard({ nutrition }: { nutrition: RecipeNutrition }) {
+export function RecipeNutritionCard({
+  nutrition,
+  dietTags,
+}: {
+  nutrition: RecipeNutrition;
+  dietTags?: RecipeDietTag[] | null;
+}) {
   const { t } = useTranslation();
   const title = nutrition.incomplete ? t('recipes.nutritionPartial') : t('recipes.nutritionTitle');
 
@@ -41,6 +48,7 @@ export function RecipeNutritionCard({ nutrition }: { nutrition: RecipeNutrition 
           <span className={styles.macroLbl}>{t('food.fat')}</span>
         </div>
       </div>
+      <RecipeDietBadges tags={dietTags} />
     </section>
   );
 }

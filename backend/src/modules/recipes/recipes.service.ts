@@ -67,11 +67,13 @@ export function mapRecipeListItem(
     title: recipe.title,
     servings: recipe.servings,
     category: recipe.category,
+    dietTags: recipe.dietTags ?? [],
     status: recipe.status,
     sourceType: recipe.sourceType,
     createdAt: recipe.createdAt,
     createdBy: recipe.creator,
     hasImage: (recipe.images?.length ?? 0) > 0,
+    imageRevision: recipe.images?.[0]?.id ?? null,
     isFavorite: (recipe.favorites?.length ?? 0) > 0,
     nutrition,
   };
@@ -84,6 +86,7 @@ export function mapRecipeDetail(
     description: string | null;
     servings: number;
     category: string | null;
+    dietTags?: string[];
     instructions: Prisma.JsonValue;
     sourceUrl: string | null;
     sourceType: string;
@@ -129,6 +132,7 @@ export function mapRecipeDetail(
     description: recipe.description,
     servings: recipe.servings,
     category: recipe.category,
+    dietTags: recipe.dietTags ?? [],
     instructions: asStringArray(recipe.instructions),
     sourceUrl: recipe.sourceUrl,
     sourceType: recipe.sourceType,
@@ -139,6 +143,7 @@ export function mapRecipeDetail(
     updatedAt: recipe.updatedAt,
     createdBy: recipe.creator,
     hasImage: recipe.images.some((img) => img.isPrimary) || recipe.images.length > 0,
+    imageRevision: recipe.images.find((img) => img.isPrimary)?.id ?? recipe.images[0]?.id ?? null,
     isFavorite: (recipe.favorites?.length ?? 0) > 0,
     isOwner: recipe.createdBy === userId,
     nutrition,
@@ -166,6 +171,11 @@ export async function listRecipes(prisma: PrismaClient, userId: string, query: R
   if (query.favorite) {
     (where.AND as Prisma.RecipeWhereInput[]).push({
       favorites: { some: { userId } },
+    });
+  }
+  if (query.diet?.length) {
+    (where.AND as Prisma.RecipeWhereInput[]).push({
+      dietTags: { hasEvery: query.diet },
     });
   }
   const search = query.search?.trim();
@@ -255,6 +265,7 @@ export async function createRecipe(
         description: data.description ?? null,
         servings: data.servings,
         category: data.category ?? null,
+        dietTags: data.dietTags ?? [],
         instructions: data.instructions,
         sourceUrl: data.sourceUrl ?? null,
         sourceType: data.sourceType,
@@ -345,6 +356,7 @@ export async function updateRecipe(
       ...(data.description !== undefined ? { description: data.description } : {}),
       ...(data.servings !== undefined ? { servings: data.servings } : {}),
       ...(data.category !== undefined ? { category: data.category } : {}),
+      ...(data.dietTags !== undefined ? { dietTags: data.dietTags } : {}),
       ...(data.instructions !== undefined ? { instructions: data.instructions } : {}),
       ...(data.sourceUrl !== undefined ? { sourceUrl: data.sourceUrl } : {}),
       ...(data.sourceType !== undefined ? { sourceType: data.sourceType } : {}),
@@ -407,10 +419,10 @@ export async function attachRecipeImage(
   if (!canMutate(existing, userId, role)) throw httpError(403, 'Nincs jogosultsága módosítani ezt a receptet.');
 
   const image = await savePermanentRecipeImage(buf);
-  const oldPrimary = existing.images.filter((img) => img.isPrimary);
-  await prisma.$transaction([
-    prisma.recipeImage.updateMany({ where: { recipeId }, data: { isPrimary: false } }),
-    prisma.recipeImage.create({
+  const oldImages = existing.images;
+  const created = await prisma.$transaction(async (tx) => {
+    await tx.recipeImage.updateMany({ where: { recipeId }, data: { isPrimary: false } });
+    const row = await tx.recipeImage.create({
       data: {
         recipeId,
         storageKey: image.storageKey,
@@ -420,10 +432,17 @@ export async function attachRecipeImage(
         sizeBytes: image.sizeBytes,
         isPrimary: true,
       },
-    }),
-  ]);
-  for (const img of oldPrimary) await deleteRecipeFile(img.storageKey);
-  return { ok: true };
+    });
+    await tx.recipe.update({ where: { id: recipeId }, data: { updatedAt: new Date() } });
+    return row;
+  });
+  for (const img of oldImages) await deleteRecipeFile(img.storageKey);
+  if (oldImages.length) {
+    await prisma.recipeImage.deleteMany({
+      where: { recipeId, id: { in: oldImages.map((img) => img.id) } },
+    });
+  }
+  return { ok: true, imageRevision: created.id };
 }
 
 export async function getPrimaryStorageKey(prisma: PrismaClient, recipeId: string) {

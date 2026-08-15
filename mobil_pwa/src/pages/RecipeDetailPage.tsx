@@ -79,7 +79,7 @@ export default function RecipeDetailPage() {
   const [date, setDate] = useState(todayIso);
   const [logging, setLogging] = useState(false);
   const [logMsg, setLogMsg] = useState('');
-  const [imageRev, setImageRev] = useState(0);
+  const [imageRev, setImageRev] = useState<number | string>(0);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -162,9 +162,14 @@ export default function RecipeDetailPage() {
     if (!recipe) return;
     try {
       const jpeg = await fileToCompressedJpegFile(file, 'recipe.jpg');
-      await recipesApi.uploadImage(recipe.id, jpeg);
-      setRecipe({ ...recipe, hasImage: true });
-      setImageRev(Date.now());
+      const uploaded = await recipesApi.uploadImage(recipe.id, jpeg);
+      const nextRev = uploaded.imageRevision ?? Date.now();
+      setRecipe({
+        ...recipe,
+        hasImage: true,
+        imageRevision: String(nextRev),
+      });
+      setImageRev(nextRev);
     } catch (err) {
       window.alert(getErrorMessage(err, t('recipes.changeImageError')));
     }
@@ -221,10 +226,11 @@ export default function RecipeDetailPage() {
         <div className={styles.imageWrap}>
           {recipe.hasImage ? (
             <AuthedImage
+              key={`${recipe.id}-${imageRev || recipe.imageRevision || 'img'}`}
               recipeId={recipe.id}
               alt={recipe.title}
               className={styles.hero}
-              revision={imageRev}
+              revision={imageRev || recipe.imageRevision}
             />
           ) : (
             <div className={styles.heroEmpty}>
@@ -287,7 +293,9 @@ export default function RecipeDetailPage() {
         ) : null}
       </section>
 
-      {recipe.nutrition && <RecipeNutritionCard nutrition={recipe.nutrition} />}
+      {recipe.nutrition && (
+        <RecipeNutritionCard nutrition={recipe.nutrition} dietTags={recipe.dietTags} />
+      )}
 
       <section className={styles.card}>
         <div className={styles.sectionHead}>

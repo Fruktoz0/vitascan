@@ -18,6 +18,8 @@ export type RecipeCategory =
   | 'DESSERT'
   | 'OTHER';
 
+export type RecipeDietTag = 'GLUTEN_FREE' | 'DAIRY_FREE' | 'VEGAN';
+
 export type RecipeDraftIngredient = {
   name: string;
   amount?: number | null;
@@ -31,6 +33,7 @@ export type RecipeDraft = {
   description?: string | null;
   servings: number;
   category?: RecipeCategory | null;
+  dietTags?: RecipeDietTag[];
   ingredients: RecipeDraftIngredient[];
   instructions: string[];
   sourceUrl?: string | null;

@@ -369,6 +369,7 @@ model Recipe {
   servings         Int               @default(1)
   instructions     Json              // string[]
   category         RecipeCategory?
+  dietTags         RecipeDietTag[]   @default([])
   sourceUrl        String?
   sourceType       RecipeSourceType  @default(MANUAL)
   sourceExternalId String?
@@ -589,4 +590,10 @@ enum RecipeCategory {
   SNACK
   DESSERT
   OTHER
+}
+
+enum RecipeDietTag {
+  GLUTEN_FREE
+  DAIRY_FREE
+  VEGAN
 }

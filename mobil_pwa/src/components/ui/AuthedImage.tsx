@@ -6,11 +6,12 @@ type Props = {
   tempKey?: string;
   alt: string;
   className?: string;
-  revision?: number;
+  revision?: number | string | null;
 };
 
 export default function AuthedImage({ recipeId, tempKey, alt, className, revision }: Props) {
   const [url, setUrl] = useState<string | null>(null);
+  const cacheKey = revision == null || revision === 0 ? undefined : revision;
 
   useEffect(() => {
     let objectUrl: string | null = null;
@@ -19,25 +20,32 @@ export default function AuthedImage({ recipeId, tempKey, alt, className, revisio
     const load = async () => {
       try {
         const blob = recipeId
-          ? await recipesApi.getImageBlob(recipeId, revision)
+          ? await recipesApi.getImageBlob(recipeId, cacheKey)
           : tempKey
             ? await recipesApi.getTempImageBlob(tempKey)
             : null;
-        if (!blob || cancelled) return;
+        if (!blob || cancelled) {
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+          return;
+        }
         objectUrl = URL.createObjectURL(blob);
+        if (cancelled) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
         setUrl(objectUrl);
       } catch {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
         if (!cancelled) setUrl(null);
       }
     };
 
-    setUrl(null);
     void load();
     return () => {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [recipeId, tempKey, revision]);
+  }, [recipeId, tempKey, cacheKey]);
 
   if (!url) return <div className={className} aria-hidden />;
   return <img src={url} alt={alt} className={className} />;

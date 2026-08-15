@@ -427,7 +427,8 @@ const recipeRoutes: FastifyPluginAsync = async (fastify) => {
       return reply
         .header('Content-Type', img.mimeType || 'image/webp')
         .header('Content-Length', size)
-        .header('Cache-Control', 'private, max-age=3600')
+        .header('ETag', `"${img.id}"`)
+        .header('Cache-Control', 'private, no-cache')
         .send(stream);
     } catch (err: unknown) {
       return reply.status(statusOf(err, 404)).send({
@@ -442,8 +443,14 @@ const recipeRoutes: FastifyPluginAsync = async (fastify) => {
     if (!file) return reply.status(400).send({ error: 'Nincs kép (file mező).' });
     const buf = await file.toBuffer();
     try {
-      await attachRecipeImage(fastify.prisma, id, request.user.userId, request.user.role, buf);
-      return reply.status(201).send({ ok: true });
+      const attached = await attachRecipeImage(
+        fastify.prisma,
+        id,
+        request.user.userId,
+        request.user.role,
+        buf,
+      );
+      return reply.status(201).send(attached);
     } catch (err: unknown) {
       return reply.status(statusOf(err, 400)).send({
         error: err instanceof Error ? err.message : 'A kép feltöltése sikertelen.',

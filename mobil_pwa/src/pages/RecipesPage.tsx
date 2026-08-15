@@ -10,11 +10,13 @@ import {
   getErrorMessage,
   recipesApi,
   type RecipeCategory,
+  type RecipeDietTag,
   type RecipeListItem,
 } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { fileToCompressedJpegFile } from '../utils/imageToJpeg';
-import { RECIPE_CATEGORIES, RECIPE_CATEGORY_META } from '../utils/recipeMeta';
+import { RECIPE_CATEGORIES, RECIPE_CATEGORY_META, RECIPE_DIET_META, RECIPE_DIET_TAGS } from '../utils/recipeMeta';
+import { RecipeDietBadges } from '../components/recipes/RecipeDietBadges';
 import styles from './RecipesPage.module.css';
 
 type Filter = RecipeCategory | 'ALL' | 'FAVORITES';
@@ -27,13 +29,14 @@ export default function RecipesPage() {
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
   const [filter, setFilter] = useState<Filter>('ALL');
+  const [dietFilters, setDietFilters] = useState<RecipeDietTag[]>([]);
   const [items, setItems] = useState<RecipeListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<RecipeListItem | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [imageTarget, setImageTarget] = useState<RecipeListItem | null>(null);
-  const [imageRev, setImageRev] = useState<Record<string, number>>({});
+  const [imageRev, setImageRev] = useState<Record<string, number | string>>({});
 
   useEffect(() => {
     const id = window.setTimeout(() => setDebounced(search.trim()), 280);
@@ -50,6 +53,7 @@ export default function RecipesPage() {
         search: debounced || undefined,
         category: filter === 'ALL' || filter === 'FAVORITES' ? undefined : filter,
         favorite: filter === 'FAVORITES' ? true : undefined,
+        dietTags: dietFilters.length ? dietFilters : undefined,
       });
       setItems(res.recipes);
     } catch (err) {
@@ -57,7 +61,7 @@ export default function RecipesPage() {
     } finally {
       setLoading(false);
     }
-  }, [filter, debounced, t]);
+  }, [filter, dietFilters, debounced, t]);
 
   useEffect(() => {
     void load();
@@ -68,9 +72,12 @@ export default function RecipesPage() {
     if (!target) return;
     try {
       const jpeg = await fileToCompressedJpegFile(file, 'recipe.jpg');
-      await recipesApi.uploadImage(target.id, jpeg);
-      setItems((prev) => prev.map((r) => (r.id === target.id ? { ...r, hasImage: true } : r)));
-      setImageRev((prev) => ({ ...prev, [target.id]: Date.now() }));
+      const uploaded = await recipesApi.uploadImage(target.id, jpeg);
+      const nextRev = uploaded.imageRevision ?? String(Date.now());
+      setItems((prev) =>
+        prev.map((r) => (r.id === target.id ? { ...r, hasImage: true, imageRevision: nextRev } : r)),
+      );
+      setImageRev((prev) => ({ ...prev, [target.id]: nextRev }));
     } catch (err) {
       window.alert(getErrorMessage(err, t('recipes.changeImageError')));
     } finally {
@@ -133,6 +140,29 @@ export default function RecipesPage() {
         ))}
       </div>
 
+      <div className={styles.dietChips} role="group" aria-label={t('recipes.dietLabel')}>
+        {RECIPE_DIET_TAGS.map((tag) => {
+          const meta = RECIPE_DIET_META[tag];
+          const Icon = meta.Icon;
+          const on = dietFilters.includes(tag);
+          return (
+            <button
+              key={tag}
+              type="button"
+              className={`${styles.chip} ${styles.dietChip} ${on ? styles.chipActive : ''}`}
+              onClick={() =>
+                setDietFilters((prev) => (prev.includes(tag) ? prev.filter((x) => x !== tag) : [...prev, tag]))
+              }
+            >
+              <span className={styles.dietChipIcon} style={{ background: meta.bg }}>
+                <Icon size={14} color={Colors.dashboard.stroke} />
+              </span>
+              {t(meta.labelKey)}
+            </button>
+          );
+        })}
+      </div>
+
       {loading && (
         <div className={styles.center}>
           <div className="spinner" />
@@ -142,61 +172,66 @@ export default function RecipesPage() {
       {!loading && !error && items.length === 0 && <p className={styles.empty}>{t('recipes.empty')}</p>}
 
       {!loading && items.length > 0 && (
-        <div className={styles.listWrap}>
-          <span className={styles.cardShadow} />
-          <div className={styles.listInner}>
-            {items.map((recipe) => {
-              const cat = recipe.category && recipe.category in RECIPE_CATEGORY_META ? recipe.category : 'OTHER';
-              const meta = RECIPE_CATEGORY_META[cat];
-              const MealIcon = meta.Icon;
-              return (
-                <SwipeDeleteRow
-                  key={recipe.id}
-                  enabled={isAdmin}
-                  deleteLabel={t('recipes.delete')}
-                  onDelete={() => setDeleteTarget(recipe)}
-                  extraAction={{
-                    label: t('recipes.changeImage'),
-                    icon: <IconPhotoCamera size={20} color={Colors.dashboard.stroke} />,
-                    onClick: () => {
-                      setImageTarget(recipe);
-                      fileRef.current?.click();
-                    },
-                  }}
-                >
-                  <button
-                    type="button"
-                    className={styles.row}
-                    onClick={() => navigate(`/recipes/${recipe.id}`)}
+        <div className={styles.list}>
+          {items.map((recipe) => {
+            const cat = recipe.category && recipe.category in RECIPE_CATEGORY_META ? recipe.category : 'OTHER';
+            const meta = RECIPE_CATEGORY_META[cat];
+            const MealIcon = meta.Icon;
+            return (
+              <div key={recipe.id} className={styles.cardWrap}>
+                <span className={styles.cardShadow} />
+                <div className={styles.cardInner}>
+                  <SwipeDeleteRow
+                    enabled={isAdmin}
+                    deleteLabel={t('recipes.delete')}
+                    onDelete={() => setDeleteTarget(recipe)}
+                    extraAction={{
+                      label: t('recipes.changeImage'),
+                      icon: <IconPhotoCamera size={20} color={Colors.dashboard.stroke} />,
+                      onClick: () => {
+                        setImageTarget(recipe);
+                        fileRef.current?.click();
+                      },
+                    }}
                   >
-                    <span className={styles.thumbBtn}>
-                      {recipe.hasImage ? (
-                        <AuthedImage
-                          recipeId={recipe.id}
-                          alt=""
-                          className={styles.thumb}
-                          revision={imageRev[recipe.id]}
-                        />
-                      ) : (
-                        <span className={styles.thumbEmpty}>
-                          <IconRestaurant size={18} color="rgba(0,0,0,0.35)" />
-                        </span>
-                      )}
-                    </span>
-                    <span className={styles.rowTitle}>{recipe.title}</span>
-                    <span
-                      className={styles.mealBadge}
-                      style={{ background: meta.bg }}
-                      title={t(meta.labelKey)}
-                      aria-label={t(meta.labelKey)}
+                    <button
+                      type="button"
+                      className={styles.row}
+                      onClick={() => navigate(`/recipes/${recipe.id}`)}
                     >
-                      <MealIcon size={18} color={Colors.dashboard.stroke} />
-                    </span>
-                  </button>
-                </SwipeDeleteRow>
-              );
-            })}
-          </div>
+                      <span className={styles.thumbBtn}>
+                        {recipe.hasImage ? (
+                          <AuthedImage
+                            key={`${recipe.id}-${imageRev[recipe.id] ?? recipe.imageRevision ?? 'img'}`}
+                            recipeId={recipe.id}
+                            alt=""
+                            className={styles.thumb}
+                            revision={imageRev[recipe.id] ?? recipe.imageRevision}
+                          />
+                        ) : (
+                          <span className={styles.thumbEmpty}>
+                            <IconRestaurant size={28} color="rgba(0,0,0,0.35)" />
+                          </span>
+                        )}
+                      </span>
+                      <span className={styles.rowBody}>
+                        <span className={styles.rowTitle}>{recipe.title}</span>
+                        <RecipeDietBadges tags={recipe.dietTags} variant="compact" />
+                      </span>
+                      <span
+                        className={styles.mealBadge}
+                        style={{ background: meta.bg }}
+                        title={t(meta.labelKey)}
+                        aria-label={t(meta.labelKey)}
+                      >
+                        <MealIcon size={18} color={Colors.dashboard.stroke} />
+                      </span>
+                    </button>
+                  </SwipeDeleteRow>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

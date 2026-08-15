@@ -24,7 +24,7 @@ import {
   type RecipeNutrition,
 } from '../services/api';
 import { fileToCompressedJpegFile } from '../utils/imageToJpeg';
-import { RECIPE_CATEGORIES, RECIPE_CATEGORY_META } from '../utils/recipeMeta';
+import { RECIPE_CATEGORIES, RECIPE_CATEGORY_META, RECIPE_DIET_META, RECIPE_DIET_TAGS } from '../utils/recipeMeta';
 import { clearRecipeDraftSession, readRecipeDraftSession, saveRecipeDraftSession } from '../utils/recipeDraftSession';
 import styles from './RecipeReviewPage.module.css';
 
@@ -34,6 +34,7 @@ function emptyDraft(): RecipeDraft {
     description: '',
     servings: 2,
     category: null,
+    dietTags: [],
     ingredients: [{ name: '', amount: null, unit: 'g', sortOrder: 0 }],
     instructions: [''],
     sourceType: 'MANUAL',
@@ -56,7 +57,7 @@ export default function RecipeReviewPage() {
   const [nutrition, setNutrition] = useState<RecipeNutrition | null>(null);
   const [tempImageKey, setTempImageKey] = useState<string | undefined>();
   const [hasExistingImage, setHasExistingImage] = useState(false);
-  const [imageRev, setImageRev] = useState(0);
+  const [imageRev, setImageRev] = useState<number | string>(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [ready, setReady] = useState(!id);
@@ -75,6 +76,7 @@ export default function RecipeReviewPage() {
             description: recipe.description ?? '',
             servings: recipe.servings,
             category: recipe.category ?? null,
+            dietTags: recipe.dietTags ?? [],
             ingredients: recipe.ingredients.length
               ? recipe.ingredients
               : [{ name: '', amount: null, unit: 'g', sortOrder: 0 }],
@@ -85,6 +87,7 @@ export default function RecipeReviewPage() {
           });
           setNutrition(recipe.nutrition ?? null);
           setHasExistingImage(recipe.hasImage);
+          if (recipe.imageRevision) setImageRev(recipe.imageRevision);
           setReady(true);
         } catch (err) {
           setError(getErrorMessage(err, t('recipes.loadDetailError')));
@@ -248,9 +251,9 @@ export default function RecipeReviewPage() {
     try {
       const jpeg = await fileToCompressedJpegFile(file, 'recipe.jpg');
       if (id) {
-        await recipesApi.uploadImage(id, jpeg);
+        const uploaded = await recipesApi.uploadImage(id, jpeg);
         setHasExistingImage(true);
-        setImageRev(Date.now());
+        setImageRev(uploaded.imageRevision ?? Date.now());
         return;
       }
       const res = await recipesApi.uploadTempImage(jpeg, tempImageKey);
@@ -342,7 +345,7 @@ export default function RecipeReviewPage() {
           {tempImageKey ? (
             <AuthedImage tempKey={tempImageKey} alt="" className={styles.preview} />
           ) : id && hasExistingImage ? (
-            <AuthedImage recipeId={id} alt="" className={styles.preview} revision={imageRev} />
+            <AuthedImage recipeId={id} alt="" className={styles.preview} revision={imageRev} key={`${id}-${imageRev}`} />
           ) : (
             <div className={styles.previewEmpty}>
               <IconRestaurant size={28} color="rgba(0,0,0,0.28)" />
@@ -407,9 +410,37 @@ export default function RecipeReviewPage() {
             );
           })}
         </div>
+
+        <span className={styles.label}>{t('recipes.dietLabel')}</span>
+        <div className={styles.catChips}>
+          {RECIPE_DIET_TAGS.map((tag) => {
+            const meta = RECIPE_DIET_META[tag];
+            const Icon = meta.Icon;
+            const selected = (draft.dietTags ?? []).includes(tag);
+            return (
+              <button
+                key={tag}
+                type="button"
+                className={`${styles.catChip} ${selected ? styles.catChipOn : ''}`}
+                onClick={() => {
+                  const current = draft.dietTags ?? [];
+                  setDraft({
+                    ...draft,
+                    dietTags: selected ? current.filter((x) => x !== tag) : [...current, tag],
+                  });
+                }}
+              >
+                <span className={styles.catIcon} style={{ background: meta.bg }}>
+                  <Icon size={16} color={Colors.dashboard.stroke} />
+                </span>
+                {t(meta.labelKey)}
+              </button>
+            );
+          })}
+        </div>
       </section>
 
-      {nutrition && <RecipeNutritionCard nutrition={nutrition} />}
+      {nutrition && <RecipeNutritionCard nutrition={nutrition} dietTags={draft.dietTags} />}
 
       <section className={styles.card}>
         <h2 className={styles.cardTitle}>{t('recipes.ingredients')}</h2>

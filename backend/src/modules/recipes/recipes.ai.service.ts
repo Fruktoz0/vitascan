@@ -1,4 +1,4 @@
-import { RecipeDraftSchema } from './recipes.schema';
+import { RecipeDraftSchema, normalizeDietTags } from './recipes.schema';
 import { httpError, type RecipeDraft } from './recipes.types';
 
 const ATTEMPT_TIMEOUT_MS = 28_000;
@@ -12,6 +12,7 @@ const RESPONSE_SCHEMA = {
     description: { type: 'STRING' },
     servings: { type: 'INTEGER' },
     category: { type: 'STRING' },
+    dietTags: { type: 'ARRAY', items: { type: 'STRING' } },
     ingredients: {
       type: 'ARRAY',
       items: {
@@ -67,6 +68,7 @@ Rules:
 - description: 1-2 sentences, or empty string if unknown.
 - servings: integer number of portions if stated, otherwise 2.
 - category: one of BREAKFAST, LUNCH, DINNER, SNACK, DESSERT, OTHER.
+- dietTags: subset of GLUTEN_FREE, DAIRY_FREE, VEGAN that apply to the finished dish. Only include a tag if you are confident from the ingredients. Wheat/flour/barley/rye/couscous/breadcrumbs → not GLUTEN_FREE. Milk/cheese/butter/cream/yogurt → not DAIRY_FREE. Meat/fish/egg/honey/dairy → not VEGAN. If unsure, omit the tag.
 - ingredients: name plus numeric amount and unit when visible (g, kg, ml, ek, tk, db, cup). If amount is unreadable, omit amount/unit rather than inventing.
 - instructions: ordered cooking steps. If none are visible, return an empty array.
 - Do not invent nutrition values.
@@ -80,6 +82,7 @@ Szabályok:
 - description: 1-2 mondat, vagy üres string ha nincs.
 - servings: adagok száma ha látszik, különben 2.
 - category: BREAKFAST, LUNCH, DINNER, SNACK, DESSERT vagy OTHER.
+- dietTags: a kész ételre igaz jelzők a következők közül: GLUTEN_FREE, DAIRY_FREE, VEGAN. Csak akkor tedd be, ha a hozzávalókból magabiztosan következik. Búza/liszt/árpa/rozs/zsemlemorzsa → nem GLUTEN_FREE. Tej/sajt/vaj/tejszín/joghurt → nem DAIRY_FREE. Hús/hal/tojás/méz/tejtermék → nem VEGAN. Ha bizonytalan, hagyd ki.
 - ingredients: név, és ha látszik, szám + mértékegység (g, kg, ml, ek, tk, db). Ha a mennyiség nem olvasható, hagyd ki — ne találj ki.
 - instructions: sorrendezett elkészítési lépések. Ha nincs szöveg, üres tömb.
 - Ne találj ki tápértéket.
@@ -132,6 +135,19 @@ function coerceDraft(raw: unknown, sourceType: RecipeDraft['sourceType'] = 'IMAG
     ? (catRaw as RecipeDraft['category'])
     : undefined;
 
+  const dietFromArray = normalizeDietTags(o.dietTags ?? o.diet_tags);
+  const dietTags = [...dietFromArray];
+  const truthy = (v: unknown) => v === true || v === 'true' || v === 1 || v === '1';
+  if (truthy(o.glutenFree) || truthy(o.gluten_free)) {
+    if (!dietTags.includes('GLUTEN_FREE')) dietTags.push('GLUTEN_FREE');
+  }
+  if (truthy(o.dairyFree) || truthy(o.dairy_free) || truthy(o.lactoseFree)) {
+    if (!dietTags.includes('DAIRY_FREE')) dietTags.push('DAIRY_FREE');
+  }
+  if (truthy(o.vegan)) {
+    if (!dietTags.includes('VEGAN')) dietTags.push('VEGAN');
+  }
+
   const ingredientsIn = Array.isArray(o.ingredients) ? o.ingredients : [];
   const ingredients = ingredientsIn.slice(0, MAX_INGREDIENTS).flatMap((item, idx) => {
     if (!item || typeof item !== 'object') return [];
@@ -162,6 +178,7 @@ function coerceDraft(raw: unknown, sourceType: RecipeDraft['sourceType'] = 'IMAG
     description: String(o.description ?? '').trim().slice(0, 2000) || null,
     servings: Number.isFinite(servingsNum) && servingsNum >= 1 ? Math.round(servingsNum) : 2,
     category: category ?? null,
+    dietTags,
     ingredients,
     instructions,
     sourceType,

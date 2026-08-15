@@ -78,6 +78,7 @@ import {
   MdTripOrigin,
 } from 'react-icons/md';
 import { FaAppleAlt } from 'react-icons/fa';
+import { LuLeaf, LuMilkOff, LuWheatOff } from 'react-icons/lu';
 import {
   IoBicycleOutline,
   IoBook,
@@ -204,6 +205,9 @@ export const IconMaleFemaleOutline = wrap(IoMaleFemaleOutline);
 export const IconFitness = wrap(IoFitness);
 export const IconFitnessOutline = wrap(IoFitnessOutline);
 export const IconFitnessCenter = wrap(MdFitnessCenter);
+export const IconWheatOff = wrap(LuWheatOff);
+export const IconMilkOff = wrap(LuMilkOff);
+export const IconLeafOutline = wrap(LuLeaf);
 export const IconExpandMore = wrap(MdExpandMore);
 export const IconExpandLess = wrap(MdExpandLess);
 export const IconContentCopy = wrap(MdContentCopy);

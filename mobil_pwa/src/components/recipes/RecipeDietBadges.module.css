@@ -1,0 +1,50 @@
+.row,
+.chips,
+.compact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.compact {
+  gap: 6px;
+  flex-shrink: 0;
+  max-width: 100%;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 6px;
+  border-radius: 999px;
+  border: 1.2px solid var(--stroke);
+  background: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.icon,
+.compactIcon {
+  width: 26px;
+  height: 26px;
+  border-radius: 13px;
+  border: 1px solid var(--stroke);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.compactIcon {
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  box-shadow: 1px 1px 0 var(--shadow-hard);
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 800;
+}

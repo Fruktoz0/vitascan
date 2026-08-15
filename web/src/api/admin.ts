@@ -241,6 +241,7 @@ export async function fetchRecipeImageObjectUrl(id: string): Promise<string | nu
   const token = getAccessToken();
   const res = await fetch(`${API_BASE}/recipes/${id}/image`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
+    cache: 'no-store',
   });
   if (!res.ok) return null;
   const blob = await res.blob();

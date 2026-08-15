@@ -1,7 +1,6 @@
-import type { RecipeDraft, RecipeSourceType } from './recipes.types';
+import { httpError, type RecipeDraft, type RecipeDietTag, type RecipeSourceType } from './recipes.types';
 import { extractRecipeFromText } from './recipes.ai.service';
 import { saveTempRecipeImage } from './recipes.image.service';
-import { httpError } from './recipes.types';
 import { parsePublicHttpUrl, ssrfFetch, stripTrackingParams } from './recipes.ssrf';
 
 export type UrlImportResult = {
@@ -42,6 +41,19 @@ export function extractExternalId(url: URL, source: RecipeSourceType): string | 
     return m?.[2] ?? m?.[1] ?? url.searchParams.get('v');
   }
   return null;
+}
+
+function dietTagsFromJsonLd(rec: Record<string, unknown>): RecipeDietTag[] {
+  const raw = rec.suitableForDiet;
+  const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  const out: RecipeDietTag[] = [];
+  for (const item of list) {
+    const s = String(item).toLowerCase();
+    if (s.includes('gluten') && !out.includes('GLUTEN_FREE')) out.push('GLUTEN_FREE');
+    if ((s.includes('dairy') || s.includes('lacto')) && !out.includes('DAIRY_FREE')) out.push('DAIRY_FREE');
+    if (s.includes('vegan') && !out.includes('VEGAN')) out.push('VEGAN');
+  }
+  return out;
 }
 
 function decodeEntities(s: string) {
@@ -86,6 +98,7 @@ function parseJsonLdRecipe(html: string): Partial<RecipeDraft> | null {
         servings: Number.isFinite(servings) && servings >= 1 ? servings : 2,
         ingredients: ings.map((line, i) => ({ name: String(line).slice(0, 160), sortOrder: i })),
         instructions,
+        dietTags: dietTagsFromJsonLd(rec),
         sourceType: 'WEB',
       };
     } catch {
@@ -196,6 +209,7 @@ export async function importRecipeFromUrl(
         servings: jsonLd.servings || 2,
         ingredients: jsonLd.ingredients || [],
         instructions: jsonLd.instructions || [],
+        dietTags: jsonLd.dietTags || [],
         sourceType,
         sourceUrl,
       };

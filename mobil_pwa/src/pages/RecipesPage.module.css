@@ -113,6 +113,16 @@
   -webkit-overflow-scrolling: touch;
 }
 
+.dietChips {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 20px 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
 .chip {
   flex-shrink: 0;
   border: 1.5px solid var(--stroke);
@@ -121,6 +131,23 @@
   padding: 8px 14px;
   font-size: 13px;
   font-weight: 800;
+}
+
+.dietChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px 5px 5px;
+}
+
+.dietChipIcon {
+  width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  border: 1px solid var(--stroke);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .chipActive {
@@ -133,10 +160,17 @@
   gap: 6px;
 }
 
-.listWrap {
+.list {
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   margin: 16px 20px 88px;
+}
+
+.cardWrap {
+  position: relative;
   padding-right: 3px;
   padding-bottom: 3px;
 }
@@ -148,44 +182,39 @@
   right: 0;
   bottom: 0;
   background: var(--shadow-hard);
-  border-radius: 24px;
+  border-radius: 22px;
 }
 
-.listInner {
+.cardInner {
   position: relative;
   z-index: 1;
   background: #fff;
   border: 1.5px solid var(--stroke);
-  border-radius: 22px;
+  border-radius: 20px;
   overflow: hidden;
 }
 
 .row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   width: 100%;
-  padding: 10px 12px;
+  min-width: 0;
+  padding: 12px;
   border: none;
-  border-bottom: 1px solid rgba(28, 27, 27, 0.08);
-  background: #fff;
+  background: transparent;
   text-align: left;
   font: inherit;
   color: inherit;
   cursor: pointer;
 }
 
-.listInner > :last-child.row,
-.listInner > :last-child .row {
-  border-bottom: none;
-}
-
 .thumbBtn {
-  width: 48px;
-  height: 48px;
+  width: 92px;
+  height: 92px;
   padding: 0;
   border: 1.5px solid var(--stroke);
-  border-radius: 16px;
+  border-radius: 18px;
   overflow: hidden;
   background: #f3efe6;
   flex-shrink: 0;
@@ -195,8 +224,8 @@
 }
 
 .thumb {
-  width: 48px;
-  height: 48px;
+  width: 92px;
+  height: 92px;
   object-fit: cover;
   display: block;
 }
@@ -209,22 +238,40 @@
   justify-content: center;
 }
 
-.rowTitle {
-  display: block;
-  flex: 1;
+.rowBody {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  flex: 1 1 0;
   min-width: 0;
-  font-size: 15px;
+  align-self: stretch;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+.rowTitle {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  font-size: 14px;
   font-weight: 800;
   line-height: 1.3;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   text-align: left;
+  word-break: break-word;
 }
 
 .mealBadge {
   width: 36px;
   height: 36px;
+  margin-top: 2px;
   border-radius: 18px;
   border: 1.2px solid var(--stroke);
   display: flex;

@@ -962,6 +962,7 @@ export const adminApi = {
         createdAt: string;
         createdBy: { id: string; username: string };
         hasImage: boolean;
+        imageRevision?: string | null;
       }>;
       total: number;
     }>(`/admin/recipes?${p}`);
@@ -972,6 +973,7 @@ export const adminApi = {
 };
 
 export type RecipeCategory = 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK' | 'DESSERT' | 'OTHER';
+export type RecipeDietTag = 'GLUTEN_FREE' | 'DAIRY_FREE' | 'VEGAN';
 export type RecipeSourceType =
   | 'MANUAL'
   | 'IMAGE'
@@ -1013,6 +1015,7 @@ export type RecipeDraft = {
   description?: string | null;
   servings: number;
   category?: RecipeCategory | null;
+  dietTags?: RecipeDietTag[];
   ingredients: RecipeIngredientDraft[];
   instructions: string[];
   sourceUrl?: string | null;
@@ -1025,11 +1028,13 @@ export type RecipeListItem = {
   title: string;
   servings: number;
   category: RecipeCategory | null;
+  dietTags?: RecipeDietTag[];
   status: string;
   sourceType: RecipeSourceType;
   createdAt: string;
   createdBy: { id: string; username: string };
   hasImage: boolean;
+  imageRevision?: string | null;
   isFavorite: boolean;
   nutrition?: RecipeNutrition | null;
 };
@@ -1042,6 +1047,7 @@ export type RecipeDetail = RecipeDraft & {
   updatedAt: string;
   createdBy: { id: string; username: string };
   hasImage: boolean;
+  imageRevision?: string | null;
   isFavorite: boolean;
   isOwner: boolean;
   nutrition?: RecipeNutrition | null;
@@ -1050,7 +1056,7 @@ export type RecipeDetail = RecipeDraft & {
 async function requestBlob(path: string, retry = true): Promise<Blob> {
   const headers: Record<string, string> = {};
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-  const response = await fetch(`${API_BASE}${path}`, { headers });
+  const response = await fetch(`${API_BASE}${path}`, { headers, cache: 'no-store' });
   if (response.status === 401 && retry) {
     const refreshed = await refreshAccessTokenFromStorage();
     if (refreshed) return requestBlob(path, false);
@@ -1069,6 +1075,7 @@ export const recipesApi = {
     search?: string;
     category?: RecipeCategory;
     favorite?: boolean;
+    dietTags?: RecipeDietTag[];
   }) => {
     const p = new URLSearchParams();
     if (opts?.page) p.set('page', String(opts.page));
@@ -1076,6 +1083,7 @@ export const recipesApi = {
     if (opts?.search) p.set('search', opts.search);
     if (opts?.category) p.set('category', opts.category);
     if (opts?.favorite) p.set('favorite', 'true');
+    if (opts?.dietTags?.length) p.set('diet', opts.dietTags.join(','));
     const q = p.toString();
     return request<{ recipes: RecipeListItem[]; page: number; limit: number; total: number }>(
       `/recipes${q ? `?${q}` : ''}`,
@@ -1130,13 +1138,15 @@ export const recipesApi = {
       ...requestTimeout(180_000),
     });
   },
-  getImageBlob: (id: string, revision?: number) =>
-    requestBlob(`/recipes/${id}/image${revision != null ? `?v=${revision}` : ''}`),
+  getImageBlob: (id: string, revision?: number | string | null) =>
+    requestBlob(
+      `/recipes/${id}/image${revision != null && revision !== '' ? `?v=${encodeURIComponent(String(revision))}` : ''}`,
+    ),
   getTempImageBlob: (key: string) => requestBlob(`/recipes/tmp/${key}/image`),
   uploadImage: (id: string, file: File) => {
     const fd = new FormData();
     fd.append('file', file);
-    return request<{ ok: boolean }>(`/recipes/${id}/images`, { method: 'POST', body: fd });
+    return request<{ ok: boolean; imageRevision?: string }>(`/recipes/${id}/images`, { method: 'POST', body: fd });
   },
   uploadTempImage: (file: File, replaceKey?: string) => {
     const fd = new FormData();

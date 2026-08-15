@@ -20,6 +20,24 @@ export const RecipeCategorySchema = z.enum([
   'OTHER',
 ]);
 
+export const RECIPE_DIET_TAGS = ['GLUTEN_FREE', 'DAIRY_FREE', 'VEGAN'] as const;
+export const RecipeDietTagSchema = z.enum(RECIPE_DIET_TAGS);
+export type RecipeDietTag = z.infer<typeof RecipeDietTagSchema>;
+
+export function normalizeDietTags(raw: unknown): RecipeDietTag[] {
+  const list = Array.isArray(raw) ? raw : [];
+  const out: RecipeDietTag[] = [];
+  for (const item of list) {
+    const v = String(item ?? '')
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
+    const parsed = RecipeDietTagSchema.safeParse(v);
+    if (parsed.success && !out.includes(parsed.data)) out.push(parsed.data);
+  }
+  return out;
+}
+
 export const RecipeDraftIngredientSchema = z.object({
   name: z.string().trim().min(1).max(160),
   amount: z.number().min(0).max(100000).nullable().optional(),
@@ -35,6 +53,11 @@ export const RecipeDraftSchema = z.object({
   description: z.string().trim().max(2000).nullable().optional(),
   servings: z.number().int().min(1).max(50).default(1),
   category: RecipeCategorySchema.nullable().optional(),
+  dietTags: z
+    .array(RecipeDietTagSchema)
+    .max(8)
+    .nullish()
+    .transform((v) => normalizeDietTags(v ?? [])),
   ingredients: z.array(RecipeDraftIngredientSchema).max(60).default([]),
   instructions: z.array(z.string().trim().min(1).max(2000)).max(40).default([]),
   sourceUrl: z
@@ -70,6 +93,7 @@ export const UpdateRecipeSchema = z
     description: z.string().trim().max(2000).nullable().optional(),
     servings: z.number().int().min(1).max(50).optional(),
     category: RecipeCategorySchema.nullable().optional(),
+    dietTags: z.array(RecipeDietTagSchema).max(8).optional().transform((v) => (v ? normalizeDietTags(v) : undefined)),
     ingredients: z.array(RecipeDraftIngredientSchema).max(60).optional(),
     instructions: z.array(z.string().trim().min(1).max(2000)).max(40).optional(),
     sourceUrl: z
@@ -101,6 +125,16 @@ export const RecipeListQuerySchema = z.object({
   search: z.string().trim().max(120).optional(),
   category: RecipeCategorySchema.optional(),
   favorite: z.enum(['true', '1']).optional(),
+  diet: z
+    .string()
+    .trim()
+    .max(80)
+    .optional()
+    .transform((v) => {
+      if (!v) return undefined;
+      const tags = normalizeDietTags(v.split(','));
+      return tags.length ? tags : undefined;
+    }),
 });
 
 export const MatchIngredientsSchema = z.object({
