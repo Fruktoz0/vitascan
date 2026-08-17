@@ -6,11 +6,8 @@ import { Colors } from '../design/tokens';
 import { IconArrowBack, IconCalendarToday, IconCheck } from '../components/ui/Icons';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { ApiError, getErrorMessage, waterApi } from '../services/api';
+import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import styles from './BodyMeasurements.module.css';
-
-function todayStr() {
-  return new Date().toISOString().split('T')[0];
-}
 
 export default function WaterNewPage() {
   const { t } = useTranslation();
@@ -20,8 +17,10 @@ export default function WaterNewPage() {
 
   const prefillDate = params.get('date');
   const [value, setValue] = useState('');
-  const [date, setDate] = useState(
-    prefillDate && /^\d{4}-\d{2}-\d{2}$/.test(prefillDate) ? prefillDate : todayStr(),
+  const [date, setDate] = useState(() =>
+    prefillDate && /^\d{4}-\d{2}-\d{2}$/.test(prefillDate)
+      ? prefillDate
+      : toLocalDateStr(useDateStore.getState().selectedDate),
   );
   const [saving, setSaving] = useState(false);
   const [dialog, setDialog] = useState<{ title: string; message: string; goBack?: boolean } | null>(
@@ -108,8 +107,7 @@ export default function WaterNewPage() {
             type="date"
             className={styles.hiddenDate}
             value={date}
-            max={todayStr()}
-            onChange={(e) => setDate(e.target.value || todayStr())}
+            onChange={(e) => setDate(e.target.value || toLocalDateStr())}
           />
         </div>
 

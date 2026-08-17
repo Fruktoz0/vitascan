@@ -21,10 +21,6 @@ type HistoryItem = {
   deltaMl: number | null;
 };
 
-function todayStr() {
-  return new Date().toISOString().split('T')[0];
-}
-
 function formatLiters(ml: number) {
   return `${(ml / 1000).toFixed(1)} L`;
 }
@@ -274,7 +270,6 @@ export default function WaterLogPage() {
               type="date"
               className={styles.hiddenDate}
               value={editDate}
-              max={todayStr()}
               onChange={(e) => setEditDate(e.target.value || editItem.loggedDate)}
             />
 

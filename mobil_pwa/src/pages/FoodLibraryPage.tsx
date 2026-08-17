@@ -28,7 +28,7 @@ import {
   type MealDaySummary,
   type MealHistoryResult,
 } from '../services/api';
-import { toLocalDateStr, useDateStore } from '../stores/dateStore';
+import { daysFromToday, toLocalDateStr, useDateStore } from '../stores/dateStore';
 import { useProfileStore } from '../stores/profileStore';
 import { UserAvatar } from '../components/ui/AvatarPicker';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -224,6 +224,9 @@ export default function FoodLibraryPage() {
     month: 'long',
     day: 'numeric',
   });
+  const diffDays = daysFromToday(selectedDate);
+  const relativeTitle =
+    diffDays === 0 ? t('date.today') : diffDays === 1 ? t('date.tomorrow') : diffDays === -1 ? t('date.yesterday') : null;
   const totals = data?.totals ?? { kcal: 0 };
   const dailyKcalGoal = data?.goals?.dailyKcalGoal ?? 2200;
   const meals: MealType[] = ['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK'];
@@ -510,8 +513,11 @@ export default function FoodLibraryPage() {
 
       <div className={styles.summary}>
         <div>
-          <div className={styles.todayTitle}>{dateTitle}</div>
-          <div className={styles.todaySubtitle}>{Math.round(totals.kcal)} kcal</div>
+          <div className={styles.todayTitle}>{relativeTitle ?? dateTitle}</div>
+          <div className={styles.todaySubtitle}>
+            {relativeTitle ? `${dateTitle} · ` : ''}
+            {Math.round(totals.kcal)} kcal
+          </div>
         </div>
         <div className={styles.fireOuter}>
           <span className={styles.fireShadow} />

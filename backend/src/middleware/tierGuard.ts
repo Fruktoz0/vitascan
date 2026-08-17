@@ -40,15 +40,31 @@ export async function getTierInfo(prisma: any, userId: string) {
 
 // ─── Middleware: napi napló limit ─────────────────────────────────────────────
 
+function localDayRange(date?: string): { start: Date; end: Date } {
+  let start: Date;
+  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const [y, m, d] = date.split('-').map(Number);
+    start = new Date(y, m - 1, d, 0, 0, 0, 0);
+  } else {
+    start = new Date();
+    start.setHours(0, 0, 0, 0);
+  }
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { start, end };
+}
+
 export async function dailyLogLimitGuard(req: FastifyRequest, reply: FastifyReply) {
   const prisma = (req.server as any).prisma;
   const userId = (req.user as any).id ?? (req.user as any).userId;
   const tier = await getUserTier(prisma, userId);
   if (tier === 'PREMIUM') return;
 
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
-  const count = await prisma.dailyLog.count({ where: { userId, createdAt: { gte: startOfDay } } });
+  const targetDate = (req.body as { date?: string } | undefined)?.date;
+  const { start, end } = localDayRange(targetDate);
+  const count = await prisma.dailyLog.count({
+    where: { userId, createdAt: { gte: start, lt: end } },
+  });
 
   if (count >= TIER_LIMITS.FREE.dailyLogs) {
     return reply.status(403).send({

@@ -116,6 +116,15 @@
   align-items: center;
   justify-content: center;
   gap: 2px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  color: inherit;
+}
+
+.future {
+  color: var(--tab-inactive);
 }
 
 .loggedDot {

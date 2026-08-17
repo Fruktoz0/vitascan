@@ -20,10 +20,6 @@ type HistoryItem = {
   deltaKg: number | null;
 };
 
-function todayStr() {
-  return new Date().toISOString().split('T')[0];
-}
-
 export default function WeightLogPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -284,7 +280,6 @@ export default function WeightLogPage() {
               type="date"
               className={styles.hiddenDate}
               value={editDate}
-              max={todayStr()}
               onChange={(e) => setEditDate(e.target.value || editItem.loggedDate)}
             />
 

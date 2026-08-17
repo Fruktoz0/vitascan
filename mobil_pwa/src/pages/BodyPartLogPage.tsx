@@ -23,10 +23,6 @@ type HistoryItem = {
   deltaCm: number | null;
 };
 
-function todayStr() {
-  return new Date().toISOString().split('T')[0];
-}
-
 export default function BodyPartLogPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -366,7 +362,6 @@ export default function BodyPartLogPage() {
               type="date"
               className={styles.hiddenDate}
               value={editDate}
-              max={todayStr()}
               onChange={(e) => setEditDate(e.target.value || editItem.loggedDate)}
             />
 

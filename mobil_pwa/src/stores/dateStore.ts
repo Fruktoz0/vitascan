@@ -15,6 +15,17 @@ export function toLocalDateStr(date: Date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
+export function startOfLocalDay(date: Date = new Date()): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** 0 = today, positive = upcoming, negative = past. */
+export function daysFromToday(date: Date): number {
+  return Math.round((startOfLocalDay(date).getTime() - startOfLocalDay().getTime()) / 86400000);
+}
+
 export const useDateStore = create<DateState>((set) => ({
   selectedDate: new Date(),
   changeDateBy: (days: number) =>

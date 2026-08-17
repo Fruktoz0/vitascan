@@ -126,7 +126,7 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     const userId = request.user.userId;
     const { date } = request.query as { date?: string };
 
-    const day = date ? new Date(date) : new Date();
+    const day = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? parseDateKey(date) : new Date();
     day.setHours(0, 0, 0, 0);
     const nextDay = new Date(day);
     nextDay.setDate(nextDay.getDate() + 1);

@@ -224,6 +224,7 @@ export default function DatePickerPage() {
               d.setHours(0, 0, 0, 0);
               const isToday = d.getTime() === today.getTime();
               const isSelected = d.getTime() === sel.getTime();
+              const isFuture = d.getTime() > today.getTime();
               const dateStr = toLocalDateStr(d);
               const dayKcal = loggedByDate.get(dateStr);
               const tone = dayKcal != null ? kcalGoalTone(dayKcal, dailyKcalGoal) : null;
@@ -231,7 +232,7 @@ export default function DatePickerPage() {
                 <button
                   key={di}
                   type="button"
-                  className={`${styles.day} ${isToday ? styles.today : ''} ${isSelected ? styles.selected : ''}`}
+                  className={`${styles.day} ${isToday ? styles.today : ''} ${isSelected ? styles.selected : ''} ${isFuture && !isSelected ? styles.future : ''}`}
                   onClick={() => selectDay(day)}
                 >
                   {day}

@@ -6,12 +6,9 @@ import { Colors } from '../design/tokens';
 import { IconArrowBack, IconCalendarToday, IconCheck } from '../components/ui/Icons';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { bodyApi, getErrorMessage, type BodyPart } from '../services/api';
+import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import { BODY_PARTS, BODY_PART_META, isBodyPart } from '../utils/bodyMeta';
 import styles from './BodyMeasurements.module.css';
-
-function todayStr() {
-  return new Date().toISOString().split('T')[0];
-}
 
 export default function BodyMeasurementNewPage() {
   const { t } = useTranslation();
@@ -24,7 +21,7 @@ export default function BodyMeasurementNewPage() {
     isBodyPart(prefill) ? prefill : 'ARM',
   );
   const [value, setValue] = useState('');
-  const [date, setDate] = useState(todayStr());
+  const [date, setDate] = useState(() => toLocalDateStr(useDateStore.getState().selectedDate));
   const [saving, setSaving] = useState(false);
   const [dialog, setDialog] = useState<{ title: string; message: string; goBack?: boolean } | null>(
     null,
@@ -128,8 +125,7 @@ export default function BodyMeasurementNewPage() {
             type="date"
             className={styles.hiddenDate}
             value={date}
-            max={todayStr()}
-            onChange={(e) => setDate(e.target.value || todayStr())}
+            onChange={(e) => setDate(e.target.value || toLocalDateStr())}
           />
         </div>
 

@@ -57,12 +57,11 @@ export default function WeeklyKcalChart({ days, avgKcal, selectedDate, onSelectD
           {days.map((day) => {
             const heightPct = day.kcal > 0 ? Math.max(8, (day.kcal / maxKcal) * 100) : 6;
             const active = day.date === selectedStr;
-            const isFuture = day.date > toLocalDateStr(new Date());
             return (
               <button
                 key={day.date}
                 type="button"
-                className={`${styles.col} ${active ? styles.colActive : ''} ${isFuture ? styles.colFuture : ''}`.trim()}
+                className={`${styles.col} ${active ? styles.colActive : ''}`.trim()}
                 onClick={() => onSelectDate(parseLocalDate(day.date))}
                 aria-label={`${day.date}: ${Math.round(day.kcal)} kcal`}
               >

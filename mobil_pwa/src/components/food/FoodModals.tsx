@@ -1186,10 +1186,22 @@ export function EditLogModal({ log, groupLogs, visible, onClose, onSaved }: Edit
 
   useEffect(() => {
     if (!visible) return;
-    const row = groupLogs && groupLogs.length > 1 ? groupLogs[0] : log;
+    const editingGroup = !!(groupLogs && groupLogs.length > 1);
+    const row = editingGroup ? groupLogs[0] : log;
     if (!row) return;
+    const parentPreparedId = isLocalFoodId(row.sourcePreparedFoodId)
+      ? row.sourcePreparedFoodId
+      : undefined;
+    const ownFoodId = isLocalFoodId(row.foodId) ? row.foodId : undefined;
+    // Nested group members inherit the parent dish's sourcePreparedFoodId.
+    // That is grouping metadata, not this row's own recipe — only foodId may
+    // unlock further breakdown, and only if it is a different prepared food.
+    const isNestedMember = !editingGroup && !!row.logGroupId;
     const ids = [...new Set(
-      [row.foodId, row.sourcePreparedFoodId].filter((id): id is string => isLocalFoodId(id)),
+      (isNestedMember
+        ? [ownFoodId && ownFoodId !== parentPreparedId ? ownFoodId : undefined]
+        : [ownFoodId, parentPreparedId]
+      ).filter((id): id is string => !!id),
     )];
     if (!ids.length) return;
     let cancelled = false;

@@ -43,22 +43,17 @@ export async function getLogs(
   const where: any = { userId };
 
   if (filters.date) {
-    const start = new Date(filters.date);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(filters.date);
-    end.setHours(23, 59, 59, 999);
-    where.createdAt = { gte: start, lte: end };
+    const range = localDayRange(filters.date);
+    if (range) where.createdAt = { gte: range.start, lt: range.end };
   } else if (filters.from || filters.to) {
     where.createdAt = {};
     if (filters.from) {
-      const start = new Date(filters.from);
-      start.setHours(0, 0, 0, 0);
-      where.createdAt.gte = start;
+      const range = localDayRange(filters.from);
+      if (range) where.createdAt.gte = range.start;
     }
     if (filters.to) {
-      const end = new Date(filters.to);
-      end.setHours(23, 59, 59, 999);
-      where.createdAt.lte = end;
+      const range = localDayRange(filters.to);
+      if (range) where.createdAt.lt = range.end;
     }
   }
 
