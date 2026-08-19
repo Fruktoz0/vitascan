@@ -18,6 +18,7 @@ import WeeklyCalorieEvalCard from '../components/food/WeeklyCalorieEvalCard';
 import WeeklyInsightsSheet from '../components/food/WeeklyInsightsSheet';
 import StreakCard from '../components/food/StreakCard';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import DoodleCharacter from '../components/ui/DoodleCharacter';
 import { IconAddCircle, IconCalendarToday, IconWeight } from '../components/ui/Icons';
 import { Colors } from '../design/tokens';
 import {
@@ -30,8 +31,7 @@ import {
   type WeeklyStatsResult,
 } from '../services/api';
 import { toLocalDateStr, useDateStore } from '../stores/dateStore';
-import { useProfileStore } from '../stores/profileStore';
-import { UserAvatar } from '../components/ui/AvatarPicker';
+import { doodleMoodForDay } from '../utils/doodleMood';
 import { parseMealType, type MealType } from '../utils/mealMeta';
 import type { MealAvgEntry } from '../utils/mealInsights';
 import { parseAnalysisContent } from '../utils/parseAnalysisContent';
@@ -42,7 +42,6 @@ export default function HomePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { selectedDate, setDate } = useDateStore();
-  const avatarKey = useProfileStore((s) => s.avatarKey);
   const [data, setData] = useState<any>(null);
   const [water, setWater] = useState<any>(null);
   const [weight, setWeight] = useState<any>(null);
@@ -216,6 +215,26 @@ export default function HomePage() {
           ),
         });
 
+  const doodle = doodleMoodForDay({
+    isToday,
+    kcal: totals.kcal ?? 0,
+    goal: goals.dailyKcalGoal,
+    sugar: totals.sugar,
+    byMealType,
+  });
+  const doodleHint =
+    doodle.hintKey === 'curious' && doodle.meal
+      ? t('homeScreen.doodleCurious', { meal: t(`food.${doodle.meal.toLowerCase()}`) })
+      : t(
+          doodle.hintKey === 'warnOver'
+            ? 'homeScreen.doodleWarnOver'
+            : doodle.hintKey === 'warnSugar'
+              ? 'homeScreen.doodleWarnSugar'
+              : doodle.hintKey === 'celebrate'
+                ? 'homeScreen.doodleCelebrate'
+                : 'homeScreen.doodleCalm',
+        );
+
   return (
     <div className={`${styles.screen} page-scroll`}>
       <div className={`${styles.blob} ${styles.blobMint}`} />
@@ -223,8 +242,24 @@ export default function HomePage() {
       <div className={`${styles.blob} ${styles.blobLavender}`} />
 
       <header className={styles.topBar}>
-        <div className={styles.avatar}>
-          <UserAvatar avatarKey={avatarKey} size={40} />
+        <div
+          className={`${styles.doodleWrap} ${
+            doodle.mood === 'warn'
+              ? styles.doodleWarn
+              : doodle.mood === 'celebrate'
+                ? styles.doodleCelebrate
+                : doodle.mood === 'curious'
+                  ? styles.doodleCurious
+                  : ''
+          }`}
+          role="img"
+          aria-label={doodleHint}
+          title={doodleHint}
+        >
+          <span className={styles.doodleShadow} />
+          <span className={styles.doodleFace}>
+            <DoodleCharacter size={46} mood={doodle.mood} />
+          </span>
         </div>
         <h1 className={styles.dateTitle}>{getHeaderDateText()}</h1>
         <button type="button" className={styles.calendarBtn} onClick={() => navigate('/date-picker')}>

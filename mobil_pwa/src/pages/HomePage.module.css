@@ -57,18 +57,47 @@
   backdrop-filter: blur(8px);
 }
 
-.avatar {
-  width: 40px;
-  height: 40px;
+.doodleWrap {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  padding-right: 2px;
+  padding-bottom: 2px;
+}
+
+.doodleShadow {
+  position: absolute;
+  inset: 0;
+  top: 2px;
+  left: 2px;
+  background: var(--shadow-hard);
+  border-radius: 16px 24px 20px 20px;
+}
+
+.doodleFace {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
   border: 1.5px solid var(--stroke);
   border-radius: 16px 24px 20px 20px;
   overflow: hidden;
 }
 
-.avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.doodleCurious .doodleFace {
+  background: #f2faf3;
+}
+
+.doodleWarn .doodleFace {
+  background: #f4f7ef;
+}
+
+.doodleCelebrate .doodleFace {
+  background: #eef8f0;
 }
 
 .dateTitle {
