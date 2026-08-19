@@ -443,6 +443,21 @@ export default function CartSheet() {
     };
   }, [addOpen]);
 
+  useEffect(() => {
+    if (!editingId) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target;
+      if (!(target instanceof Element)) {
+        setEditingId(null);
+        return;
+      }
+      if (target.closest('[data-qty-edit]')) return;
+      setEditingId(null);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [editingId]);
+
   if (!open || typeof document === 'undefined') return null;
 
   const qtyLabelOf = (qty: string, unit: CartUnit) => `${qty} ${unitLabel(unit, t)}`;
@@ -625,7 +640,10 @@ export default function CartSheet() {
                             type="button"
                             className={`${styles.check} ${item.checked ? styles.checkOn : ''}`}
                             onClick={() => {
-                              if (editing) setEditingId(null);
+                              if (editing) {
+                                setEditingId(null);
+                                return;
+                              }
                               toggle(item.id);
                             }}
                             aria-pressed={item.checked}
@@ -637,24 +655,29 @@ export default function CartSheet() {
                             type="button"
                             className={styles.rowMain}
                             onClick={() => {
-                              if (editing) setEditingId(null);
+                              if (editing) {
+                                setEditingId(null);
+                                return;
+                              }
                               toggle(item.id);
                             }}
                           >
                             <span className={styles.rowName}>{item.name}</span>
                           </button>
                           {editing && !item.checked ? (
-                            <QtyUnitWheels
-                              qty={parsed.qty}
-                              unit={parsed.unit}
-                              t={t}
-                              onQty={(qty) => updateItem(item.id, { qtyLabel: qtyLabelOf(qty, parsed.unit) })}
-                              onUnit={(unit) => {
-                                const opts = qtyOptions(unit);
-                                const qty = opts.includes(parsed.qty) ? parsed.qty : (opts[0] ?? '1');
-                                updateItem(item.id, { qtyLabel: qtyLabelOf(qty, unit) });
-                              }}
-                            />
+                            <div data-qty-edit={item.id}>
+                              <QtyUnitWheels
+                                qty={parsed.qty}
+                                unit={parsed.unit}
+                                t={t}
+                                onQty={(qty) => updateItem(item.id, { qtyLabel: qtyLabelOf(qty, parsed.unit) })}
+                                onUnit={(unit) => {
+                                  const opts = qtyOptions(unit);
+                                  const qty = opts.includes(parsed.qty) ? parsed.qty : (opts[0] ?? '1');
+                                  updateItem(item.id, { qtyLabel: qtyLabelOf(qty, unit) });
+                                }}
+                              />
+                            </div>
                           ) : item.qtyLabel ? (
                             item.checked ? (
                               <span className={`${styles.qtyChip} ${qtyToneClass(parsed.unit)}`}>
