@@ -88,7 +88,7 @@ A db-tools a `vitascan_media` volume-ot is látja (`RECIPE_STORAGE_DIR`, alapbó
 
 - `.tar.gz` / `.tgz` / `.tar`: kicsomagolás, dump merge, receptképek bemásolása.
 - `.dump` / `.backup`: ideiglenes DB + `postgres_fdw` merge a célba.
-- Preferált FK-sorrend (Prisma modellek): User → UserProfile → SystemSetting → RefreshToken → **DataShare** → **ShoppingList** → **ShoppingListItem** → **Recipe** → Food → FoodComponent → Vote → FoodFavorite → FoodEditLog → RecipeIngredient → RecipeImage → RecipeFavorite → AiRecipeImport → DailyLog → MealTemplate → MealTemplateItem → WaterLog → WeightLog → DayNote → DailyAnalysis → AiFoodRecognition → BodyMeasurement* → AiBodyAnalysis → WorkoutLog → DailyStepLog (egyéb közös táblák ABC-ben a végén).
+- Preferált FK-sorrend (Prisma modellek): User → UserProfile → SystemSetting → RefreshToken → **DataShare** → **ShoppingList** → **ShoppingListItem** → **Recipe** → Food → FoodComponent → Vote → FoodFavorite → FoodEditLog → RecipeIngredient → RecipeImage → RecipeFavorite → AiRecipeImport → DailyLog → MealTemplate → MealTemplateItem → WaterLog → WeightLog → DayNote → DailyAnalysis → AiFoodRecognition → BodyMeasurement* → **BodyFatLog** → **BodyFatGoal** → AiBodyAnalysis → WorkoutLog → DailyStepLog (egyéb közös táblák ABC-ben a végén).
 - A Recipe a Food előtt van, mert `Food.preparedFromRecipeId` a Recipe-re mutat.
 - A DataShare a User után van (owner + partner). A ShoppingListItem a ShoppingList után.
 - Merge előtt a dump oldali legacy **WaterLog** (`amountMl`) napi `totalMl` + `loggedDate` formára konvertálódik, ha kell.

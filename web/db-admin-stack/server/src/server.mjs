@@ -160,6 +160,8 @@ const MERGE_TABLE_ORDER = [
   'AiFoodRecognition',
   'BodyMeasurementLog',
   'BodyMeasurementGoal',
+  'BodyFatLog',
+  'BodyFatGoal',
   'AiBodyAnalysis',
   'WorkoutLog',
   'DailyStepLog',
