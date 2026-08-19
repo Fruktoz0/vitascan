@@ -109,4 +109,4 @@ export default function App() {
   );
 }
 
-// csak teszt
+// csak teszt kellős
