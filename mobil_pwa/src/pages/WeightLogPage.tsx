@@ -345,7 +345,6 @@ export default function WeightLogPage() {
                 {latest ? `${latest.weightKg.toFixed(1)} kg` : '—'}
               </div>
               {latest && <div className={styles.latestDate}>{formatDate(latest.loggedDate)}</div>}
-              {latest ? <span className={styles.latestStatsHint}>{t('logStats.openHint')}</span> : null}
             </button>
           </div>
         </div>
