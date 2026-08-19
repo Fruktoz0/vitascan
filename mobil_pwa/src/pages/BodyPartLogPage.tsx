@@ -11,7 +11,6 @@ import {
   IconEvent,
   IconExpandMore,
   IconFilterList,
-  IconChevronRight,
   IconTarget,
 } from '../components/ui/Icons';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -397,12 +396,6 @@ export default function BodyPartLogPage() {
                 {latest ? `${latest.valueCm.toFixed(1)} cm` : '—'}
               </div>
               {latest && <div className={styles.latestDate}>{formatDate(latest.loggedDate)}</div>}
-              {latest ? (
-                <span className={styles.latestStatsHint}>
-                  {t('logStats.openHint')}
-                  <IconChevronRight size={14} color={Colors.dashboard.stroke} />
-                </span>
-              ) : null}
             </button>
           </div>
         </div>

@@ -129,9 +129,11 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
       ]);
       const who = actor?.username?.trim();
       await notifyCartPartnerPush(fastify.prisma, audience, actorId, {
-        title: 'Új tétel a kosárban',
-        body: who ? `${who}: ${detail}` : detail,
+        title: 'Új tétel a közös listán',
+        body: who ? `${who} hozzáadta: ${detail}` : `Hozzáadva: ${detail}`,
         url: '/home?cart=1',
+        kind: 'cart',
+        tag: 'vitascan-cart',
       });
     })().catch(() => {});
   };

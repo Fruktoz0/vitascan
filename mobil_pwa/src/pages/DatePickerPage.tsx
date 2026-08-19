@@ -129,7 +129,7 @@ export default function DatePickerPage() {
   const selectDay = (day: number) => {
     const target = new Date(viewYear, viewMonth, day);
     target.setHours(12, 0, 0, 0);
-    setDate(target);
+    if (!isBodyMode) setDate(target);
     if (isWeightMode) {
       sessionStorage.setItem('weightLogScrollDate', toLocalDateStr(target));
     }

@@ -10,7 +10,6 @@ import {
   IconEvent,
   IconExpandMore,
   IconFilterList,
-  IconChevronRight,
 } from '../components/ui/Icons';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import LogTrendSheet from '../components/logs/LogTrendSheet';
@@ -346,12 +345,7 @@ export default function WeightLogPage() {
                 {latest ? `${latest.weightKg.toFixed(1)} kg` : '—'}
               </div>
               {latest && <div className={styles.latestDate}>{formatDate(latest.loggedDate)}</div>}
-              {latest ? (
-                <span className={styles.latestStatsHint}>
-                  {t('logStats.openHint')}
-                  <IconChevronRight size={14} color={Colors.dashboard.stroke} />
-                </span>
-              ) : null}
+              {latest ? <span className={styles.latestStatsHint}>{t('logStats.openHint')}</span> : null}
             </button>
           </div>
         </div>

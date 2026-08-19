@@ -1,3 +1,38 @@
+const ICON = '/assets/app-icon-192.png';
+/** Android status-bar: white silhouette on transparent (not the full-color app icon). */
+const BADGE = '/assets/notification-badge.png';
+
+const KIND_DEFAULTS = {
+  meal: {
+    tag: 'vitascan-meal',
+    actions: [{ action: 'open', title: 'Naplózás' }],
+  },
+  water: {
+    tag: 'vitascan-water',
+    actions: [{ action: 'open', title: 'Víz napló' }],
+  },
+  daily: {
+    tag: 'vitascan-daily',
+    actions: [{ action: 'open', title: 'Megnyitás' }],
+  },
+  cart: {
+    tag: 'vitascan-cart',
+    actions: [{ action: 'open', title: 'Kosár' }],
+  },
+  share: {
+    tag: 'vitascan-share',
+    actions: [{ action: 'open', title: 'Meghívó' }],
+  },
+};
+
+function assetUrl(path) {
+  try {
+    return new URL(path, self.location.origin).href;
+  } catch {
+    return path;
+  }
+}
+
 self.addEventListener('push', (event) => {
   let data = { title: 'VitaScan', body: '', url: '/home' };
   try {
@@ -10,13 +45,25 @@ self.addEventListener('push', (event) => {
       /* ignore */
     }
   }
+
+  const kind = data.kind && KIND_DEFAULTS[data.kind] ? data.kind : null;
+  const kindOpts = kind ? KIND_DEFAULTS[kind] : { tag: 'vitascan', actions: [{ action: 'open', title: 'Megnyitás' }] };
   const title = data.title || 'VitaScan';
+  const url = data.url || '/home';
+
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || '',
-      icon: '/assets/app-icon-192.png',
-      badge: '/assets/app-icon-192.png',
-      data: { url: data.url || '/home' },
+      icon: assetUrl(ICON),
+      badge: assetUrl(BADGE),
+      lang: 'hu',
+      dir: 'ltr',
+      tag: data.tag || kindOpts.tag,
+      renotify: true,
+      timestamp: Date.now(),
+      vibrate: [80, 40, 80],
+      actions: kindOpts.actions,
+      data: { url, kind },
     }),
   );
 });

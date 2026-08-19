@@ -1,10 +1,14 @@
 import { PrismaClient } from '@prisma/client';
 import webpush from 'web-push';
 
+export type PushKind = 'meal' | 'water' | 'daily' | 'cart' | 'share';
+
 export type PushPayload = {
   title: string;
   body: string;
   url: string;
+  kind?: PushKind;
+  tag?: string;
 };
 
 type PrefFlag = 'cartPartnerEnabled' | 'shareInviteEnabled';

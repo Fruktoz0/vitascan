@@ -665,7 +665,7 @@ export default function CartSheet() {
                             <span className={styles.rowName}>{item.name}</span>
                           </button>
                           {editing && !item.checked ? (
-                            <div data-qty-edit={item.id}>
+                            <div data-qty-edit={item.id} className={styles.itemQtyEdit}>
                               <QtyUnitWheels
                                 qty={parsed.qty}
                                 unit={parsed.unit}

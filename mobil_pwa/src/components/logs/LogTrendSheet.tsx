@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { rangeForPreset, type PresetKey } from '../../utils/dateRangePresets';
@@ -66,6 +66,33 @@ export default function LogTrendSheet({
 }: Props) {
   const { t } = useTranslation();
   const locale = i18n.language === 'hu' ? 'hu-HU' : 'en-US';
+
+  useEffect(() => {
+    if (!open) return;
+    const scroller = document.querySelector('.page-scroll') as HTMLElement | null;
+    const prevOverflow = scroller?.style.overflowY ?? '';
+    const prevTouch = scroller?.style.touchAction ?? '';
+    if (scroller) {
+      scroller.style.overflowY = 'hidden';
+      scroller.style.touchAction = 'none';
+    }
+    const prevBody = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onTouchMove = (e: TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('[role="dialog"]')) return;
+      e.preventDefault();
+    };
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    return () => {
+      if (scroller) {
+        scroller.style.overflowY = prevOverflow;
+        scroller.style.touchAction = prevTouch;
+      }
+      document.body.style.overflow = prevBody;
+      document.removeEventListener('touchmove', onTouchMove);
+    };
+  }, [open]);
 
   const presets = useMemo(
     () =>

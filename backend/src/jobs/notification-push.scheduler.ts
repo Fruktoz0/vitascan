@@ -16,10 +16,22 @@ const MEAL_COPY: Record<
   'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK',
   { title: string; body: string }
 > = {
-  BREAKFAST: { title: 'Reggeli ideje', body: 'Még nincs bejegyzésed a mai reggelire.' },
-  LUNCH: { title: 'Ebéd ideje', body: 'Még nincs bejegyzésed a mai ebédre.' },
-  DINNER: { title: 'Vacsora ideje', body: 'Még nincs bejegyzésed a mai vacsorára.' },
-  SNACK: { title: 'Nassolás ideje', body: 'Még nincs nassolás bejegyezve mára.' },
+  BREAKFAST: {
+    title: 'Ideje a reggelinek',
+    body: 'A mai reggeli még üres. Egy gyors naplóbejegyzés, és a nap jó irányba indul.',
+  },
+  LUNCH: {
+    title: 'Ebédszünet',
+    body: 'Még nincs ebéd a naplóban. Rögzítsd, amit ettél — később hálás leszel érte.',
+  },
+  DINNER: {
+    title: 'Vacsoraidő',
+    body: 'A vacsora még hiányzik a mai naplóból. Pár másodperc, és megvan.',
+  },
+  SNACK: {
+    title: 'Nassolás?',
+    body: 'Ha ettél valami rágcsálnivalót, most érdemes beírni, amíg emlékszel rá.',
+  },
 };
 
 type MealSlot = {
@@ -106,6 +118,8 @@ async function tick(fastify: FastifyInstance) {
           title: copy.title,
           body: copy.body,
           url: '/home',
+          kind: 'meal',
+          tag: `vitascan-meal-${slot.mealType}`,
         });
         await fastify.prisma.notificationPref.update({
           where: { id: pref.id },
@@ -134,10 +148,16 @@ async function tick(fastify: FastifyInstance) {
           });
           const totalMl = water?.totalMl ?? 0;
           if (totalMl < goalMl) {
+            const leftMl = Math.max(0, goalMl - totalMl);
             await sendPushToSubscriptions(fastify.prisma, subs, {
-              title: 'Igyál vizet',
-              body: `Még ${Math.max(0, goalMl - totalMl)} ml van hátra a mai célodig.`,
-              url: '/home',
+              title: 'Igyál egy kortyot',
+              body:
+                leftMl >= 1000
+                  ? `Még ${(leftMl / 1000).toFixed(1)} l van hátra a mai célodig. Egy pohár most sokat számít.`
+                  : `Még ${leftMl} ml van hátra a mai célodig. Egy pohár most sokat számít.`,
+              url: '/water',
+              kind: 'water',
+              tag: 'vitascan-water',
             });
           }
           await fastify.prisma.notificationPref.update({
@@ -156,10 +176,19 @@ async function tick(fastify: FastifyInstance) {
       });
       const consumed = Math.round(logs.reduce((sum, row) => sum + row.kcal, 0));
       const goal = Math.round(pref.user.profile?.dailyKcalGoal ?? 2000);
+      const over = consumed > goal;
+      const remaining = Math.abs(goal - consumed);
+      const dailyBody = over
+        ? `Ma ${consumed} / ${goal} kcal (${remaining} kcal a cél felett). Holnap könnyen vissza lehet zárni.`
+        : remaining === 0
+          ? `Ma ${consumed} / ${goal} kcal — pont a célon. Szép nap volt.`
+          : `Ma ${consumed} / ${goal} kcal. Még ${remaining} kcal a célodig.`;
       await sendPushToSubscriptions(fastify.prisma, subs, {
-        title: 'Napi összefoglaló',
-        body: `Ma ${consumed} / ${goal} kcal.`,
+        title: over ? 'Mai mérleg — cél felett' : 'Mai mérleg',
+        body: dailyBody,
         url: '/home',
+        kind: 'daily',
+        tag: `vitascan-daily-${ymd}`,
       });
       await fastify.prisma.notificationPref.update({
         where: { id: pref.id },

@@ -144,9 +144,11 @@ const sharesRoutes: FastifyPluginAsync = async (fastify) => {
       void notifyShareInvitePush(fastify.prisma, partner.id, {
         title: 'Megosztási meghívó',
         body: who
-          ? `${who} adatmegosztást kért tőled.`
-          : 'Új adatmegosztási meghívód érkezett.',
+          ? `${who} adatmegosztást kért. Nyisd meg, és fogadd el vagy utasítsd el.`
+          : 'Új adatmegosztási meghívód érkezett. Nyisd meg a megosztás oldalt.',
         url: '/menu/sharing',
+        kind: 'share',
+        tag: 'vitascan-share',
       }).catch(() => {});
     }
     return reply.status(existing && existing.status !== ShareStatus.REVOKED ? 200 : 201).send(serializeShare(row, me));

@@ -552,11 +552,10 @@ form.bento {
 }
 
 .itemWheels {
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 0 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: 56px 78px;
+  gap: 6px;
 }
 
 .itemWheels .wheel {
@@ -566,9 +565,15 @@ form.bento {
   background: #fff;
 }
 
+.itemQtyEdit {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
 .itemInnerEditing .rowMain {
-  flex: 0 1 34%;
-  max-width: 42%;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
 }
 
 .wheel::-webkit-scrollbar {

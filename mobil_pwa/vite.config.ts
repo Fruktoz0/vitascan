@@ -37,6 +37,8 @@ export default defineConfig(({ mode }) => {
           'assets/icons.svg',
           'assets/app-icon-192.png',
           'assets/app-icon-512.png',
+          'assets/notification-badge.png',
+          'assets/notification-badge.svg',
         ],
         manifest: {
           name: 'VitaScan',
