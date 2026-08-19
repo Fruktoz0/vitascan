@@ -88,10 +88,12 @@ A db-tools a `vitascan_media` volume-ot is látja (`RECIPE_STORAGE_DIR`, alapbó
 
 - `.tar.gz` / `.tgz` / `.tar`: kicsomagolás, dump merge, receptképek bemásolása.
 - `.dump` / `.backup`: ideiglenes DB + `postgres_fdw` merge a célba.
-- Preferált FK-sorrend (Prisma modellek): User → UserProfile → **NotificationPref** → **PushSubscription** → SystemSetting → RefreshToken → **DataShare** → **ShoppingList** → **ShoppingListItem** → **Recipe** → Food → FoodComponent → Vote → FoodFavorite → FoodEditLog → RecipeIngredient → RecipeImage → RecipeFavorite → AiRecipeImport → DailyLog → MealTemplate → MealTemplateItem → WaterLog → WeightLog → DayNote → DailyAnalysis → AiFoodRecognition → BodyMeasurement* → **BodyFatLog** → **BodyFatGoal** → AiBodyAnalysis → WorkoutLog → DailyStepLog (egyéb közös táblák ABC-ben a végén).
+- Preferált FK-sorrend (Prisma modellek): User → UserProfile → **NotificationPref** → **PushSubscription** → SystemSetting → RefreshToken → **DataShare** → **ShoppingList** → **ShoppingListItem** → **Recipe** → Food → FoodComponent → Vote → FoodFavorite → FoodEditLog → RecipeIngredient → RecipeImage → RecipeFavorite → AiRecipeImport → DailyLog → MealTemplate → MealTemplateItem → WaterLog → WeightLog → **FastSession** → DayNote → DailyAnalysis → AiFoodRecognition → BodyMeasurement* → **BodyFatLog** → **BodyFatGoal** → AiBodyAnalysis → WorkoutLog → DailyStepLog (egyéb közös táblák ABC-ben a végén).
 - A Recipe a Food előtt van, mert `Food.preparedFromRecipeId` a Recipe-re mutat.
 - A DataShare a User után van (owner + partner). A ShoppingListItem a ShoppingList után.
+- A FastSession a User-re mutat (`onDelete: Cascade`); a WeightLog után jön, a többi user-naplóval.
 - Merge előtt a dump oldali legacy **WaterLog** (`amountMl`) napi `totalMl` + `loggedDate` formára konvertálódik, ha kell.
+- **UserProfile** új oszlopai (`showHomeWaterCard`, `showHomeStreakCard`, `showHomeFastingCard`, `fastingProtocol`, `fastingGoalMinutes`) és a **NotificationPref** böjt mezői (`fastingGoalEnabled`, `lastFastingGoalPushAt`) defaulttal mennek a cél sémában: régi dumpból csak a közös oszlopok jönnek át, a hiányzó mezők a Prisma defaultot kapják új soron.
 - Csak **közös oszlopok** kerülnek át (séma-drift nem bontja el az importot).
 - `INSERT … ON CONFLICT DO NOTHING` — meglévő PK / unique (pl. Food `barcode`, `externalId`) **nem frissül**.
 - Hiányzó FK-jú sorok (pl. étel creator nélkül) kimaradnak; az import folytatódik.

@@ -108,14 +108,18 @@ export function DatabaseDataUpdatePage() {
                   <strong>Ami történik</strong>
                   <p>
                     A cél séma tábláira (User, UserProfile, Recipe, Food, FoodComponent, recept- és
-                    ételsablon-táblák, Vote, FoodFavorite, FoodEditLog, DailyLog, WaterLog, WeightLog, DayNote,
+                    ételsablon-táblák, Vote, FoodFavorite, FoodEditLog, DailyLog, WaterLog, WeightLog, FastSession, DayNote,
                     DailyAnalysis, AiFoodRecognition, testmérések, BodyFatLog, BodyFatGoal, WorkoutLog, DailyStepLog,
                     DataShare, ShoppingList, ShoppingListItem, NotificationPref, PushSubscription stb.) csak az új sorok
                     kerülnek be. Meglévő elsődleges / egyedi kulcsok (pl. étel <code>id</code>, <code>barcode</code>,{' '}
                     <code>externalId</code>, megosztás <code>ownerId</code>+<code>partnerId</code>) <strong>nem frissülnek</strong> — a mentésbeli értékük kimarad.
                     Oszlopeltérésnél csak a közös mezők mennek át; hiányzó creator / FK miatt árva sorok kimaradnak
                     (az import nem áll le). Régi WaterLog (<code>amountMl</code>) mentésből napi{' '}
-                    <code>totalMl</code>/<code>loggedDate</code> formára konvertálódik import előtt. A{' '}
+                    <code>totalMl</code>/<code>loggedDate</code> formára konvertálódik import előtt. A profil kártya- és
+                    böjtmezői (<code>showHomeWaterCard</code>, <code>showHomeStreakCard</code>,{' '}
+                    <code>showHomeFastingCard</code>, <code>fastingProtocol</code>, <code>fastingGoalMinutes</code>)
+                    és a NotificationPref böjt-push mezői defaulttal a cél sémában vannak — régi dumpból csak a közös
+                    oszlopok jönnek. A{' '}
                     <code>_prisma_migrations</code> táblát nem módosítjuk. <code>.tar.gz</code> csomagból a
                     receptképek is bemásolódnak (meglévő fájlnevek felülíródnak, más fájlok megmaradnak).
                   </p>

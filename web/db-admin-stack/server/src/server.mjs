@@ -157,6 +157,7 @@ const MERGE_TABLE_ORDER = [
   'MealTemplateItem',
   'WaterLog',
   'WeightLog',
+  'FastSession',
   'DayNote',
   'DailyAnalysis',
   'AiFoodRecognition',
