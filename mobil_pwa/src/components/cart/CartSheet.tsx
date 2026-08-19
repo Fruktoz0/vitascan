@@ -23,6 +23,7 @@ import {
   IconShoppingBasket,
 } from '../ui/Icons';
 import { SwipeDeleteRow } from '../ui/SwipeDeleteRow';
+import { useShareInbox } from '../../stores/shareInbox';
 import styles from './CartSheet.module.css';
 
 const CART_UNITS = ['db', 'g', 'kg', 'ml', 'l', 'csomag', 'adag'] as const;
@@ -229,7 +230,7 @@ function QtyUnitWheels({
   const units = CART_UNITS.map((u) => unitLabel(u, t));
   const unitValue = unitLabel(unit, t);
   return (
-    <div className={styles.wheels}>
+    <div className={styles.itemWheels}>
       <WheelPicker items={qtys} value={qty} onChange={onQty} />
       <WheelPicker
         items={units}
@@ -252,12 +253,30 @@ function listToneClass(id: string): string {
   return LIST_TONES[hash % LIST_TONES.length] ?? LIST_TONES[0];
 }
 
+function listShareChip(
+  list: CartList,
+  t: (key: string) => string,
+  outgoingCartPartners: string[] = [],
+): string | null {
+  if (list.shared) {
+    return list.ownerLabel ? `${t('cart.sharedBadge')} · ${list.ownerLabel}` : t('cart.sharedBadge');
+  }
+  const names =
+    list.sharedWith && list.sharedWith.length > 0 ? list.sharedWith : outgoingCartPartners;
+  if (names.length > 0) {
+    return `${t('cart.sharedOutBadge')} · ${names.join(', ')}`;
+  }
+  return null;
+}
+
 function ListCard({ list, onClick }: { list: CartList; onClick: () => void }) {
   const { t } = useTranslation();
+  const outgoingCartPartners = useShareInbox((s) => s.outgoingCartPartners);
   const { checked, total } = listProgress(list);
   const pct = total > 0 ? Math.round((checked / total) * 100) : 0;
   const left = Math.max(0, total - checked);
   const done = total > 0 && left === 0;
+  const shareChip = listShareChip(list, t, outgoingCartPartners);
   return (
     <button type="button" className={styles.bento} onClick={onClick}>
       <span className={styles.bentoShadow} />
@@ -268,12 +287,6 @@ function ListCard({ list, onClick }: { list: CartList; onClick: () => void }) {
           </span>
           <span className={styles.listCardCopy}>
             <span className={styles.listCardName}>{list.name}</span>
-            {list.shared ? (
-              <span className={styles.sharedChip}>
-                {t('cart.sharedBadge')}
-                {list.ownerLabel ? ` · ${list.ownerLabel}` : ''}
-              </span>
-            ) : null}
             <span className={styles.listCardMeta}>
               {total === 0 ? t('cart.progressEmpty') : t('cart.progress', { checked, total })}
             </span>
@@ -300,6 +313,7 @@ function ListCard({ list, onClick }: { list: CartList; onClick: () => void }) {
           </span>
           <IconChevronRight size={18} color={Colors.dashboard.stroke} />
         </span>
+        {shareChip ? <span className={styles.sharedChip}>{shareChip}</span> : null}
       </span>
     </button>
   );
@@ -376,6 +390,12 @@ export default function CartSheet() {
   const sorted = useMemo(() => sortItems(items), [items]);
   const checkedCount = useMemo(() => items.filter((item) => item.checked).length, [items]);
   const inDetail = Boolean(viewList);
+  const outgoingCartPartners = useShareInbox((s) => s.outgoingCartPartners);
+  const viewShareChip = viewList ? listShareChip(viewList, t, outgoingCartPartners) : null;
+
+  useEffect(() => {
+    if (open) void useShareInbox.getState().refresh();
+  }, [open]);
 
   useEffect(() => {
     if (!open) {
@@ -469,6 +489,7 @@ export default function CartSheet() {
             <h2 id={titleId} className={styles.title}>
               {inDetail ? viewList!.name : t('cart.title')}
             </h2>
+            {viewShareChip ? <span className={styles.sharedChip}>{viewShareChip}</span> : null}
             <p className={styles.subtitle}>
               {inDetail
                 ? items.length === 0
@@ -599,11 +620,14 @@ export default function CartSheet() {
                     >
                       <div className={`${styles.itemBento} ${item.checked ? styles.rowChecked : ''}`}>
                         <span className={styles.itemShadow} />
-                        <div className={styles.itemInner}>
+                        <div className={`${styles.itemInner} ${editing && !item.checked ? styles.itemInnerEditing : ''}`}>
                           <button
                             type="button"
                             className={`${styles.check} ${item.checked ? styles.checkOn : ''}`}
-                            onClick={() => toggle(item.id)}
+                            onClick={() => {
+                              if (editing) setEditingId(null);
+                              toggle(item.id);
+                            }}
                             aria-pressed={item.checked}
                             aria-label={item.name}
                           >
@@ -619,7 +643,7 @@ export default function CartSheet() {
                           >
                             <span className={styles.rowName}>{item.name}</span>
                           </button>
-                          {editing ? (
+                          {editing && !item.checked ? (
                             <QtyUnitWheels
                               qty={parsed.qty}
                               unit={parsed.unit}
@@ -632,17 +656,24 @@ export default function CartSheet() {
                               }}
                             />
                           ) : item.qtyLabel ? (
-                            <button
-                              type="button"
-                              className={`${styles.qtyChip} ${qtyToneClass(parsed.unit)}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingId(item.id);
-                              }}
-                            >
-                              <span className={styles.qtyNum}>{parsed.qty}</span>
-                              <span className={styles.qtyUnit}>{unitLabel(parsed.unit, t)}</span>
-                            </button>
+                            item.checked ? (
+                              <span className={`${styles.qtyChip} ${qtyToneClass(parsed.unit)}`}>
+                                <span className={styles.qtyNum}>{parsed.qty}</span>
+                                <span className={styles.qtyUnit}>{unitLabel(parsed.unit, t)}</span>
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                className={`${styles.qtyChip} ${qtyToneClass(parsed.unit)}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingId(item.id);
+                                }}
+                              >
+                                <span className={styles.qtyNum}>{parsed.qty}</span>
+                                <span className={styles.qtyUnit}>{unitLabel(parsed.unit, t)}</span>
+                              </button>
+                            )
                           ) : null}
                         </div>
                       </div>

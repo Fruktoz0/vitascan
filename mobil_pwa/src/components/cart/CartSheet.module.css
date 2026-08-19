@@ -67,6 +67,13 @@
 .headerText {
   min-width: 0;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.headerText .sharedChip {
+  margin-top: 6px;
 }
 
 .title {
@@ -210,13 +217,17 @@ form.bento {
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
-  padding: 3px 8px;
+  max-width: 100%;
+  padding: 4px 10px;
   border-radius: 999px;
   border: 1.5px solid var(--stroke);
   background: #e7ddff;
   box-shadow: 1px 1px 0 var(--shadow-hard);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
+  line-height: 1.2;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .remainPill {
@@ -540,6 +551,26 @@ form.bento {
   border-left: 1.5px solid rgba(28, 27, 27, 0.12);
 }
 
+.itemWheels {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.itemWheels .wheel {
+  width: 100%;
+  border: 1.5px solid var(--stroke);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.itemInnerEditing .rowMain {
+  flex: 0 1 34%;
+  max-width: 42%;
+}
+
 .wheel::-webkit-scrollbar {
   display: none;
 }
@@ -654,6 +685,10 @@ form.bento {
   font-family: inherit;
   color: var(--stroke);
   cursor: pointer;
+}
+
+span.qtyChip {
+  cursor: default;
 }
 
 .qtyNum,

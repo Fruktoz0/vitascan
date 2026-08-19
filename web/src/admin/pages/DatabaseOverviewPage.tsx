@@ -371,7 +371,8 @@ export function DatabaseOverviewPage() {
               <div>
                 <h2 className="admin-panel-title">Pillanatnyi mentés</h2>
                 <p className="admin-muted">
-                  PostgreSQL dump + receptképek egy <code>.tar.gz</code> csomagban — azonnali kézi mentés
+                  PostgreSQL dump (teljes séma: naplók, ételek, receptek, megosztások, bevásárlólisták stb.) +
+                  receptképek egy <code>.tar.gz</code> csomagban — azonnali kézi mentés
                   {status?.rcloneUploadEnabled
                     ? '; sikeres mentés után feltöltés Google Drive-ra is.'
                     : '.'}

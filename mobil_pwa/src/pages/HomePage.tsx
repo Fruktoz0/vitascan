@@ -43,7 +43,9 @@ export default function HomePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { selectedDate, setDate } = useDateStore();
-  const cartCount = useCartStore((s) => s.lists.reduce((sum, list) => sum + list.items.length, 0));
+  const cartCount = useCartStore((s) =>
+    s.lists.reduce((sum, list) => sum + list.items.filter((item) => !item.checked).length, 0),
+  );
   const openCart = useCartStore((s) => s.openSheet);
   const [data, setData] = useState<any>(null);
   const [water, setWater] = useState<any>(null);

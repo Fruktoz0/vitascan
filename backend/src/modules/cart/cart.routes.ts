@@ -90,6 +90,7 @@ function serializeList(
     owner?: { username: string };
   },
   me: string,
+  sharedWith: string[] = [],
 ) {
   const shared = list.ownerId !== me;
   return {
@@ -99,6 +100,7 @@ function serializeList(
     createdAt: list.createdAt.getTime(),
     shared,
     ownerLabel: shared ? list.owner?.username ?? undefined : undefined,
+    sharedWith: shared || sharedWith.length === 0 ? undefined : sharedWith,
     items: [...list.items]
       .sort((a, b) => {
         if (a.checked !== b.checked) return a.checked ? 1 : -1;
@@ -135,10 +137,43 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
     });
   }
 
+  async function outgoingCartPartners(me: string): Promise<string[]> {
+    const shares = await fastify.prisma.dataShare.findMany({
+      where: {
+        ownerId: me,
+        status: { in: [ShareStatus.ACTIVE, ShareStatus.PENDING] },
+      },
+      select: { categories: true, partner: { select: { username: true } } },
+    });
+    return [
+      ...new Set(
+        shares
+          .filter((row) => row.categories.includes(ShareCategory.CART))
+          .map((row) => row.partner.username)
+          .filter(Boolean),
+      ),
+    ];
+  }
+
+  async function packList(
+    list: Parameters<typeof serializeList>[0],
+    me: string,
+  ) {
+    return serializeList(list, me, await outgoingCartPartners(me));
+  }
+
+  async function packLists(
+    lists: Array<Parameters<typeof serializeList>[0]>,
+    me: string,
+  ) {
+    const sharedWith = await outgoingCartPartners(me);
+    return lists.map((list) => serializeList(list, me, sharedWith));
+  }
+
   fastify.get('/lists', { preHandler: authenticate }, async (request, reply) => {
     const me = request.user.userId;
     const lists = await loadVisibleLists(me);
-    return reply.send({ lists: lists.map((list) => serializeList(list, me)) });
+    return reply.send({ lists: await packLists(lists, me) });
   });
 
   fastify.get(
@@ -188,7 +223,7 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
     const existing = await fastify.prisma.shoppingList.count({ where: { ownerId: me } });
     if (existing > 0) {
       const lists = await loadVisibleLists(me);
-      return reply.send({ lists: lists.map((list) => serializeList(list, me)) });
+      return reply.send({ lists: await packLists(lists, me) });
     }
     await fastify.prisma.$transaction(
       parsed.data.lists.map((list) =>
@@ -212,7 +247,7 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
     );
     const lists = await loadVisibleLists(me);
     pingOwner(me);
-    return reply.status(201).send({ lists: lists.map((list) => serializeList(list, me)) });
+    return reply.status(201).send({ lists: await packLists(lists, me) });
   });
 
   fastify.post('/lists', { preHandler: authenticate }, async (request, reply) => {
@@ -230,7 +265,7 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
       include: listInclude,
     });
     pingOwner(me);
-    return reply.status(201).send(serializeList(list, me));
+    return reply.status(201).send(await packList(list, me));
   });
 
   fastify.patch('/lists/:id', { preHandler: authenticate }, async (request, reply) => {
@@ -250,7 +285,7 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
       include: listInclude,
     });
     pingOwner(list.ownerId);
-    return reply.send(serializeList(updated, me));
+    return reply.send(await packList(updated, me));
   });
 
   fastify.delete('/lists/:id', { preHandler: authenticate }, async (request, reply) => {
@@ -299,7 +334,7 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
         include: listInclude,
       });
       pingOwner(list.ownerId);
-      return reply.send({ list: serializeList(updated, me), item: serializeItem(updatedItem) });
+      return reply.send({ list: await packList(updated, me), item: serializeItem(updatedItem) });
     }
     await fastify.prisma.shoppingListItem.create({
       data: {
@@ -315,7 +350,7 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
       include: listInclude,
     });
     pingOwner(list.ownerId);
-    return reply.status(201).send({ list: serializeList(updated, me) });
+    return reply.status(201).send({ list: await packList(updated, me) });
   });
 
   fastify.post('/lists/:id/recipe', { preHandler: authenticate }, async (request, reply) => {
@@ -349,7 +384,7 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
       include: listInclude,
     });
     pingOwner(list.ownerId);
-    return reply.send({ list: serializeList(updated, me) });
+    return reply.send({ list: await packList(updated, me) });
   });
 
   fastify.post('/lists/:id/clear-checked', { preHandler: authenticate }, async (request, reply) => {
@@ -365,7 +400,7 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
       include: listInclude,
     });
     pingOwner(list.ownerId);
-    return reply.send({ list: serializeList(updated, me) });
+    return reply.send({ list: await packList(updated, me) });
   });
 
   fastify.patch('/items/:id', { preHandler: authenticate }, async (request, reply) => {
@@ -395,7 +430,7 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
       include: listInclude,
     });
     pingOwner(item.list.ownerId);
-    return reply.send({ list: serializeList(updated, me) });
+    return reply.send({ list: await packList(updated, me) });
   });
 
   fastify.delete('/items/:id', { preHandler: authenticate }, async (request, reply) => {
@@ -414,7 +449,7 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
       include: listInclude,
     });
     pingOwner(item.list.ownerId);
-    return reply.send({ list: serializeList(updated, me) });
+    return reply.send({ list: await packList(updated, me) });
   });
 };
 

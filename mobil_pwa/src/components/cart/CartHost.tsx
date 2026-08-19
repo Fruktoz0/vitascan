@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { cartApi } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
 import { useCartStore } from '../../stores/cartStore';
+import { useShareInbox } from '../../stores/shareInbox';
 import CartSheet, { CartListPicker } from './CartSheet';
 
 export default function CartHost() {
@@ -9,6 +10,7 @@ export default function CartHost() {
 
   useEffect(() => {
     void useCartStore.getState().hydrate(userId);
+    if (userId) void useShareInbox.getState().refresh();
   }, [userId]);
 
   const timer = useRef<number | null>(null);

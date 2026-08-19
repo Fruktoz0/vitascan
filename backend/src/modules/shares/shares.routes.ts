@@ -131,6 +131,9 @@ const sharesRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
 
+    if (categories.includes(ShareCategory.CART)) {
+      notifyCartUsers([me, partner.id]);
+    }
     return reply.status(existing && existing.status !== ShareStatus.REVOKED ? 200 : 201).send(serializeShare(row, me));
   });
 

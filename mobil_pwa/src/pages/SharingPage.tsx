@@ -119,6 +119,7 @@ export default function SharingPage() {
       await sharesApi.create({ email: email.trim(), categories: picked });
       setEmail('');
       await load();
+      void useCartStore.getState().refreshFromServer();
     } catch (err) {
       setError(getErrorMessage(err, t('sharing.inviteError')));
     } finally {

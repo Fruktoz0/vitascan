@@ -29,6 +29,7 @@ export type CartList = {
   createdAt: number;
   shared?: boolean;
   ownerLabel?: string;
+  sharedWith?: string[];
   ownerId?: string;
 };
 
@@ -82,6 +83,7 @@ function fromDto(list: CartListDto): CartList {
     createdAt: list.createdAt,
     shared: list.shared,
     ownerLabel: list.ownerLabel,
+    sharedWith: list.sharedWith,
     ownerId: list.ownerId,
     items: list.items.map((item) => ({
       id: item.id,

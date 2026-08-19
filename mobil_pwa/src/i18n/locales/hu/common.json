@@ -1236,11 +1236,12 @@
     "share": "Megosztás",
     "shareTitle": "Bevásárlólista",
     "copied": "Lista a vágólapra másolva",
-    "sharedBadge": "Megosztott"
+    "sharedBadge": "Megosztott",
+    "sharedOutBadge": "Megosztva"
   },
   "sharing": {
     "title": "Adatok megosztása",
-    "lead": "Csak meglévő VitaScan-fióknak oszthatsz meg. A napló, súly, víz és testméret a megosztás elfogadásától élőben látható — a korábbi adatok nem. A bevásárlólista közös: mindketten szerkeszthetitek, és Megosztott jelzést kap.",
+    "lead": "Csak meglévő VitaScan-fióknak oszthatsz meg. A napló, súly, víz és testméret a megosztás elfogadásától élőben látható — a korábbi adatok nem. A bevásárlólista közös: mindketten szerkeszthetitek. A partner Megosztott, te Megosztva jelzést látsz a listákon.",
     "aboutTitle": "Leírás",
     "aboutToggle": "Ismertető",
     "inviteTitle": "Megosztás email alapján",
@@ -1260,7 +1261,7 @@
     "revokeMessage": "Leállítod ezt a megosztást?",
     "liveFrom": "Élő adat ettől a pillanattól",
     "liveEmpty": "Még nincs új bejegyzés a megosztás óta.",
-    "cartHint": "A közös bevásárlólisták a kosárban jelennek meg, Megosztott jelzéssel.",
+    "cartHint": "A közös bevásárlólisták a kosárban jelennek meg: a partner Megosztott, te Megosztva jelzést látsz.",
     "cat": {
       "FOOD": "Ételnapló",
       "WEIGHT": "Súly",

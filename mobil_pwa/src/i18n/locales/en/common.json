@@ -1235,11 +1235,12 @@
     "share": "Share",
     "shareTitle": "Shopping list",
     "copied": "List copied to clipboard",
-    "sharedBadge": "Shared"
+    "sharedBadge": "Shared",
+    "sharedOutBadge": "Sharing"
   },
   "sharing": {
     "title": "Share data",
-    "lead": "You can only share with an existing VitaScan account. Diary, weight, water and body measurements are visible live from acceptance — past history is not included. Shopping lists are collaborative, and show a Shared badge.",
+    "lead": "You can only share with an existing VitaScan account. Diary, weight, water and body measurements are visible live from acceptance — past history is not included. Shopping lists are collaborative. Your partner sees Shared; you see Sharing on your lists.",
     "aboutTitle": "About",
     "aboutToggle": "About",
     "inviteTitle": "Share by email",
@@ -1259,7 +1260,7 @@
     "revokeMessage": "Stop this share?",
     "liveFrom": "Live from this moment",
     "liveEmpty": "No new entries since sharing started.",
-    "cartHint": "Shared shopping lists appear in the cart with a Shared badge.",
+    "cartHint": "Shared shopping lists appear in the cart: your partner sees Shared, you see Sharing.",
     "cat": {
       "FOOD": "Food diary",
       "WEIGHT": "Weight",

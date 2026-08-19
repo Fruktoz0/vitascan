@@ -170,7 +170,8 @@ export function DatabaseRestorePage() {
               Teljes visszaállítás (felülírás): új <code>.tar.gz</code> csomag az adatbázist <em>és</em> a
               receptképeket is visszaállítja. Régi <code>.dump</code> / <code>.sql</code> csak a DB-t.
               Régi mentés felülírhatja / eltüntetheti az újabb táblákat és oszlopokat (pl. <code>Recipe</code>,{' '}
-              <code>MealTemplate</code>, <code>FoodComponent</code>, DailyLog <code>logGroupId</code>). Restore után
+              <code>MealTemplate</code>, <code>FoodComponent</code>, <code>DataShare</code>,{' '}
+              <code>ShoppingList</code>, DailyLog <code>logGroupId</code>). Restore után
               indítsd újra a stacket, hogy a compose <code>prisma db push</code> (és a WaterLog napi migráció)
               visszaállítsa a hiányzó sémát — óvatosan, adatvesztés nélkül ellenőrizd.
             </p>

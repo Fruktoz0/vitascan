@@ -1283,6 +1283,7 @@ export type CartListDto = {
   createdAt: number;
   shared: boolean;
   ownerLabel?: string;
+  sharedWith?: string[];
   items: CartItemDto[];
 };
 

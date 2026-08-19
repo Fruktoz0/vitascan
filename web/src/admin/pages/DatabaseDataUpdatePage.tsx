@@ -109,9 +109,10 @@ export function DatabaseDataUpdatePage() {
                   <p>
                     A cél séma tábláira (User, UserProfile, Recipe, Food, FoodComponent, recept- és
                     ételsablon-táblák, Vote, FoodFavorite, FoodEditLog, DailyLog, WaterLog, WeightLog, DayNote,
-                    DailyAnalysis, AiFoodRecognition, testmérések, WorkoutLog, DailyStepLog stb.) csak az új sorok
+                    DailyAnalysis, AiFoodRecognition, testmérések, WorkoutLog, DailyStepLog, DataShare,
+                    ShoppingList, ShoppingListItem stb.) csak az új sorok
                     kerülnek be. Meglévő elsődleges / egyedi kulcsok (pl. étel <code>id</code>, <code>barcode</code>,{' '}
-                    <code>externalId</code>) <strong>nem frissülnek</strong> — a mentésbeli értékük kimarad.
+                    <code>externalId</code>, megosztás <code>ownerId</code>+<code>partnerId</code>) <strong>nem frissülnek</strong> — a mentésbeli értékük kimarad.
                     Oszlopeltérésnél csak a közös mezők mennek át; hiányzó creator / FK miatt árva sorok kimaradnak
                     (az import nem áll le). Régi WaterLog (<code>amountMl</code>) mentésből napi{' '}
                     <code>totalMl</code>/<code>loggedDate</code> formára konvertálódik import előtt. A{' '}
