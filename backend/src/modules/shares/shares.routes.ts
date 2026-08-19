@@ -3,6 +3,7 @@ import { ShareCategory, ShareStatus } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate } from '../../middleware/authenticate';
 import { notifyCartUsers } from '../cart/cartEvents';
+import { notifyShareInvitePush } from '../notifications/push.service';
 
 const CATEGORIES = ['FOOD', 'WEIGHT', 'WATER', 'BODY', 'CART'] as const;
 
@@ -133,6 +134,20 @@ const sharesRoutes: FastifyPluginAsync = async (fastify) => {
 
     if (categories.includes(ShareCategory.CART)) {
       notifyCartUsers([me, partner.id]);
+    }
+    if (!existing || existing.status === ShareStatus.REVOKED) {
+      const owner = await fastify.prisma.user.findUnique({
+        where: { id: me },
+        select: { username: true },
+      });
+      const who = owner?.username?.trim();
+      void notifyShareInvitePush(fastify.prisma, partner.id, {
+        title: 'Megosztási meghívó',
+        body: who
+          ? `${who} adatmegosztást kért tőled.`
+          : 'Új adatmegosztási meghívód érkezett.',
+        url: '/menu/sharing',
+      }).catch(() => {});
     }
     return reply.status(existing && existing.status !== ShareStatus.REVOKED ? 200 : 201).send(serializeShare(row, me));
   });

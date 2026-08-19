@@ -135,6 +135,8 @@ async function filterPgRestoreSqlFile(srcPath, destPath) {
 const MERGE_TABLE_ORDER = [
   'User',
   'UserProfile',
+  'NotificationPref',
+  'PushSubscription',
   'SystemSetting',
   'RefreshToken',
   'DataShare',

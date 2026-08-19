@@ -47,6 +47,8 @@ model User {
   sharesOwned     DataShare[]    @relation("ShareOwner")
   sharesReceived  DataShare[]    @relation("SharePartner")
   shoppingLists   ShoppingList[]
+  notificationPref   NotificationPref?
+  pushSubscriptions  PushSubscription[]
 
   deletedAt DateTime? // Soft delete (GDPR - 30 napos türelmi idő)
   createdAt DateTime  @default(now())
@@ -600,6 +602,55 @@ model ShoppingListItem {
   updatedAt DateTime     @updatedAt
 
   @@index([listId])
+}
+
+model NotificationPref {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  mealEnabled     Boolean @default(true)
+  mealBreakfast   Boolean @default(true)
+  mealLunch       Boolean @default(true)
+  mealDinner      Boolean @default(true)
+  mealSnack       Boolean @default(false)
+  mealBreakfastAt String  @default("08:00")
+  mealLunchAt     String  @default("12:30")
+  mealDinnerAt    String  @default("18:30")
+  mealSnackAt     String  @default("15:30")
+
+  waterEnabled     Boolean @default(true)
+  waterEveryHours  Int     @default(2)
+  waterQuietStart  String  @default("22:00")
+  waterQuietEnd    String  @default("07:00")
+
+  dailySummaryEnabled Boolean @default(false)
+  dailySummaryAt      String  @default("20:00")
+
+  cartPartnerEnabled  Boolean @default(true)
+  shareInviteEnabled  Boolean @default(true)
+
+  timezone String @default("Europe/Budapest")
+
+  lastWaterPushAt DateTime?
+  lastMealSlot    String?
+  lastDailyDate   String?
+
+  updatedAt DateTime @updatedAt
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // ─── Enums ───────────────────────────────────────────────────────────────────

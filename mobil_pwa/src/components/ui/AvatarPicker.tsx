@@ -1,5 +1,8 @@
-import { AVATAR_OPTIONS, avatarUrl } from '../../design/avatars';
+import { useTranslation } from 'react-i18next';
+import { AVATAR_OPTIONS, resolveAvatarKey } from '../../design/avatars';
 import { Colors } from '../../design/tokens';
+import DoodleAvatar from './DoodleAvatar';
+import { IconClose } from './Icons';
 import styles from './AvatarPicker.module.css';
 
 interface AvatarPickerProps {
@@ -9,7 +12,8 @@ interface AvatarPickerProps {
 }
 
 export default function AvatarPicker({ value, onSelect, onClose }: AvatarPickerProps) {
-  const selected = value?.trim() || 'Felix';
+  const { t } = useTranslation();
+  const selected = resolveAvatarKey(value);
 
   return (
     <div className={styles.overlay} onClick={onClose} role="presentation">
@@ -17,28 +21,37 @@ export default function AvatarPicker({ value, onSelect, onClose }: AvatarPickerP
         className={styles.sheet}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Avatar választó"
+        aria-modal="true"
+        aria-labelledby="avatar-picker-title"
       >
-        <div className={styles.handle} />
-        <h3 className={styles.title}>Válassz avatárt</h3>
-        <p className={styles.sub}>Ingyenes illusztrációk — bármikor cserélheted.</p>
+        <div className={styles.head}>
+          <h3 id="avatar-picker-title">{t('profile.avatarPickerTitle')}</h3>
+          <button type="button" className={styles.closeX} onClick={onClose} aria-label={t('profile.avatarClose')}>
+            <IconClose size={20} color={Colors.dashboard.stroke} />
+          </button>
+        </div>
+        <p className={styles.sub}>{t('profile.avatarPickerSub')}</p>
         <div className={styles.grid}>
-          {AVATAR_OPTIONS.map((key) => {
-            const active = selected === key;
+          {AVATAR_OPTIONS.map((opt) => {
+            const active = selected === opt.key;
             return (
               <button
-                key={key}
+                key={opt.key}
                 type="button"
                 className={`${styles.option} ${active ? styles.optionActive : ''}`}
-                onClick={() => onSelect(key)}
+                style={{ background: opt.bg }}
+                onClick={() => onSelect(opt.key)}
+                aria-pressed={active}
+                aria-label={opt.key}
               >
-                <img src={avatarUrl(key)} alt={key} />
+                <DoodleAvatar avatarKey={opt.key} size={48} />
               </button>
             );
           })}
         </div>
-        <button type="button" className={styles.closeBtn} onClick={onClose}>
-          Kész
+        <button type="button" className={styles.done} onClick={onClose}>
+          <span className={styles.doneShadow} />
+          <span className={styles.doneFace}>{t('profile.avatarDone')}</span>
         </button>
       </div>
     </div>
@@ -55,13 +68,8 @@ export function UserAvatar({
   size?: number;
 }) {
   return (
-    <img
-      className={className}
-      src={avatarUrl(avatarKey)}
-      alt=""
-      width={size}
-      height={size}
-      style={{ borderRadius: '50%', objectFit: 'cover', background: Colors.dashboard.softBlue }}
-    />
+    <span className={className} style={{ width: size, height: size, display: 'inline-flex' }}>
+      <DoodleAvatar avatarKey={avatarKey} size={size} />
+    </span>
   );
 }

@@ -144,6 +144,34 @@
   line-height: 1.35;
 }
 
+.banner {
+  background: #fff8e8;
+  border: 1.5px solid var(--stroke);
+  border-radius: 18px;
+  padding: 14px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.timeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.timeRow span {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.timeRow .input {
+  width: 132px;
+  margin: 0;
+}
+
 .inlineToggle {
   margin-top: 14px;
   display: flex;

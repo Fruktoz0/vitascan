@@ -1343,6 +1343,42 @@ export type CartListDto = {
   items: CartItemDto[];
 };
 
+export type NotificationPrefs = {
+  mealEnabled: boolean;
+  mealBreakfast: boolean;
+  mealLunch: boolean;
+  mealDinner: boolean;
+  mealSnack: boolean;
+  mealBreakfastAt: string;
+  mealLunchAt: string;
+  mealDinnerAt: string;
+  mealSnackAt: string;
+  waterEnabled: boolean;
+  waterEveryHours: 1 | 2 | 3 | 4;
+  waterQuietStart: string;
+  waterQuietEnd: string;
+  dailySummaryEnabled: boolean;
+  dailySummaryAt: string;
+  cartPartnerEnabled: boolean;
+  shareInviteEnabled: boolean;
+  timezone: string;
+  vapidPublicKey: string | null;
+};
+
+export const notificationsApi = {
+  vapidPublic: () => request<{ publicKey: string }>('/notifications/vapid-public'),
+  getPrefs: () => request<NotificationPrefs>('/notifications/prefs'),
+  updatePrefs: (data: Partial<Omit<NotificationPrefs, 'vapidPublicKey' | 'timezone'>> & { timezone?: string }) =>
+    request<NotificationPrefs>('/notifications/prefs', { method: 'PUT', body: JSON.stringify(data) }),
+  subscribe: (data: { endpoint: string; keys: { p256dh: string; auth: string }; userAgent?: string }) =>
+    request<{ ok: boolean }>('/notifications/subscribe', { method: 'POST', body: JSON.stringify(data) }),
+  unsubscribe: (endpoint: string) =>
+    request<{ ok: boolean }>('/notifications/subscribe', {
+      method: 'DELETE',
+      body: JSON.stringify({ endpoint }),
+    }),
+};
+
 export const sharesApi = {
   list: () => request<{ pendingIncomingCount: number; shares: ShareDto[] }>('/shares'),
   create: (data: { email: string; categories: ShareCategory[] }) =>

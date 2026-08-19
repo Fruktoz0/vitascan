@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { useProfileStore } from './stores/profileStore';
+import { ensurePushSubscription } from './services/pushSubscribe';
 import AppShell from './layout/AppShell';
 import { RedirectIfAuth, RequireAuth } from './layout/AuthGate';
 import LoginPage from './pages/LoginPage';
@@ -49,6 +50,11 @@ export default function App() {
   useEffect(() => {
     if (isAuthenticated) loadProfile();
   }, [isAuthenticated, loadProfile]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    void ensurePushSubscription();
+  }, [isAuthenticated]);
 
   return (
     <BrowserRouter>

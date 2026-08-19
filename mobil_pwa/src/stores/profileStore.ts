@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { resolveAvatarKey } from '../design/avatars';
 import { profileApi } from '../services/api';
 
 interface ProfileState {
@@ -16,7 +17,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     try {
       const me = await profileApi.getMe();
       set({
-        avatarKey: me.profile?.avatarKey ?? me.username ?? 'Felix',
+        avatarKey: resolveAvatarKey(me.profile?.avatarKey),
         loaded: true,
       });
     } catch {

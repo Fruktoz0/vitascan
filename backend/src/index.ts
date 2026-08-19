@@ -24,7 +24,9 @@ import fitnessRoutes from './modules/fitness/fitness.routes';
 import recipeRoutes from './modules/recipes/recipes.routes';
 import sharesRoutes from './modules/shares/shares.routes';
 import cartRoutes from './modules/cart/cart.routes';
+import notificationRoutes from './modules/notifications/notifications.routes';
 import { startRefreshTokenCleanupScheduler } from './jobs/refresh-token-cleanup.scheduler';
+import { startNotificationPushScheduler } from './jobs/notification-push.scheduler';
 import { mapErrorToHttp } from './utils/httpErrors';
 
 const fastify = Fastify({
@@ -110,6 +112,7 @@ async function bootstrap() {
     await api.register(recipeRoutes, { prefix: '/recipes' });
     await api.register(sharesRoutes, { prefix: '/shares' });
     await api.register(cartRoutes, { prefix: '/cart' });
+    await api.register(notificationRoutes, { prefix: '/notifications' });
 
     // Scanner rate-limited endpoint
     await api.register(
@@ -143,6 +146,7 @@ async function bootstrap() {
   try {
     const port = parseInt(process.env.PORT ?? '3005');
     startRefreshTokenCleanupScheduler(fastify);
+    startNotificationPushScheduler(fastify);
     await fastify.listen({ port, host: '0.0.0.0' });
     console.log(`🚀 VitaScan API fut a ${port}-es porton`);
   } catch (err) {

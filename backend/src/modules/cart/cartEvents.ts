@@ -29,7 +29,7 @@ export function notifyCartUsers(userIds: Iterable<string>): void {
   }
 }
 
-export async function notifyCartListAudience(prisma: PrismaClient, ownerId: string): Promise<void> {
+export async function cartAudienceUserIds(prisma: PrismaClient, ownerId: string): Promise<string[]> {
   const partners = await prisma.dataShare.findMany({
     where: {
       ownerId,
@@ -38,5 +38,9 @@ export async function notifyCartListAudience(prisma: PrismaClient, ownerId: stri
     },
     select: { partnerId: true },
   });
-  notifyCartUsers([ownerId, ...partners.map((row) => row.partnerId)]);
+  return [ownerId, ...partners.map((row) => row.partnerId)];
+}
+
+export async function notifyCartListAudience(prisma: PrismaClient, ownerId: string): Promise<void> {
+  notifyCartUsers(await cartAudienceUserIds(prisma, ownerId));
 }

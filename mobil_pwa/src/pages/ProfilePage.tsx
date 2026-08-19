@@ -7,14 +7,19 @@ import {
   IconAccountEditOutline,
   IconArrowBack,
   IconChevronRight,
+  IconClose,
+  IconEdit,
   IconLogout,
   IconNotificationsOutline,
   IconShield,
+  IconTrophy,
 } from '../components/ui/Icons';
 import AvatarPicker, { UserAvatar } from '../components/ui/AvatarPicker';
 import { profileApi, statsApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { useProfileStore } from '../stores/profileStore';
+import { getAvatarDef, resolveAvatarKey } from '../design/avatars';
+import { getReputationProgress, REPUTATION_LEVELS } from '../utils/reputation';
 import styles from './ProfilePage.module.css';
 
 function SettingsRow({
@@ -47,6 +52,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<any>(null);
   const [streak, setStreak] = useState(0);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [rankOpen, setRankOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -59,7 +65,11 @@ export default function ProfilePage() {
   }, []);
 
   const reputation = profile?.reputation ?? 0;
-  const currentAvatar = avatarKey ?? profile?.profile?.avatarKey ?? user?.username ?? 'Felix';
+  const rank = getReputationProgress(reputation);
+  const rankName = t(`reputation.level.${rank.current.key}`);
+  const nextName = rank.next ? t(`reputation.level.${rank.next.key}`) : '';
+  const currentAvatar = resolveAvatarKey(avatarKey ?? profile?.profile?.avatarKey);
+  const avatarDef = getAvatarDef(currentAvatar);
 
   const handleLogout = async () => {
     await logout();
@@ -92,30 +102,59 @@ export default function ProfilePage() {
       <div className={styles.heroWrap}>
         <span className={styles.cardShadow} />
         <div className={styles.heroInner}>
-          <button type="button" className={styles.avatarLarge} onClick={() => setPickerOpen(true)}>
-            <UserAvatar avatarKey={currentAvatar} size={72} />
-            <span className={styles.avatarEditHint}>Csere</span>
+          <button
+            type="button"
+            className={styles.avatarLarge}
+            onClick={() => setPickerOpen(true)}
+            aria-label={t('profile.avatarEdit')}
+          >
+            <span className={styles.avatarShadow} />
+            <span className={styles.avatarFace} style={{ background: avatarDef.bg }}>
+              <UserAvatar avatarKey={currentAvatar} size={72} />
+            </span>
+            <span className={styles.avatarEdit}>
+              <IconEdit size={14} color={Colors.dashboard.stroke} />
+            </span>
           </button>
           <h2 className={styles.heroName}>{user?.username ?? '—'}</h2>
           <p className={styles.heroSubtitle}>{user?.email}</p>
         </div>
       </div>
 
-      <div className={styles.levelWrap}>
+      <button type="button" className={styles.levelWrap} onClick={() => setRankOpen(true)}>
         <span className={styles.cardShadow} />
-        <div className={styles.levelInner}>
+        <div className={styles.levelInner} style={{ background: rank.current.tint }}>
           <div className={styles.levelTop}>
-            <div>
+            <span className={styles.rankIcon} style={{ background: rank.current.iconBg }}>
+              <IconTrophy size={22} color={Colors.dashboard.stroke} />
+            </span>
+            <div className={styles.rankCopy}>
               <div className={styles.rankLabel}>{t('profile.rankLabel')}</div>
-              <div className={styles.rankTitle}>{reputation >= 100 ? 'Expert' : 'Member'}</div>
+              <div className={styles.rankTitle}>
+                {rank.current.emoji} {rankName}
+              </div>
             </div>
-            <span className={styles.levelPill}>XP {reputation}</span>
+            <span className={styles.levelPill}>{t('profile.rankLevelBadge', { n: rank.levelNumber })}</span>
           </div>
           <div className={styles.xpTrack}>
-            <div className={styles.xpFill} style={{ width: `${Math.min(reputation, 100)}%` }} />
+            <div
+              className={styles.xpFill}
+              style={{ width: `${Math.round(rank.ratio * 100)}%`, background: rank.current.fill }}
+            />
+          </div>
+          <div className={styles.xpMeta}>
+            <span>
+              {rank.maxed
+                ? t('reputation.maxLevelReached')
+                : t('profile.levelXpTo', { current: rank.points, next: rank.next?.min ?? rank.points })}
+            </span>
+            <span className={styles.detailsLink}>
+              {t('profile.levelDetails')}
+              <IconChevronRight size={16} color={Colors.dashboard.stroke} />
+            </span>
           </div>
         </div>
-      </div>
+      </button>
 
       <div className={styles.statsGrid}>
         {[
@@ -156,7 +195,7 @@ export default function ProfilePage() {
 
       {user?.role === 'ADMIN' && (
         <button type="button" className={styles.adminBtn} onClick={() => navigate('/admin')}>
-          <IconShield size={18} color={Colors.dashboard.stroke} /> Admin
+          <IconShield size={18} color={Colors.dashboard.stroke} /> {t('profile.admin')}
         </button>
       )}
 
@@ -166,6 +205,59 @@ export default function ProfilePage() {
 
       {pickerOpen && (
         <AvatarPicker value={currentAvatar} onSelect={handleSelectAvatar} onClose={() => setPickerOpen(false)} />
+      )}
+
+      {rankOpen && (
+        <div className={styles.rankOverlay} role="presentation" onClick={() => setRankOpen(false)}>
+          <div
+            className={styles.rankSheet}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="rank-sheet-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={styles.rankSheetHead}>
+              <h3 id="rank-sheet-title">{t('reputation.levelsTitle')}</h3>
+              <button type="button" className={styles.rankClose} onClick={() => setRankOpen(false)} aria-label={t('reputation.close')}>
+                <IconClose size={20} color={Colors.dashboard.stroke} />
+              </button>
+            </div>
+            <p className={styles.rankHint}>
+              {rank.maxed
+                ? t('reputation.maxThanks')
+                : t('reputation.pointsToNext', {
+                    count: rank.remaining,
+                    emoji: rank.next?.emoji ?? '',
+                    level: nextName,
+                  })}
+            </p>
+            <ul className={styles.rankLevels}>
+              {REPUTATION_LEVELS.map((level, i) => {
+                const unlocked = rank.points >= level.min;
+                const active = level.key === rank.current.key;
+                const name = t(`reputation.level.${level.key}`);
+                return (
+                  <li
+                    key={level.key}
+                    className={`${styles.rankLevelRow} ${active ? styles.rankLevelActive : ''} ${unlocked ? '' : styles.rankLevelLocked}`}
+                    style={active ? { background: level.tint } : undefined}
+                  >
+                    <span className={styles.rankLevelEmoji} style={{ background: level.iconBg }}>
+                      {level.emoji}
+                    </span>
+                    <span className={styles.rankLevelCopy}>
+                      <span className={styles.rankLevelName}>{name}</span>
+                      <span className={styles.rankLevelPts}>{t('reputation.fromPoints', { count: level.min })}</span>
+                    </span>
+                    {active && <span className={styles.rankCurrentBadge}>{t('reputation.current')}</span>}
+                    <span className={styles.rankLevelNum}>{t('profile.rankLevelBadge', { n: i + 1 })}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className={styles.rankHow}>{t('reputation.howToStart')}</p>
+          </div>
+        </div>
       )}
     </div>
   );

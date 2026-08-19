@@ -30,6 +30,7 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: [
+          'sw-push.js',
           'assets/favicon.png',
           'assets/favicon.svg',
           'assets/icon.png',
@@ -71,6 +72,7 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
+          importScripts: ['sw-push.js'],
           navigateFallback: '/index.html',
           // Never treat /api/* as SPA routes (would redirect to login)
           navigateFallbackDenylist: [/^\/api(?:\/|$)/],

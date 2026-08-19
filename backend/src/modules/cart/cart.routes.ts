@@ -3,7 +3,8 @@ import { ShareCategory, ShareStatus } from '@prisma/client';
 import { z } from 'zod';
 import { authenticate } from '../../middleware/authenticate';
 import { canAccessShoppingList } from '../shares/shareAccess';
-import { notifyCartListAudience, subscribeCartUser } from './cartEvents';
+import { cartAudienceUserIds, notifyCartListAudience, subscribeCartUser } from './cartEvents';
+import { notifyCartPartnerPush } from '../notifications/push.service';
 
 const MAX_LISTS = 20;
 
@@ -118,6 +119,21 @@ const listInclude = {
 const cartRoutes: FastifyPluginAsync = async (fastify) => {
   const pingOwner = (ownerId: string) => {
     void notifyCartListAudience(fastify.prisma, ownerId);
+  };
+
+  const pingCartPartnerPush = (ownerId: string, actorId: string, detail: string) => {
+    void (async () => {
+      const [audience, actor] = await Promise.all([
+        cartAudienceUserIds(fastify.prisma, ownerId),
+        fastify.prisma.user.findUnique({ where: { id: actorId }, select: { username: true } }),
+      ]);
+      const who = actor?.username?.trim();
+      await notifyCartPartnerPush(fastify.prisma, audience, actorId, {
+        title: 'Új tétel a kosárban',
+        body: who ? `${who}: ${detail}` : detail,
+        url: '/home?cart=1',
+      });
+    })().catch(() => {});
   };
 
   async function loadVisibleLists(me: string) {
@@ -334,6 +350,7 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
         include: listInclude,
       });
       pingOwner(list.ownerId);
+      pingCartPartnerPush(list.ownerId, me, parsed.data.name.trim());
       return reply.send({ list: await packList(updated, me), item: serializeItem(updatedItem) });
     }
     await fastify.prisma.shoppingListItem.create({
@@ -350,6 +367,7 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
       include: listInclude,
     });
     pingOwner(list.ownerId);
+    pingCartPartnerPush(list.ownerId, me, parsed.data.name.trim());
     return reply.status(201).send({ list: await packList(updated, me) });
   });
 
@@ -384,6 +402,11 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
       include: listInclude,
     });
     pingOwner(list.ownerId);
+    pingCartPartnerPush(
+      list.ownerId,
+      me,
+      `${parsed.data.lines.length} hozzávaló a receptből`,
+    );
     return reply.send({ list: await packList(updated, me) });
   });
 

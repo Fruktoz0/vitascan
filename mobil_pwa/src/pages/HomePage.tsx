@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { GlassCardSimple } from '../components/ui/GlassCard';
@@ -42,6 +42,7 @@ export default function HomePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { selectedDate, setDate } = useDateStore();
   const cartCount = useCartStore((s) =>
     s.lists.reduce((sum, list) => sum + list.items.filter((item) => !item.checked).length, 0),
@@ -77,6 +78,14 @@ export default function HomePage() {
   const openDiary = (meal?: MealType) => {
     navigate(meal ? `/food-library?meal=${meal}` : '/food-library');
   };
+
+  useEffect(() => {
+    if (searchParams.get('cart') !== '1') return;
+    openCart();
+    const next = new URLSearchParams(searchParams);
+    next.delete('cart');
+    setSearchParams(next, { replace: true });
+  }, [openCart, searchParams, setSearchParams]);
 
   useEffect(() => {
     const st = location.state as {
