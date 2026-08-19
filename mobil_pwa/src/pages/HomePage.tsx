@@ -406,7 +406,6 @@ export default function HomePage() {
         {showHomeFastingCard ? (
           <FastingCard
             active={fasting?.active ?? null}
-            eatingUntil={fasting?.eatingUntil ?? null}
             protocol={fasting?.protocol ?? '16:8'}
             goalMinutes={fasting?.goalMinutes ?? 960}
             onOpen={() => navigate('/fasting')}

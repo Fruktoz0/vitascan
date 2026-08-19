@@ -10,7 +10,6 @@ import styles from './FastingCard.module.css';
 
 type Props = {
   active: FastSessionDto | null;
-  eatingUntil: string | null;
   protocol: string;
   goalMinutes: number;
   onOpen: () => void;
@@ -21,7 +20,6 @@ type Props = {
 
 export default function FastingCard({
   active,
-  eatingUntil,
   protocol,
   goalMinutes,
   onOpen,
@@ -37,11 +35,8 @@ export default function FastingCard({
     return () => clearInterval(id);
   }, []);
 
-  const eatingLeft = eatingUntil ? new Date(eatingUntil).getTime() - now : 0;
-  const inEating = !active && eatingLeft > 0;
-
   let elapsedMs = 0;
-  let goalMs = (active?.goalMinutes ?? goalMinutes) * 60_000;
+  const goalMs = (active?.goalMinutes ?? goalMinutes) * 60_000;
   if (active) {
     elapsedMs = now - new Date(active.startedAt).getTime();
   }
@@ -89,9 +84,7 @@ export default function FastingCard({
         <span className={styles.meta}>
           {active && reached
             ? t('fasting.overGoal', { time: formatHms(overMs, false) })
-            : inEating
-              ? t('fasting.eatingLeft', { time: formatHms(eatingLeft, false) })
-              : t('fasting.goalLabel', { hours })}
+            : t('fasting.goalLabel', { hours })}
         </span>
       </div>
       <div className={styles.protocol}>
@@ -110,9 +103,7 @@ export default function FastingCard({
         ) : (
           <button type="button" className={styles.btnWrapper} disabled={busy} onClick={onStart}>
             <span className={styles.btnShadow} />
-            <span className={styles.btnFace}>
-              {inEating ? t('fasting.startNext') : t('fasting.startNow')}
-            </span>
+            <span className={styles.btnFace}>{t('fasting.startNow')}</span>
           </button>
         )}
       </div>

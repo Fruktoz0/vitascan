@@ -84,8 +84,6 @@ export default function FastingPage() {
   const goalMinutes = protocol === 'CUSTOM' ? customMinutes : resolveGoalMinutes(protocol);
 
   const active = current?.active ?? null;
-  const eatingLeft = current?.eatingUntil ? new Date(current.eatingUntil).getTime() - now : 0;
-  const inEating = !active && eatingLeft > 0;
   const elapsedMs = active ? now - new Date(active.startedAt).getTime() : 0;
   const goalMs = (active?.goalMinutes ?? goalMinutes) * 60_000;
   const reached = active != null && elapsedMs >= goalMs;
@@ -222,11 +220,9 @@ export default function FastingPage() {
                   <div className={styles.heroSub}>
                     {active && reached
                       ? t('fasting.overGoal', { time: formatHms(elapsedMs - goalMs, true) })
-                      : active
-                        ? t('fasting.goalLabel', { hours: Math.round((active.goalMinutes ?? goalMinutes) / 60) })
-                        : inEating
-                          ? t('fasting.eatingLeft', { time: formatHms(eatingLeft, true) })
-                          : t('fasting.goalLabel', { hours: Math.round(goalMinutes / 60) })}
+                      : t('fasting.goalLabel', {
+                          hours: Math.round((active?.goalMinutes ?? goalMinutes) / 60),
+                        })}
                   </div>
                 </div>
                 {active ? (
@@ -303,7 +299,7 @@ export default function FastingPage() {
                   disabled={busy}
                   onClick={() => void handleStart('MANUAL')}
                 >
-                  {inEating ? t('fasting.startNext') : t('fasting.startNow')}
+                  {t('fasting.startNow')}
                 </button>
                 <button
                   type="button"
