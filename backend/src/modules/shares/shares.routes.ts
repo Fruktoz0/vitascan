@@ -303,14 +303,30 @@ const sharesRoutes: FastifyPluginAsync = async (fastify) => {
       orderBy: [{ loggedDate: 'desc' }, { updatedAt: 'desc' }],
       take: 40,
     });
-    return reply.send({
-      category: cat,
-      items: logs.map((log) => ({
+    const fatLogs = await fastify.prisma.bodyFatLog.findMany({
+      where: { userId: ownerId, loggedDate: { gte: sinceDay } },
+      orderBy: [{ loggedDate: 'desc' }, { updatedAt: 'desc' }],
+      take: 40,
+    });
+    const items = [
+      ...logs.map((log) => ({
         id: log.id,
         title: `${log.bodyPart} · ${log.valueCm} cm`,
         meta: toDateStr(log.loggedDate),
         at: log.updatedAt.toISOString(),
       })),
+      ...fatLogs.map((log) => ({
+        id: log.id,
+        title: `Testzsír · ${log.fatPercent.toFixed(1)} %`,
+        meta: toDateStr(log.loggedDate),
+        at: log.updatedAt.toISOString(),
+      })),
+    ]
+      .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
+      .slice(0, 40);
+    return reply.send({
+      category: cat,
+      items,
     });
   });
 };

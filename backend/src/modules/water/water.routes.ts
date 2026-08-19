@@ -24,6 +24,12 @@ const UpdateWaterSchema = z
     message: 'Legalább a mennyiséget vagy a dátumot meg kell adni.',
   });
 
+const DateKeySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const HistoryQuerySchema = z.object({
+  from: DateKeySchema.optional(),
+  to: DateKeySchema.optional(),
+});
+
 function parseDay(date?: string) {
   const day = date ? new Date(date) : new Date();
   day.setHours(0, 0, 0, 0);
@@ -91,15 +97,39 @@ const waterRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(await buildWaterSummary(fastify, request.user.userId, parseDay()));
   });
 
-  // GET /water/history
+  // GET /water/history?from=&to=
   fastify.get('/history', { preHandler: authenticate }, async (request, reply) => {
     const userId = request.user.userId;
+    const parsed = HistoryQuerySchema.safeParse(request.query);
+    const from = parsed.success ? parsed.data.from : undefined;
+    const to = parsed.success ? parsed.data.to : undefined;
+    const hasRange = Boolean(from || to);
+
+    const dateFilter: { gte?: Date; lt?: Date } = {};
+    if (from) dateFilter.gte = parseDay(from);
+    if (to) {
+      const endExclusive = parseDay(to);
+      endExclusive.setDate(endExclusive.getDate() + 1);
+      dateFilter.lt = endExclusive;
+    }
+
     const goalMl = await resolveGoalMl(fastify, userId);
     const rows = await fastify.prisma.waterLog.findMany({
-      where: { userId },
+      where: {
+        userId,
+        ...(hasRange ? { loggedDate: dateFilter } : {}),
+      },
       orderBy: [{ loggedDate: 'desc' }, { updatedAt: 'desc' }],
-      take: 90,
+      take: hasRange ? 500 : 90,
     });
+
+    const summaryRows = hasRange
+      ? await fastify.prisma.waterLog.findMany({
+          where: { userId },
+          orderBy: [{ loggedDate: 'desc' }, { updatedAt: 'desc' }],
+          take: 90,
+        })
+      : rows;
 
     const items = rows.map(
       (l: { id: string; totalMl: number; loggedDate: Date; updatedAt: Date }, idx: number) => {
@@ -115,8 +145,22 @@ const waterRoutes: FastifyPluginAsync = async (fastify) => {
       },
     );
 
+    const summaryItems = summaryRows.map(
+      (l: { id: string; totalMl: number; loggedDate: Date; updatedAt: Date }, idx: number) => {
+        const prev = summaryRows[idx + 1];
+        const deltaMl = prev != null ? l.totalMl - prev.totalMl : null;
+        return {
+          id: l.id,
+          totalMl: l.totalMl,
+          loggedDate: toDateStr(l.loggedDate),
+          updatedAt: l.updatedAt,
+          deltaMl,
+        };
+      },
+    );
+
     return reply.send({
-      latest: items[0] ?? null,
+      latest: summaryItems[0] ?? null,
       items,
       goalMl,
     });

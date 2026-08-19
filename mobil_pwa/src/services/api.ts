@@ -675,8 +675,12 @@ export const waterApi = {
       method: 'POST',
       body: JSON.stringify({ date, totalMl }),
     }),
-  history: () =>
-    request<{
+  history: (range?: { from?: string; to?: string }) => {
+    const params = new URLSearchParams();
+    if (range?.from) params.set('from', range.from);
+    if (range?.to) params.set('to', range.to);
+    const qs = params.toString();
+    return request<{
       latest: {
         id: string;
         totalMl: number;
@@ -692,7 +696,8 @@ export const waterApi = {
         deltaMl: number | null;
       }>;
       goalMl: number;
-    }>('/water/history'),
+    }>(`/water/history${qs ? `?${qs}` : ''}`);
+  },
   update: (id: string, data: { totalMl?: number; date?: string }) =>
     request(`/water/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: (id: string) => request(`/water/${id}`, { method: 'DELETE' }),
@@ -763,6 +768,7 @@ export const weightApi = {
         deltaKg: number | null;
       }>;
       monthlyChangeKg: number | null;
+      targetWeightKg: number | null;
     }>(`/weight/history${qs ? `?${qs}` : ''}`);
   },
   update: (id: string, data: { weightKg?: number; date?: string }) =>
@@ -1029,6 +1035,9 @@ export const exportApi = {
       days: number;
       logCount: number;
       waterCount: number;
+      weightCount?: number;
+      bodyCount?: number;
+      fatCount?: number;
       sheets: string[];
     }>(`/export/preview?${p}`);
   },

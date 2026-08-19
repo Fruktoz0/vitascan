@@ -80,6 +80,7 @@ export default function DataVaultPage() {
             {preview && (
               <p className={styles.meta}>
                 {preview.from} → {preview.to} · {preview.logCount} log · {preview.waterCount} water
+                {preview.fatCount ? ` · ${preview.fatCount} fat` : ''}
               </p>
             )}
             <button type="button" className={styles.exportBtn} onClick={handleExport}>

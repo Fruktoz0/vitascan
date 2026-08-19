@@ -637,6 +637,20 @@
     "monthPickerAria": "Hónap kiválasztása",
     "monthPickerTitle": "Ugrás hónaphoz"
   },
+  "logStats": {
+    "aria": "Statisztika",
+    "openHint": "Statisztika",
+    "title": "Statisztika",
+    "weekly": "Elmúlt 7 nap",
+    "trend": "Trend",
+    "monthlyChange": "Havi változás",
+    "periodChange": "Időszak változása",
+    "average": "Átlag",
+    "vsGoal": "Célhoz képest",
+    "goal": "Cél",
+    "noData": "Ebben az időszakban nincs mérés a diagramhoz.",
+    "rangeHint": "{{from}} – {{to}}"
+  },
   "aiRecognize": {
     "screenTitle": "AI felismerés",
     "entryTitle": "AI ételfelismerés",
@@ -1153,7 +1167,17 @@
     "editTitle": "Víz szerkesztése",
     "editMessage": "Módosítsd a mennyiséget vagy a dátumot, vagy töröld a bejegyzést.",
     "confirmDelete": "Biztosan törölöd ezt a napot?",
-    "dateConflict": "Erre a napra már van vízfogyasztás bejegyzés."
+    "dateConflict": "Erre a napra már van vízfogyasztás bejegyzés.",
+    "calendarAria": "Víz naptár",
+    "filterAria": "Időszak szűrése",
+    "filterTitle": "Időszak szűrése",
+    "filterMessage": "Csak a kiválasztott idősáv vízfogyasztását jelenítjük meg.",
+    "filterApply": "Szűrés",
+    "filterClear": "Szűrő törlése",
+    "filterRange": "{{from}} – {{to}}",
+    "noHistoryInRange": "Ebben az időszakban nincs vízfogyasztás.",
+    "monthPickerAria": "Hónap kiválasztása",
+    "monthPickerTitle": "Ugrás hónaphoz"
   },
   "notFound": {
     "title": "Hoppá!",
@@ -1275,7 +1299,7 @@
   },
   "sharing": {
     "title": "Adatok megosztása",
-    "lead": "Csak meglévő VitaScan-fióknak oszthatsz meg. A napló, súly, víz és testméret a megosztás elfogadásától élőben látható — a korábbi adatok nem. A bevásárlólista közös: mindketten szerkeszthetitek. A partner Megosztott, te Megosztva jelzést látsz a listákon.",
+    "lead": "Csak meglévő VitaScan-fióknak oszthatsz meg. A napló, súly, víz, testméret és testzsír a megosztás elfogadásától élőben látható — a korábbi adatok nem. A bevásárlólista közös: mindketten szerkeszthetitek. A partner Megosztott, te Megosztva jelzést látsz a listákon.",
     "aboutTitle": "Leírás",
     "aboutToggle": "Ismertető",
     "inviteTitle": "Megosztás email alapján",
@@ -1300,7 +1324,7 @@
       "FOOD": "Ételnapló",
       "WEIGHT": "Súly",
       "WATER": "Víz",
-      "BODY": "Testméret",
+      "BODY": "Testadatok",
       "CART": "Bevásárlólista"
     }
   }

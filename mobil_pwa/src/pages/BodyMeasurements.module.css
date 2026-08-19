@@ -497,14 +497,18 @@
   padding: 20px 18px;
 }
 
-.latestCard:has(.latestEditBtn) {
-  padding-right: 52px;
+.latestCard:has(.latestCardActions) {
+  padding-right: 56px;
 }
 
-.latestEditBtn {
+.latestCardActions {
   position: absolute;
   top: 12px;
   right: 12px;
+  z-index: 2;
+}
+
+.latestEditBtn {
   width: 36px;
   height: 36px;
   border-radius: 18px;
@@ -514,6 +518,33 @@
   align-items: center;
   justify-content: center;
   box-shadow: 2px 2px 0 var(--shadow-hard);
+}
+
+.latestStatsHit {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.latestStatsHit:disabled {
+  cursor: default;
+}
+
+.latestStatsHint {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--stroke);
+  opacity: 0.72;
 }
 
 .latestLabel {

@@ -11,9 +11,11 @@ import {
   IconEvent,
   IconExpandMore,
   IconFilterList,
+  IconChevronRight,
   IconTarget,
 } from '../components/ui/Icons';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import LogTrendSheet from '../components/logs/LogTrendSheet';
 import { ApiError, bodyApi, getErrorMessage } from '../services/api';
 import { toLocalDateStr } from '../stores/dateStore';
 import { BODY_PART_META, isBodyPart } from '../utils/bodyMeta';
@@ -64,6 +66,10 @@ export default function BodyPartLogPage() {
   const [draftTo, setDraftTo] = useState('');
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
   const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null);
+  const [statsOpen, setStatsOpen] = useState(false);
+  const [statsPeriod, setStatsPeriod] = useState<PresetKey>('thisMonth');
+  const [statsPoints, setStatsPoints] = useState<{ date: string; value: number }[]>([]);
+  const [statsLoading, setStatsLoading] = useState(false);
 
   const load = useCallback(async () => {
     if (!bodyPart) return;
@@ -92,6 +98,34 @@ export default function BodyPartLogPage() {
     }
     load();
   }, [bodyPart, load, navigate]);
+
+  useEffect(() => {
+    if (!statsOpen || !bodyPart) return;
+    let cancelled = false;
+    setStatsLoading(true);
+    bodyApi
+      .history(bodyPart, rangeForPreset('last90'))
+      .then((res) => {
+        if (cancelled) return;
+        setStatsPoints(
+          [...res.items]
+            .slice()
+            .reverse()
+            .map((item) => ({ date: item.loggedDate, value: item.valueCm })),
+        );
+        setMonthlyChangeCm(res.monthlyChangeCm);
+        setGoalCm(res.goalCm);
+      })
+      .catch(() => {
+        if (!cancelled) setStatsPoints([]);
+      })
+      .finally(() => {
+        if (!cancelled) setStatsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [statsOpen, bodyPart]);
 
   useEffect(() => {
     if (loading || !bodyPart) return;
@@ -341,19 +375,35 @@ export default function BodyPartLogPage() {
         <div className={styles.cardWrap}>
           <span className={styles.cardShadow} />
           <div className={styles.latestCard}>
+            <div className={styles.latestCardActions}>
+              <button
+                type="button"
+                className={styles.latestEditBtn}
+                onClick={openGoal}
+                aria-label={t('bodyData.setGoalTitle')}
+              >
+                <IconEdit size={18} color={Colors.dashboard.stroke} />
+              </button>
+            </div>
             <button
               type="button"
-              className={styles.latestEditBtn}
-              onClick={openGoal}
-              aria-label={t('bodyData.setGoalTitle')}
+              className={styles.latestStatsHit}
+              disabled={!latest}
+              onClick={() => setStatsOpen(true)}
+              aria-label={t('logStats.aria')}
             >
-              <IconEdit size={18} color={Colors.dashboard.stroke} />
+              <div className={styles.latestLabel}>{t('bodyData.latestMeasurement')}</div>
+              <div className={styles.latestValue}>
+                {latest ? `${latest.valueCm.toFixed(1)} cm` : '—'}
+              </div>
+              {latest && <div className={styles.latestDate}>{formatDate(latest.loggedDate)}</div>}
+              {latest ? (
+                <span className={styles.latestStatsHint}>
+                  {t('logStats.openHint')}
+                  <IconChevronRight size={14} color={Colors.dashboard.stroke} />
+                </span>
+              ) : null}
             </button>
-            <div className={styles.latestLabel}>{t('bodyData.latestMeasurement')}</div>
-            <div className={styles.latestValue}>
-              {latest ? `${latest.valueCm.toFixed(1)} cm` : '—'}
-            </div>
-            {latest && <div className={styles.latestDate}>{formatDate(latest.loggedDate)}</div>}
           </div>
         </div>
 
@@ -469,17 +519,6 @@ export default function BodyPartLogPage() {
         )}
 
         <div className={styles.statsRow}>
-          <div className={styles.cardWrap}>
-            <span className={styles.cardShadow} />
-            <div className={styles.statCard}>
-              <div className={styles.statLabel}>{t('bodyData.monthlyChange')}</div>
-              <div className={styles.statValue}>
-                {monthlyChangeCm == null
-                  ? '—'
-                  : `${monthlyChangeCm > 0 ? '+' : ''}${monthlyChangeCm.toFixed(1)} cm`}
-              </div>
-            </div>
-          </div>
           <div className={styles.cardWrap}>
             <span className={styles.cardShadow} />
             <div className={styles.statCard}>
@@ -674,6 +713,19 @@ export default function BodyPartLogPage() {
           </div>
         </div>
       )}
+
+      <LogTrendSheet
+        open={statsOpen}
+        onClose={() => setStatsOpen(false)}
+        title={t('logStats.title')}
+        unit="cm"
+        points={statsPoints}
+        period={statsPeriod}
+        onPeriodChange={setStatsPeriod}
+        goal={goalCm}
+        monthlyChange={monthlyChangeCm}
+        loading={statsLoading}
+      />
 
       <ConfirmDialog
         visible={confirmDelete}

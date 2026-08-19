@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../design/tokens';
 import { IconArrowBack, IconChevronLeft, IconChevronRight, IconDownload } from '../components/ui/Icons';
-import { exportApi, getAccessToken, statsApi, weightApi, bodyApi, bodyFatApi } from '../services/api';
+import { exportApi, getAccessToken, statsApi, weightApi, bodyApi, bodyFatApi, waterApi } from '../services/api';
 import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import { useTierStore } from '../stores/tierStore';
 import { kcalGoalTone } from '../utils/kcalGoalTone';
@@ -50,7 +50,8 @@ export default function DatePickerPage() {
   const bodyPartParam = searchParams.get('part');
   const isBodyMode = searchParams.get('mode') === 'body' && isBodyPart(bodyPartParam);
   const isBodyFatMode = searchParams.get('mode') === 'bodyfat';
-  const isMeasureMode = isWeightMode || isBodyMode || isBodyFatMode;
+  const isWaterMode = searchParams.get('mode') === 'water';
+  const isMeasureMode = isWeightMode || isBodyMode || isBodyFatMode || isWaterMode;
   const { selectedDate, setDate } = useDateStore();
   const { fetch: fetchTier, isPremium } = useTierStore();
   const [viewYear, setViewYear] = useState(selectedDate.getFullYear());
@@ -74,11 +75,15 @@ export default function DatePickerPage() {
 
   useEffect(() => {
     let cancelled = false;
-    if (isWeightMode || isBodyMode || isBodyFatMode) {
+    if (isWeightMode || isBodyMode || isBodyFatMode || isWaterMode) {
       const from = toLocalDateStr(new Date(viewYear, viewMonth, 1));
       const to = toLocalDateStr(new Date(viewYear, viewMonth + 1, 0));
       const req =
-        isBodyFatMode
+        isWaterMode
+          ? waterApi.history({ from, to }).then((r) =>
+              new Map((r.items ?? []).map((item) => [item.loggedDate, item.totalMl / 1000])),
+            )
+          : isBodyFatMode
           ? bodyFatApi.history({ from, to }).then((r) =>
               new Map((r.items ?? []).map((item) => [item.loggedDate, item.fatPercent])),
             )
@@ -113,7 +118,7 @@ export default function DatePickerPage() {
     return () => {
       cancelled = true;
     };
-  }, [viewYear, viewMonth, isWeightMode, isBodyMode, isBodyFatMode, bodyPartParam]);
+  }, [viewYear, viewMonth, isWeightMode, isBodyMode, isBodyFatMode, isWaterMode, bodyPartParam]);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -134,6 +139,9 @@ export default function DatePickerPage() {
     }
     if (isBodyFatMode) {
       sessionStorage.setItem('bodyFatLogScrollDate', toLocalDateStr(target));
+    }
+    if (isWaterMode) {
+      sessionStorage.setItem('waterLogScrollDate', toLocalDateStr(target));
     }
     navigate(-1);
   };

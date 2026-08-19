@@ -156,6 +156,10 @@ const weightRoutes: FastifyPluginAsync = async (fastify) => {
     );
 
     const latest = summaryItems[0] ?? null;
+    const profile = await fastify.prisma.userProfile.findUnique({
+      where: { userId },
+      select: { targetWeightKg: true },
+    });
 
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -177,6 +181,7 @@ const weightRoutes: FastifyPluginAsync = async (fastify) => {
       latest,
       items,
       monthlyChangeKg,
+      targetWeightKg: profile?.targetWeightKg ?? null,
     });
   });
 

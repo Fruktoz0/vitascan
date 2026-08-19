@@ -11,9 +11,11 @@ import {
   IconEvent,
   IconExpandMore,
   IconFilterList,
+  IconChevronRight,
   IconTarget,
 } from '../components/ui/Icons';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import LogTrendSheet from '../components/logs/LogTrendSheet';
 import { ApiError, bodyFatApi, getErrorMessage } from '../services/api';
 import { toLocalDateStr } from '../stores/dateStore';
 import {
@@ -63,6 +65,10 @@ export default function BodyFatLogPage() {
   const [draftTo, setDraftTo] = useState('');
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
   const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null);
+  const [statsOpen, setStatsOpen] = useState(false);
+  const [statsPeriod, setStatsPeriod] = useState<PresetKey>('thisMonth');
+  const [statsPoints, setStatsPoints] = useState<{ date: string; value: number }[]>([]);
+  const [statsLoading, setStatsLoading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -86,6 +92,34 @@ export default function BodyFatLogPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!statsOpen) return;
+    let cancelled = false;
+    setStatsLoading(true);
+    bodyFatApi
+      .history(rangeForPreset('last90'))
+      .then((res) => {
+        if (cancelled) return;
+        setStatsPoints(
+          [...res.items]
+            .slice()
+            .reverse()
+            .map((item) => ({ date: item.loggedDate, value: item.fatPercent })),
+        );
+        setMonthlyChangePercent(res.monthlyChangePercent);
+        setGoalPercent(res.goalPercent);
+      })
+      .catch(() => {
+        if (!cancelled) setStatsPoints([]);
+      })
+      .finally(() => {
+        if (!cancelled) setStatsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [statsOpen]);
 
   useEffect(() => {
     if (loading) return;
@@ -317,22 +351,38 @@ export default function BodyFatLogPage() {
         <div className={styles.cardWrap}>
           <span className={styles.cardShadow} />
           <div className={styles.latestCard}>
+            <div className={styles.latestCardActions}>
+              <button
+                type="button"
+                className={styles.latestEditBtn}
+                onClick={() => {
+                  setGoalInput(goalPercent != null ? String(goalPercent) : '');
+                  setGoalOpen(true);
+                }}
+                aria-label={t('bodyData.setGoalTitle')}
+              >
+                <IconEdit size={18} color={Colors.dashboard.stroke} />
+              </button>
+            </div>
             <button
               type="button"
-              className={styles.latestEditBtn}
-              onClick={() => {
-                setGoalInput(goalPercent != null ? String(goalPercent) : '');
-                setGoalOpen(true);
-              }}
-              aria-label={t('bodyData.setGoalTitle')}
+              className={styles.latestStatsHit}
+              disabled={!latest}
+              onClick={() => setStatsOpen(true)}
+              aria-label={t('logStats.aria')}
             >
-              <IconEdit size={18} color={Colors.dashboard.stroke} />
+              <div className={styles.latestLabel}>{t('bodyData.latestMeasurement')}</div>
+              <div className={styles.latestValue}>
+                {latest ? `${latest.fatPercent.toFixed(1)} %` : '—'}
+              </div>
+              {latest && <div className={styles.latestDate}>{formatDate(latest.loggedDate)}</div>}
+              {latest ? (
+                <span className={styles.latestStatsHint}>
+                  {t('logStats.openHint')}
+                  <IconChevronRight size={14} color={Colors.dashboard.stroke} />
+                </span>
+              ) : null}
             </button>
-            <div className={styles.latestLabel}>{t('bodyData.latestMeasurement')}</div>
-            <div className={styles.latestValue}>
-              {latest ? `${latest.fatPercent.toFixed(1)} %` : '—'}
-            </div>
-            {latest && <div className={styles.latestDate}>{formatDate(latest.loggedDate)}</div>}
           </div>
         </div>
 
@@ -444,17 +494,6 @@ export default function BodyFatLogPage() {
         )}
 
         <div className={styles.statsRow}>
-          <div className={styles.cardWrap}>
-            <span className={styles.cardShadow} />
-            <div className={styles.statCard}>
-              <div className={styles.statLabel}>{t('bodyData.monthlyChange')}</div>
-              <div className={styles.statValue}>
-                {monthlyChangePercent == null
-                  ? '—'
-                  : `${monthlyChangePercent > 0 ? '+' : ''}${monthlyChangePercent.toFixed(1)} %`}
-              </div>
-            </div>
-          </div>
           <div className={styles.cardWrap}>
             <span className={styles.cardShadow} />
             <div className={styles.statCard}>
@@ -641,6 +680,19 @@ export default function BodyFatLogPage() {
           </div>
         </div>
       )}
+
+      <LogTrendSheet
+        open={statsOpen}
+        onClose={() => setStatsOpen(false)}
+        title={t('logStats.title')}
+        unit="%"
+        points={statsPoints}
+        period={statsPeriod}
+        onPeriodChange={setStatsPeriod}
+        goal={goalPercent}
+        monthlyChange={monthlyChangePercent}
+        loading={statsLoading}
+      />
 
       <ConfirmDialog
         visible={confirmDelete}

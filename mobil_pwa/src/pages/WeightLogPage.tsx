@@ -10,8 +10,10 @@ import {
   IconEvent,
   IconExpandMore,
   IconFilterList,
+  IconChevronRight,
 } from '../components/ui/Icons';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import LogTrendSheet from '../components/logs/LogTrendSheet';
 import { ApiError, getErrorMessage, weightApi } from '../services/api';
 import { toLocalDateStr } from '../stores/dateStore';
 import {
@@ -56,6 +58,11 @@ export default function WeightLogPage() {
   const [draftTo, setDraftTo] = useState('');
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
   const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null);
+  const [statsOpen, setStatsOpen] = useState(false);
+  const [statsPeriod, setStatsPeriod] = useState<PresetKey>('thisMonth');
+  const [statsPoints, setStatsPoints] = useState<{ date: string; value: number }[]>([]);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [targetWeightKg, setTargetWeightKg] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -65,6 +72,7 @@ export default function WeightLogPage() {
       );
       setItems(res.items);
       setMonthlyChangeKg(res.monthlyChangeKg);
+      setTargetWeightKg(res.targetWeightKg ?? null);
     } catch (e) {
       setDialog({
         title: t('food.errorTitle'),
@@ -78,6 +86,34 @@ export default function WeightLogPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!statsOpen) return;
+    let cancelled = false;
+    setStatsLoading(true);
+    weightApi
+      .history(rangeForPreset('last90'))
+      .then((res) => {
+        if (cancelled) return;
+        setStatsPoints(
+          [...res.items]
+            .slice()
+            .reverse()
+            .map((item) => ({ date: item.loggedDate, value: item.weightKg })),
+        );
+        setTargetWeightKg(res.targetWeightKg ?? null);
+        setMonthlyChangeKg(res.monthlyChangeKg);
+      })
+      .catch(() => {
+        if (!cancelled) setStatsPoints([]);
+      })
+      .finally(() => {
+        if (!cancelled) setStatsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [statsOpen]);
 
   useEffect(() => {
     if (loading) return;
@@ -298,11 +334,25 @@ export default function WeightLogPage() {
         <div className={styles.cardWrap}>
           <span className={styles.cardShadow} />
           <div className={styles.latestCard}>
-            <div className={styles.latestLabel}>{t('weightLog.latestMeasurement')}</div>
-            <div className={styles.latestValue}>
-              {latest ? `${latest.weightKg.toFixed(1)} kg` : '—'}
-            </div>
-            {latest && <div className={styles.latestDate}>{formatDate(latest.loggedDate)}</div>}
+            <button
+              type="button"
+              className={styles.latestStatsHit}
+              disabled={!latest}
+              onClick={() => setStatsOpen(true)}
+              aria-label={t('logStats.aria')}
+            >
+              <div className={styles.latestLabel}>{t('weightLog.latestMeasurement')}</div>
+              <div className={styles.latestValue}>
+                {latest ? `${latest.weightKg.toFixed(1)} kg` : '—'}
+              </div>
+              {latest && <div className={styles.latestDate}>{formatDate(latest.loggedDate)}</div>}
+              {latest ? (
+                <span className={styles.latestStatsHint}>
+                  {t('logStats.openHint')}
+                  <IconChevronRight size={14} color={Colors.dashboard.stroke} />
+                </span>
+              ) : null}
+            </button>
           </div>
         </div>
 
@@ -417,19 +467,6 @@ export default function WeightLogPage() {
           })
         )}
 
-        <div className={styles.statsRow}>
-          <div className={styles.cardWrap}>
-            <span className={styles.cardShadow} />
-            <div className={styles.statCard}>
-              <div className={styles.statLabel}>{t('weightLog.monthlyChange')}</div>
-              <div className={styles.statValue}>
-                {monthlyChangeKg == null
-                  ? '—'
-                  : `${monthlyChangeKg > 0 ? '+' : ''}${monthlyChangeKg.toFixed(1)} kg`}
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       {editItem && (
@@ -584,6 +621,19 @@ export default function WeightLogPage() {
           </div>
         </div>
       )}
+
+      <LogTrendSheet
+        open={statsOpen}
+        onClose={() => setStatsOpen(false)}
+        title={t('logStats.title')}
+        unit="kg"
+        points={statsPoints}
+        period={statsPeriod}
+        onPeriodChange={setStatsPeriod}
+        goal={targetWeightKg}
+        monthlyChange={monthlyChangeKg}
+        loading={statsLoading}
+      />
 
       <ConfirmDialog
         visible={confirmDelete}

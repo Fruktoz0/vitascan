@@ -34,6 +34,11 @@ export interface ExportBodyLog {
   valueCm: number;
 }
 
+export interface ExportBodyFatLog {
+  loggedDate: Date;
+  fatPercent: number;
+}
+
 export interface ExportWorkout {
   startedAt: Date;
   title: string | null;
@@ -67,6 +72,7 @@ export interface ExportOptions {
   waterLogs: ExportWaterLog[];
   weightLogs: ExportWeightLog[];
   bodyLogs: ExportBodyLog[];
+  fatLogs: ExportBodyFatLog[];
   workouts: ExportWorkout[];
   notes: ExportNote[];
   user: ExportUserProfile;
@@ -131,6 +137,7 @@ export const EXPORT_SHEET_NAMES = [
   'Vízfogyasztás',
   'Testsúly',
   'Testméretek',
+  'Testzsír',
   'Edzések',
   'Jegyzetek',
   'Profil',
@@ -289,8 +296,9 @@ function buildSummarySheet(wb: ExcelJS.Workbook, opts: ExportOptions) {
   addRow(13, 'Vízbejegyzések', opts.waterLogs.length);
   addRow(14, 'Testsúly mérések', opts.weightLogs.length);
   addRow(15, 'Testméret mérések', opts.bodyLogs.length);
-  addRow(16, 'Edzések', opts.workouts.length);
-  addRow(17, 'Napi jegyzetek', opts.notes.length);
+  addRow(16, 'Testzsír mérések', opts.fatLogs.length);
+  addRow(17, 'Edzések', opts.workouts.length);
+  addRow(18, 'Napi jegyzetek', opts.notes.length);
 }
 
 // ─── Sheet: Napló ─────────────────────────────────────────────────────────────
@@ -606,7 +614,26 @@ function buildBodySheet(wb: ExcelJS.Workbook, logs: ExportBodyLog[]) {
   ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 2 }];
 }
 
-// ─── Sheet: Edzések ───────────────────────────────────────────────────────────
+// ─── Sheet: Testzsír ──────────────────────────────────────────────────────────
+
+function buildFatSheet(wb: ExcelJS.Workbook, logs: ExportBodyFatLog[]) {
+  const ws = wb.addWorksheet('Testzsír', {
+    properties: { tabColor: { argb: 'FF81C784' } },
+  });
+  writeTitle(ws, 3, 'Testzsír', 'FF81C784');
+  writeHeaders(ws, ['Dátum', 'Testzsír (%)', 'Változás (%)'], [16, 16, 16], 'FF81C784');
+
+  const sorted = [...logs].sort((a, b) => a.loggedDate.getTime() - b.loggedDate.getTime());
+  let row = 3;
+  let prev: number | null = null;
+  for (const f of sorted) {
+    const delta = prev == null ? '—' : round1(f.fatPercent - prev);
+    applyRow(ws, row, [formatDate(f.loggedDate), round1(f.fatPercent), delta], row % 2 === 0);
+    prev = f.fatPercent;
+    row++;
+  }
+  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 2 }];
+}
 
 function buildWorkoutSheet(wb: ExcelJS.Workbook, logs: ExportWorkout[]) {
   const ws = wb.addWorksheet('Edzések', {
@@ -722,6 +749,7 @@ export async function generateExport(opts: ExportOptions): Promise<Buffer> {
   buildWaterSheet(wb, opts.waterLogs, opts.user.dailyWaterGoalMl ?? 2000);
   buildWeightSheet(wb, opts.weightLogs);
   buildBodySheet(wb, opts.bodyLogs);
+  buildFatSheet(wb, opts.fatLogs);
   buildWorkoutSheet(wb, opts.workouts);
   buildNotesSheet(wb, opts.notes);
   buildProfileSheet(wb, opts.user, opts.from, opts.to);

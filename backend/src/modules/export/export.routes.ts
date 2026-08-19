@@ -15,7 +15,7 @@ const exportRoutes: FastifyPluginAsync = async (fastify) => {
     fromDate.setHours(0, 0, 0, 0);
     toDate.setHours(23, 59, 59, 999);
 
-    const [logCount, waterCount, weightCount, bodyCount, workoutCount, noteCount] = await Promise.all([
+    const [logCount, waterCount, weightCount, bodyCount, fatCount, workoutCount, noteCount] = await Promise.all([
       fastify.prisma.dailyLog.count({
         where: { userId, createdAt: { gte: fromDate, lte: toDate } },
       }),
@@ -26,6 +26,9 @@ const exportRoutes: FastifyPluginAsync = async (fastify) => {
         where: { userId, loggedDate: { gte: fromDate, lte: toDate } },
       }),
       fastify.prisma.bodyMeasurementLog.count({
+        where: { userId, loggedDate: { gte: fromDate, lte: toDate } },
+      }),
+      fastify.prisma.bodyFatLog.count({
         where: { userId, loggedDate: { gte: fromDate, lte: toDate } },
       }),
       fastify.prisma.workoutLog.count({
@@ -46,6 +49,7 @@ const exportRoutes: FastifyPluginAsync = async (fastify) => {
       waterCount,
       weightCount,
       bodyCount,
+      fatCount,
       workoutCount,
       noteCount,
       sheets: EXPORT_SHEET_NAMES,
@@ -62,7 +66,7 @@ const exportRoutes: FastifyPluginAsync = async (fastify) => {
     fromDate.setHours(0, 0, 0, 0);
     toDate.setHours(23, 59, 59, 999);
 
-    const [logs, waterLogs, weightLogs, bodyLogs, workouts, notes, user] = await Promise.all([
+    const [logs, waterLogs, weightLogs, bodyLogs, fatLogs, workouts, notes, user] = await Promise.all([
       fastify.prisma.dailyLog.findMany({
         where: { userId, createdAt: { gte: fromDate, lte: toDate } },
         orderBy: { createdAt: 'asc' },
@@ -76,6 +80,10 @@ const exportRoutes: FastifyPluginAsync = async (fastify) => {
         orderBy: { loggedDate: 'asc' },
       }),
       fastify.prisma.bodyMeasurementLog.findMany({
+        where: { userId, loggedDate: { gte: fromDate, lte: toDate } },
+        orderBy: { loggedDate: 'asc' },
+      }),
+      fastify.prisma.bodyFatLog.findMany({
         where: { userId, loggedDate: { gte: fromDate, lte: toDate } },
         orderBy: { loggedDate: 'asc' },
       }),
@@ -109,6 +117,7 @@ const exportRoutes: FastifyPluginAsync = async (fastify) => {
       waterLogs,
       weightLogs,
       bodyLogs,
+      fatLogs,
       workouts,
       notes,
       user: {
