@@ -7,12 +7,14 @@ import {
   IconAdd,
   IconArrowBack,
   IconCalendarToday,
+  IconEdit,
   IconEvent,
   IconExpandMore,
   IconFilterList,
+  IconTarget,
 } from '../components/ui/Icons';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { ApiError, getErrorMessage, weightApi } from '../services/api';
+import { ApiError, bodyFatApi, getErrorMessage } from '../services/api';
 import { toLocalDateStr } from '../stores/dateStore';
 import {
   defaultRange,
@@ -26,12 +28,14 @@ import styles from './BodyMeasurements.module.css';
 
 type HistoryItem = {
   id: string;
-  weightKg: number;
+  fatPercent: number;
   loggedDate: string;
-  deltaKg: number | null;
+  deltaPercent: number | null;
 };
 
-export default function WeightLogPage() {
+const FAT_ICON_BG = '#eadecc';
+
+export default function BodyFatLogPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const dateInputRef = useRef<HTMLInputElement>(null);
@@ -39,9 +43,12 @@ export default function WeightLogPage() {
   const monthRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const [loading, setLoading] = useState(true);
-  const [latest, setLatest] = useState<{ weightKg: number; loggedDate: string } | null>(null);
+  const [latest, setLatest] = useState<{ fatPercent: number; loggedDate: string } | null>(null);
   const [items, setItems] = useState<HistoryItem[]>([]);
-  const [monthlyChangeKg, setMonthlyChangeKg] = useState<number | null>(null);
+  const [monthlyChangePercent, setMonthlyChangePercent] = useState<number | null>(null);
+  const [goalPercent, setGoalPercent] = useState<number | null>(null);
+  const [goalOpen, setGoalOpen] = useState(false);
+  const [goalInput, setGoalInput] = useState('');
   const [editItem, setEditItem] = useState<HistoryItem | null>(null);
   const [editValue, setEditValue] = useState('');
   const [editDate, setEditDate] = useState('');
@@ -59,16 +66,17 @@ export default function WeightLogPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await weightApi.history(appliedRange ?? undefined);
+      const res = await bodyFatApi.history(appliedRange ?? undefined);
       setLatest(
-        res.latest ? { weightKg: res.latest.weightKg, loggedDate: res.latest.loggedDate } : null,
+        res.latest ? { fatPercent: res.latest.fatPercent, loggedDate: res.latest.loggedDate } : null,
       );
       setItems(res.items);
-      setMonthlyChangeKg(res.monthlyChangeKg);
+      setMonthlyChangePercent(res.monthlyChangePercent);
+      setGoalPercent(res.goalPercent);
     } catch (e) {
       setDialog({
         title: t('food.errorTitle'),
-        message: getErrorMessage(e, t('weightLog.loadFailed')),
+        message: getErrorMessage(e, t('bodyData.loadFailed')),
       });
     } finally {
       setLoading(false);
@@ -81,10 +89,10 @@ export default function WeightLogPage() {
 
   useEffect(() => {
     if (loading) return;
-    const key = sessionStorage.getItem('weightLogScrollDate');
+    const key = sessionStorage.getItem('bodyFatLogScrollDate');
     if (!key) return;
     const el = rowRefs.current[key];
-    sessionStorage.removeItem('weightLogScrollDate');
+    sessionStorage.removeItem('bodyFatLogScrollDate');
     if (!el) return;
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     setHighlightDate(key);
@@ -119,9 +127,7 @@ export default function WeightLogPage() {
   const jumpToMonth = (key: string) => {
     setSelectedMonthKey(key);
     setMonthPickerOpen(false);
-    const el = monthRefs.current[key];
-    if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    monthRefs.current[key]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const formatDate = (iso: string) =>
@@ -148,7 +154,7 @@ export default function WeightLogPage() {
 
   const openEdit = (item: HistoryItem) => {
     setEditItem(item);
-    setEditValue(String(item.weightKg));
+    setEditValue(String(item.fatPercent));
     setEditDate(item.loggedDate);
     setConfirmDelete(false);
   };
@@ -158,21 +164,39 @@ export default function WeightLogPage() {
     setConfirmDelete(false);
   };
 
+  const saveGoal = async () => {
+    const n = Number(String(goalInput).replace(',', '.'));
+    if (!Number.isFinite(n) || n < 3 || n > 70) {
+      setDialog({ title: t('food.errorTitle'), message: t('bodyData.invalidFatGoal') });
+      return;
+    }
+    try {
+      const res = await bodyFatApi.setGoal(Math.round(n * 10) / 10);
+      setGoalPercent(res.goalPercent);
+      setGoalOpen(false);
+    } catch (e) {
+      setDialog({
+        title: t('food.errorTitle'),
+        message: getErrorMessage(e, t('bodyData.saveFailed')),
+      });
+    }
+  };
+
   const saveEdit = async () => {
     if (!editItem) return;
     const n = Number(String(editValue).replace(',', '.'));
-    if (!Number.isFinite(n) || n < 20 || n > 500) {
-      setDialog({ title: t('food.errorTitle'), message: t('weightLog.invalidValue') });
+    if (!Number.isFinite(n) || n < 3 || n > 70) {
+      setDialog({ title: t('food.errorTitle'), message: t('bodyData.invalidFat') });
       return;
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(editDate)) {
-      setDialog({ title: t('food.errorTitle'), message: t('weightLog.invalidValue') });
+      setDialog({ title: t('food.errorTitle'), message: t('bodyData.invalidFat') });
       return;
     }
     setEditBusy(true);
     try {
-      await weightApi.update(editItem.id, {
-        weightKg: Math.round(n * 10) / 10,
+      await bodyFatApi.update(editItem.id, {
+        fatPercent: Math.round(n * 10) / 10,
         date: editDate,
       });
       closeEdit();
@@ -182,8 +206,8 @@ export default function WeightLogPage() {
         title: t('food.errorTitle'),
         message:
           e instanceof ApiError && e.status === 409
-            ? t('weightLog.dateConflict')
-            : getErrorMessage(e, t('weightLog.saveFailed')),
+            ? t('bodyData.fatDateConflict')
+            : getErrorMessage(e, t('bodyData.saveFailed')),
       });
     } finally {
       setEditBusy(false);
@@ -195,13 +219,13 @@ export default function WeightLogPage() {
     setConfirmDelete(false);
     setEditBusy(true);
     try {
-      await weightApi.delete(editItem.id);
+      await bodyFatApi.delete(editItem.id);
       closeEdit();
       await load();
     } catch (e) {
       setDialog({
         title: t('food.errorTitle'),
-        message: getErrorMessage(e, t('weightLog.saveFailed')),
+        message: getErrorMessage(e, t('bodyData.saveFailed')),
       });
     } finally {
       setEditBusy(false);
@@ -228,11 +252,6 @@ export default function WeightLogPage() {
     const from = draftFrom <= draftTo ? draftFrom : draftTo;
     const to = draftFrom <= draftTo ? draftTo : draftFrom;
     setAppliedRange({ from, to });
-    setFilterOpen(false);
-  };
-
-  const clearFilter = () => {
-    setAppliedRange(null);
     setFilterOpen(false);
   };
 
@@ -266,13 +285,13 @@ export default function WeightLogPage() {
         <button type="button" className={styles.back} onClick={() => navigate(-1)}>
           <IconArrowBack size={22} color={Colors.dashboard.stroke} />
         </button>
-        <h1>{t('weightLog.title')}</h1>
+        <h1>{t('bodyData.fatLogTitle')}</h1>
         <div className={styles.headerActions}>
           <button
             type="button"
             className={styles.calendarBtn}
             onClick={openFilter}
-            aria-label={t('weightLog.filterAria')}
+            aria-label={t('bodyData.filterAria')}
           >
             <span className={styles.calendarShadow} />
             <span className={styles.calendarInner}>
@@ -283,8 +302,8 @@ export default function WeightLogPage() {
           <button
             type="button"
             className={styles.calendarBtn}
-            onClick={() => navigate('/date-picker?mode=weight')}
-            aria-label={t('weightLog.calendarAria')}
+            onClick={() => navigate('/date-picker?mode=bodyfat')}
+            aria-label={t('bodyData.calendarAria')}
           >
             <span className={styles.calendarShadow} />
             <span className={styles.calendarInner}>
@@ -298,9 +317,20 @@ export default function WeightLogPage() {
         <div className={styles.cardWrap}>
           <span className={styles.cardShadow} />
           <div className={styles.latestCard}>
-            <div className={styles.latestLabel}>{t('weightLog.latestMeasurement')}</div>
+            <button
+              type="button"
+              className={styles.latestEditBtn}
+              onClick={() => {
+                setGoalInput(goalPercent != null ? String(goalPercent) : '');
+                setGoalOpen(true);
+              }}
+              aria-label={t('bodyData.setGoalTitle')}
+            >
+              <IconEdit size={18} color={Colors.dashboard.stroke} />
+            </button>
+            <div className={styles.latestLabel}>{t('bodyData.latestMeasurement')}</div>
             <div className={styles.latestValue}>
-              {latest ? `${latest.weightKg.toFixed(1)} kg` : '—'}
+              {latest ? `${latest.fatPercent.toFixed(1)} %` : '—'}
             </div>
             {latest && <div className={styles.latestDate}>{formatDate(latest.loggedDate)}</div>}
           </div>
@@ -308,26 +338,22 @@ export default function WeightLogPage() {
 
         <div className={styles.ctaWrap}>
           <span className={styles.ctaShadow} />
-          <button
-            type="button"
-            className={styles.ctaBtn}
-            onClick={() => navigate('/weight/new')}
-          >
+          <button type="button" className={styles.ctaBtn} onClick={() => navigate('/body/fat/new')}>
             <span className={styles.ctaIcon}>
               <IconAdd size={16} color={Colors.dashboard.stroke} />
             </span>
-            <span className={styles.ctaLabel}>{t('weightLog.addMeasurement')}</span>
+            <span className={styles.ctaLabel}>{t('bodyData.addMeasurement')}</span>
           </button>
         </div>
 
         <div className={styles.sectionRow}>
-          <h2 className={styles.sectionTitle}>{t('weightLog.previous')}</h2>
+          <h2 className={styles.sectionTitle}>{t('bodyData.previous')}</h2>
           {activeMonthLabel ? (
             <button
               type="button"
               className={styles.monthPickerBtn}
               onClick={() => setMonthPickerOpen(true)}
-              aria-label={t('weightLog.monthPickerAria')}
+              aria-label={t('bodyData.monthPickerAria')}
               aria-haspopup="listbox"
               aria-expanded={monthPickerOpen}
             >
@@ -338,7 +364,7 @@ export default function WeightLogPage() {
         </div>
         {appliedRange ? (
           <p className={styles.filterRangeHint}>
-            {t('weightLog.filterRange', {
+            {t('bodyData.filterRange', {
               from: formatShortDate(appliedRange.from),
               to: formatShortDate(appliedRange.to),
             })}
@@ -346,8 +372,8 @@ export default function WeightLogPage() {
         ) : null}
 
         {items.length === 0 ? (
-          <p className={styles.emptyHint}>
-            {appliedRange ? t('weightLog.noHistoryInRange') : t('weightLog.noHistory')}
+          <p className={styles.emptyHintQuiet}>
+            {appliedRange ? t('bodyData.noHistoryInRange') : t('bodyData.noFatHistory')}
           </p>
         ) : (
           items.map((item, idx) => {
@@ -388,7 +414,7 @@ export default function WeightLogPage() {
                   >
                     <span
                       className={styles.historyIcon}
-                      style={{ background: idx === 0 && !appliedRange ? '#e6d5c3' : '#E8E8E8' }}
+                      style={{ background: idx === 0 && !appliedRange ? FAT_ICON_BG : '#E8E8E8' }}
                     >
                       {idx === 0 && !appliedRange ? (
                         <IconEvent size={20} color={Colors.dashboard.stroke} />
@@ -398,18 +424,18 @@ export default function WeightLogPage() {
                     </span>
                     <div className={styles.historyMid}>
                       <span className={styles.historyDate}>{formatListDate(item.loggedDate)}</span>
-                      {item.deltaKg != null && item.deltaKg !== 0 && (
+                      {item.deltaPercent != null && item.deltaPercent !== 0 && (
                         <span
                           className={`${styles.deltaBadge} ${
-                            item.deltaKg < 0 ? styles.deltaDown : styles.deltaUp
+                            item.deltaPercent < 0 ? styles.deltaDown : styles.deltaUp
                           }`}
                         >
-                          {item.deltaKg > 0 ? '+' : ''}
-                          {item.deltaKg.toFixed(1)} kg
+                          {item.deltaPercent > 0 ? '+' : ''}
+                          {item.deltaPercent.toFixed(1)} %
                         </span>
                       )}
                     </div>
-                    <span className={styles.historyValue}>{item.weightKg.toFixed(1)} kg</span>
+                    <span className={styles.historyValue}>{item.fatPercent.toFixed(1)} %</span>
                   </button>
                 </div>
               </div>
@@ -421,24 +447,61 @@ export default function WeightLogPage() {
           <div className={styles.cardWrap}>
             <span className={styles.cardShadow} />
             <div className={styles.statCard}>
-              <div className={styles.statLabel}>{t('weightLog.monthlyChange')}</div>
+              <div className={styles.statLabel}>{t('bodyData.monthlyChange')}</div>
               <div className={styles.statValue}>
-                {monthlyChangeKg == null
+                {monthlyChangePercent == null
                   ? '—'
-                  : `${monthlyChangeKg > 0 ? '+' : ''}${monthlyChangeKg.toFixed(1)} kg`}
+                  : `${monthlyChangePercent > 0 ? '+' : ''}${monthlyChangePercent.toFixed(1)} %`}
+              </div>
+            </div>
+          </div>
+          <div className={styles.cardWrap}>
+            <span className={styles.cardShadow} />
+            <div className={styles.statCard}>
+              <div className={styles.statLabel}>{t('bodyData.goalMeasurement')}</div>
+              <div className={styles.statValue}>
+                <IconTarget size={16} color={Colors.dashboard.stroke} />
+                {goalPercent != null ? `${goalPercent.toFixed(1)} %` : '—'}
               </div>
             </div>
           </div>
         </div>
       </div>
 
+      {goalOpen && (
+        <div className={styles.goalOverlay} role="presentation" onClick={() => setGoalOpen(false)}>
+          <div className={styles.goalDialog} role="dialog" onClick={(e) => e.stopPropagation()}>
+            <h3 className={styles.goalDialogTitle}>{t('bodyData.setGoalTitle')}</h3>
+            <p className={styles.goalDialogMsg}>{t('bodyData.setFatGoalMessage')}</p>
+            <div className={styles.valueRow}>
+              <input
+                className={styles.valueInput}
+                inputMode="decimal"
+                value={goalInput}
+                onChange={(e) => setGoalInput(e.target.value)}
+                placeholder="18.0"
+                autoFocus
+              />
+              <span className={styles.valueUnit}>%</span>
+            </div>
+            <div className={styles.goalActions}>
+              <button type="button" className={styles.goalCancel} onClick={() => setGoalOpen(false)}>
+                {t('common.cancel')}
+              </button>
+              <button type="button" className={styles.goalSave} onClick={saveGoal}>
+                {t('bodyData.save')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editItem && (
         <div className={styles.goalOverlay} role="presentation" onClick={closeEdit}>
           <div className={styles.goalDialog} role="dialog" onClick={(e) => e.stopPropagation()}>
-            <h3 className={styles.goalDialogTitle}>{t('weightLog.editTitle')}</h3>
-            <p className={styles.goalDialogMsg}>{t('weightLog.editMessage')}</p>
-
-            <div className={styles.fieldLabel}>{t('weightLog.valueKg')}</div>
+            <h3 className={styles.goalDialogTitle}>{t('bodyData.editMeasurementTitle')}</h3>
+            <p className={styles.goalDialogMsg}>{t('bodyData.editMeasurementMessage')}</p>
+            <div className={styles.fieldLabel}>{t('bodyData.valuePercent')}</div>
             <div className={styles.valueRow}>
               <input
                 className={styles.valueInput}
@@ -447,11 +510,10 @@ export default function WeightLogPage() {
                 onChange={(e) => setEditValue(e.target.value)}
                 autoFocus
               />
-              <span className={styles.valueUnit}>kg</span>
+              <span className={styles.valueUnit}>%</span>
             </div>
-
             <div className={styles.fieldLabel} style={{ marginTop: 12 }}>
-              {t('weightLog.date')}
+              {t('bodyData.date')}
             </div>
             <button
               type="button"
@@ -468,7 +530,6 @@ export default function WeightLogPage() {
               value={editDate}
               onChange={(e) => setEditDate(e.target.value || editItem.loggedDate)}
             />
-
             <div className={styles.goalActions}>
               <button
                 type="button"
@@ -478,13 +539,8 @@ export default function WeightLogPage() {
               >
                 {t('common.delete')}
               </button>
-              <button
-                type="button"
-                className={styles.goalSave}
-                disabled={editBusy}
-                onClick={saveEdit}
-              >
-                {editBusy ? '...' : t('weightLog.save')}
+              <button type="button" className={styles.goalSave} disabled={editBusy} onClick={saveEdit}>
+                {editBusy ? '...' : t('bodyData.save')}
               </button>
             </div>
           </div>
@@ -496,10 +552,10 @@ export default function WeightLogPage() {
           <div
             className={styles.goalDialog}
             role="listbox"
-            aria-label={t('weightLog.monthPickerAria')}
+            aria-label={t('bodyData.monthPickerAria')}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className={styles.goalDialogTitle}>{t('weightLog.monthPickerTitle')}</h3>
+            <h3 className={styles.goalDialogTitle}>{t('bodyData.monthPickerTitle')}</h3>
             <div className={styles.monthPickerList}>
               {monthOptions.map((opt) => {
                 const active = (selectedMonthKey ?? monthOptions[0]?.key) === opt.key;
@@ -520,18 +576,12 @@ export default function WeightLogPage() {
           </div>
         </div>
       )}
+
       {filterOpen && (
         <div className={styles.goalOverlay} role="presentation" onClick={() => setFilterOpen(false)}>
-          <div
-            className={styles.goalDialog}
-            role="dialog"
-            aria-labelledby="weight-filter-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 id="weight-filter-title" className={styles.goalDialogTitle}>
-              {t('weightLog.filterTitle')}
-            </h3>
-            <p className={styles.goalDialogMsg}>{t('weightLog.filterMessage')}</p>
+          <div className={styles.goalDialog} role="dialog" onClick={(e) => e.stopPropagation()}>
+            <h3 className={styles.goalDialogTitle}>{t('bodyData.filterTitle')}</h3>
+            <p className={styles.goalDialogMsg}>{t('bodyData.filterMessage')}</p>
             <div className={styles.filterPresetRow}>
               {presets.map(([key, label]) => (
                 <button
@@ -569,8 +619,15 @@ export default function WeightLogPage() {
               </label>
             </div>
             <div className={styles.goalActions}>
-              <button type="button" className={styles.goalCancel} onClick={clearFilter}>
-                {t('weightLog.filterClear')}
+              <button
+                type="button"
+                className={styles.goalCancel}
+                onClick={() => {
+                  setAppliedRange(null);
+                  setFilterOpen(false);
+                }}
+              >
+                {t('bodyData.filterClear')}
               </button>
               <button
                 type="button"
@@ -578,7 +635,7 @@ export default function WeightLogPage() {
                 disabled={!draftFrom || !draftTo}
                 onClick={applyFilter}
               >
-                {t('weightLog.filterApply')}
+                {t('bodyData.filterApply')}
               </button>
             </div>
           </div>
@@ -588,14 +645,13 @@ export default function WeightLogPage() {
       <ConfirmDialog
         visible={confirmDelete}
         title={t('common.delete')}
-        message={t('weightLog.confirmDelete')}
+        message={t('bodyData.confirmDeleteMeasurement')}
         confirmLabel={t('common.delete')}
         cancelLabel={t('common.cancel')}
         destructive
         onConfirm={deleteEdit}
         onClose={() => setConfirmDelete(false)}
       />
-
       <ConfirmDialog
         visible={!!dialog}
         title={dialog?.title ?? ''}

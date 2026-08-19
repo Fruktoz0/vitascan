@@ -16,6 +16,12 @@ const UpdateWeightSchema = z
     message: 'Legalább a súlyt vagy a dátumot meg kell adni.',
   });
 
+const DateKeySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const HistoryQuerySchema = z.object({
+  from: DateKeySchema.optional(),
+  to: DateKeySchema.optional(),
+});
+
 function parseDay(date?: string) {
   const day = date ? new Date(date) : new Date();
   day.setHours(0, 0, 0, 0);
@@ -88,14 +94,38 @@ const weightRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(await buildWeightSummary(fastify, userId, day));
   });
 
-  // GET /weight/history
+  // GET /weight/history?from=&to=
   fastify.get('/history', { preHandler: authenticate }, async (request, reply) => {
     const userId = request.user.userId;
+    const parsed = HistoryQuerySchema.safeParse(request.query);
+    const from = parsed.success ? parsed.data.from : undefined;
+    const to = parsed.success ? parsed.data.to : undefined;
+    const hasRange = Boolean(from || to);
+
+    const dateFilter: { gte?: Date; lt?: Date } = {};
+    if (from) dateFilter.gte = parseDay(from);
+    if (to) {
+      const endExclusive = parseDay(to);
+      endExclusive.setDate(endExclusive.getDate() + 1);
+      dateFilter.lt = endExclusive;
+    }
+
     const logs = await fastify.prisma.weightLog.findMany({
-      where: { userId },
+      where: {
+        userId,
+        ...(hasRange ? { loggedDate: dateFilter } : {}),
+      },
       orderBy: [{ loggedDate: 'desc' }, { updatedAt: 'desc' }],
-      take: 90,
+      take: hasRange ? 500 : 90,
     });
+
+    const summaryLogs = hasRange
+      ? await fastify.prisma.weightLog.findMany({
+          where: { userId },
+          orderBy: [{ loggedDate: 'desc' }, { updatedAt: 'desc' }],
+          take: 90,
+        })
+      : logs;
 
     const items = logs.map((l: { id: string; weightKg: number; loggedDate: Date; updatedAt: Date }, idx: number) => {
       const prev = logs[idx + 1];
@@ -110,19 +140,34 @@ const weightRoutes: FastifyPluginAsync = async (fastify) => {
       };
     });
 
-    const latest = items[0] ?? null;
+    const summaryItems = summaryLogs.map(
+      (l: { id: string; weightKg: number; loggedDate: Date; updatedAt: Date }, idx: number) => {
+        const prev = summaryLogs[idx + 1];
+        const deltaKg =
+          prev != null ? Math.round((l.weightKg - prev.weightKg) * 10) / 10 : null;
+        return {
+          id: l.id,
+          weightKg: l.weightKg,
+          loggedDate: toDateStr(l.loggedDate),
+          updatedAt: l.updatedAt,
+          deltaKg,
+        };
+      },
+    );
+
+    const latest = summaryItems[0] ?? null;
 
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     monthStart.setHours(0, 0, 0, 0);
-    const monthLogs = logs.filter((l: { loggedDate: Date }) => l.loggedDate >= monthStart);
+    const monthLogs = summaryLogs.filter((l: { loggedDate: Date }) => l.loggedDate >= monthStart);
     let monthlyChangeKg: number | null = null;
     if (monthLogs.length >= 2) {
       const newest = monthLogs[0];
       const oldest = monthLogs[monthLogs.length - 1];
       monthlyChangeKg = Math.round((newest.weightKg - oldest.weightKg) * 10) / 10;
-    } else if (monthLogs.length === 1 && logs.length >= 2) {
-      const before = logs.find((l: { loggedDate: Date }) => l.loggedDate < monthStart);
+    } else if (monthLogs.length === 1 && summaryLogs.length >= 2) {
+      const before = summaryLogs.find((l: { loggedDate: Date }) => l.loggedDate < monthStart);
       if (before) {
         monthlyChangeKg = Math.round((monthLogs[0].weightKg - before.weightKg) * 10) / 10;
       }

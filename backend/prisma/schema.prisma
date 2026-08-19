@@ -38,6 +38,8 @@ model User {
   aiRecipeImports    AiRecipeImport[]
   bodyMeasurementLogs BodyMeasurementLog[]
   bodyMeasurementGoals BodyMeasurementGoal[]
+  bodyFatLogs          BodyFatLog[]
+  bodyFatGoal          BodyFatGoal?
   aiBodyAnalyses AiBodyAnalysis[]
   workoutLogs     WorkoutLog[]
   dailyStepLogs   DailyStepLog[]
@@ -516,6 +518,28 @@ model BodyMeasurementGoal {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, bodyPart])
+}
+
+/// Testzsír % — egy érték / user / nap
+model BodyFatLog {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fatPercent Float
+  loggedDate DateTime @db.Date
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, loggedDate])
+  @@index([userId, loggedDate])
+}
+
+model BodyFatGoal {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalPercent Float
+  updatedAt   DateTime @updatedAt
 }
 
 /** AI testelemzés — max 3 generálás / nap, új felülírja a régit. */

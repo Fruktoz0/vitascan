@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../design/tokens';
 import { IconArrowBack, IconChevronLeft, IconChevronRight, IconDownload } from '../components/ui/Icons';
-import { exportApi, getAccessToken, statsApi, weightApi } from '../services/api';
+import { exportApi, getAccessToken, statsApi, weightApi, bodyApi, bodyFatApi } from '../services/api';
 import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import { useTierStore } from '../stores/tierStore';
 import { kcalGoalTone } from '../utils/kcalGoalTone';
+import { isBodyPart } from '../utils/bodyMeta';
 import styles from './DatePickerPage.module.css';
 
 const DAY_LABELS = ['H', 'K', 'Sz', 'Cs', 'P', 'Szo', 'V'];
@@ -44,6 +45,12 @@ function addDays(d: Date, n: number): Date {
 export default function DatePickerPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isWeightMode = searchParams.get('mode') === 'weight';
+  const bodyPartParam = searchParams.get('part');
+  const isBodyMode = searchParams.get('mode') === 'body' && isBodyPart(bodyPartParam);
+  const isBodyFatMode = searchParams.get('mode') === 'bodyfat';
+  const isMeasureMode = isWeightMode || isBodyMode || isBodyFatMode;
   const { selectedDate, setDate } = useDateStore();
   const { fetch: fetchTier, isPremium } = useTierStore();
   const [viewYear, setViewYear] = useState(selectedDate.getFullYear());
@@ -51,6 +58,7 @@ export default function DatePickerPage() {
   const [streak, setStreak] = useState<number | null>(null);
   const [weightDelta, setWeightDelta] = useState<number | null>(null);
   const [loggedByDate, setLoggedByDate] = useState<Map<string, number>>(new Map());
+  const [measureByDate, setMeasureByDate] = useState<Map<string, number>>(new Map());
   const [dailyKcalGoal, setDailyKcalGoal] = useState(2000);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportFrom, setExportFrom] = useState(() => toLocalDateStr(addDays(new Date(), -30)));
@@ -66,6 +74,32 @@ export default function DatePickerPage() {
 
   useEffect(() => {
     let cancelled = false;
+    if (isWeightMode || isBodyMode || isBodyFatMode) {
+      const from = toLocalDateStr(new Date(viewYear, viewMonth, 1));
+      const to = toLocalDateStr(new Date(viewYear, viewMonth + 1, 0));
+      const req =
+        isBodyFatMode
+          ? bodyFatApi.history({ from, to }).then((r) =>
+              new Map((r.items ?? []).map((item) => [item.loggedDate, item.fatPercent])),
+            )
+          : isBodyMode && isBodyPart(bodyPartParam)
+            ? bodyApi.history(bodyPartParam, { from, to }).then((r) =>
+                new Map((r.items ?? []).map((item) => [item.loggedDate, item.valueCm])),
+              )
+            : weightApi.history({ from, to }).then((r) =>
+                new Map((r.items ?? []).map((item) => [item.loggedDate, item.weightKg])),
+              );
+      req
+        .then((map) => {
+          if (!cancelled) setMeasureByDate(map);
+        })
+        .catch(() => {
+          if (!cancelled) setMeasureByDate(new Map());
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
     statsApi
       .loggedDays(viewYear, viewMonth + 1)
       .then((r) => {
@@ -79,7 +113,7 @@ export default function DatePickerPage() {
     return () => {
       cancelled = true;
     };
-  }, [viewYear, viewMonth]);
+  }, [viewYear, viewMonth, isWeightMode, isBodyMode, isBodyFatMode, bodyPartParam]);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -91,6 +125,16 @@ export default function DatePickerPage() {
     const target = new Date(viewYear, viewMonth, day);
     target.setHours(12, 0, 0, 0);
     setDate(target);
+    if (isWeightMode) {
+      sessionStorage.setItem('weightLogScrollDate', toLocalDateStr(target));
+    }
+    if (isBodyMode && isBodyPart(bodyPartParam)) {
+      sessionStorage.setItem('bodyLogScrollDate', toLocalDateStr(target));
+      sessionStorage.setItem('bodyLogScrollPart', bodyPartParam);
+    }
+    if (isBodyFatMode) {
+      sessionStorage.setItem('bodyFatLogScrollDate', toLocalDateStr(target));
+    }
     navigate(-1);
   };
 
@@ -219,7 +263,14 @@ export default function DatePickerPage() {
         {weeks.map((week, wi) => (
           <div key={wi} className={styles.week}>
             {week.map((day, di) => {
-              if (day == null) return <span key={di} className={styles.dayEmpty} />;
+              if (day == null) {
+                return (
+                  <span
+                    key={di}
+                    className={`${styles.dayEmpty} ${isMeasureMode ? styles.dayEmptyWeight : ''}`}
+                  />
+                );
+              }
               const d = new Date(viewYear, viewMonth, day);
               d.setHours(0, 0, 0, 0);
               const isToday = d.getTime() === today.getTime();
@@ -228,15 +279,24 @@ export default function DatePickerPage() {
               const dateStr = toLocalDateStr(d);
               const dayKcal = loggedByDate.get(dateStr);
               const tone = dayKcal != null ? kcalGoalTone(dayKcal, dailyKcalGoal) : null;
+              const dayMeasure = measureByDate.get(dateStr);
               return (
                 <button
                   key={di}
                   type="button"
-                  className={`${styles.day} ${isToday ? styles.today : ''} ${isSelected ? styles.selected : ''} ${isFuture && !isSelected ? styles.future : ''}`}
+                  className={`${styles.day} ${isMeasureMode ? styles.dayWeightMode : ''} ${isToday ? styles.today : ''} ${isSelected ? styles.selected : ''} ${isFuture && !isSelected ? styles.future : ''}`}
                   onClick={() => selectDay(day)}
                 >
                   {day}
-                  {tone ? (
+                  {isMeasureMode ? (
+                    dayMeasure != null ? (
+                      <span className={styles.dayWeightBadge} aria-hidden>
+                        {dayMeasure.toFixed(1)}
+                      </span>
+                    ) : (
+                      <span className={styles.dayWeightBadgeSpacer} aria-hidden />
+                    )
+                  ) : tone ? (
                     <span
                       className={`${styles.loggedDot} ${
                         tone === 'green' ? styles.dotGreen : tone === 'yellow' ? styles.dotYellow : styles.dotRed

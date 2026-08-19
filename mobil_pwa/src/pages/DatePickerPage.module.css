@@ -106,6 +106,10 @@
   height: 40px;
 }
 
+.dayEmptyWeight {
+  height: 56px;
+}
+
 .day {
   position: relative;
   height: 44px;
@@ -121,6 +125,33 @@
   background: transparent;
   font-family: inherit;
   color: inherit;
+}
+
+.dayWeightMode {
+  height: 56px;
+  gap: 3px;
+}
+
+.dayWeightBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  border: 1px solid var(--stroke);
+  background: #eadecc;
+  box-shadow: 1px 1px 0 var(--shadow-hard);
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  color: var(--stroke);
+}
+
+.dayWeightBadgeSpacer {
+  height: 14px;
 }
 
 .future {

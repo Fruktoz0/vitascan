@@ -742,8 +742,12 @@ export const weightApi = {
       deltaKg: number | null;
       lastMeasuredAt: string | null;
     }>('/weight', { method: 'POST', body: JSON.stringify({ date, weightKg }) }),
-  history: () =>
-    request<{
+  history: (range?: { from?: string; to?: string }) => {
+    const params = new URLSearchParams();
+    if (range?.from) params.set('from', range.from);
+    if (range?.to) params.set('to', range.to);
+    const qs = params.toString();
+    return request<{
       latest: {
         id: string;
         weightKg: number;
@@ -759,7 +763,8 @@ export const weightApi = {
         deltaKg: number | null;
       }>;
       monthlyChangeKg: number | null;
-    }>('/weight/history'),
+    }>(`/weight/history${qs ? `?${qs}` : ''}`);
+  },
   update: (id: string, data: { weightKg?: number; date?: string }) =>
     request(`/weight/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: (id: string) => request(`/weight/${id}`, { method: 'DELETE' }),
@@ -780,14 +785,18 @@ export const bodyApi = {
     request<{
       parts: Array<{ bodyPart: BodyPart; valueCm: number | null; loggedDate: string | null }>;
       goals: Array<{ bodyPart: BodyPart; goalCm: number }>;
+      fat: { fatPercent: number; loggedDate: string } | null;
     }>('/body/summary'),
   create: (data: { bodyPart: BodyPart; valueCm: number; date: string }) =>
     request('/body', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: { valueCm?: number; date?: string }) =>
     request(`/body/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: (id: string) => request(`/body/${id}`, { method: 'DELETE' }),
-  history: (bodyPart: BodyPart) =>
-    request<{
+  history: (bodyPart: BodyPart, range?: { from?: string; to?: string }) => {
+    const params = new URLSearchParams({ bodyPart });
+    if (range?.from) params.set('from', range.from);
+    if (range?.to) params.set('to', range.to);
+    return request<{
       bodyPart: BodyPart;
       latest: {
         id: string;
@@ -805,7 +814,8 @@ export const bodyApi = {
       }>;
       monthlyChangeCm: number | null;
       goalCm: number | null;
-    }>(`/body/history?bodyPart=${bodyPart}`),
+    }>(`/body/history?${params.toString()}`);
+  },
   getGoals: () =>
     request<{ goals: Array<{ bodyPart: BodyPart; goalCm: number }> }>('/body/goals'),
   setGoals: (goals: Array<{ bodyPart: BodyPart; goalCm: number }>) =>
@@ -832,6 +842,43 @@ export const bodyApi = {
     }>('/body/analysis', {
       method: 'POST',
       body: JSON.stringify(locale ? { locale } : {}),
+    }),
+};
+
+export const bodyFatApi = {
+  history: (range?: { from?: string; to?: string }) => {
+    const params = new URLSearchParams();
+    if (range?.from) params.set('from', range.from);
+    if (range?.to) params.set('to', range.to);
+    const qs = params.toString();
+    return request<{
+      latest: {
+        id: string;
+        fatPercent: number;
+        loggedDate: string;
+        updatedAt: string;
+        deltaPercent: number | null;
+      } | null;
+      items: Array<{
+        id: string;
+        fatPercent: number;
+        loggedDate: string;
+        updatedAt: string;
+        deltaPercent: number | null;
+      }>;
+      monthlyChangePercent: number | null;
+      goalPercent: number | null;
+    }>(`/body/fat/history${qs ? `?${qs}` : ''}`);
+  },
+  create: (data: { fatPercent: number; date: string }) =>
+    request('/body/fat', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: { fatPercent?: number; date?: string }) =>
+    request(`/body/fat/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: string) => request(`/body/fat/${id}`, { method: 'DELETE' }),
+  setGoal: (goalPercent: number) =>
+    request<{ goalPercent: number }>('/body/fat/goal', {
+      method: 'PUT',
+      body: JSON.stringify({ goalPercent }),
     }),
 };
 

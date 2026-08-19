@@ -24,6 +24,8 @@ export const UpdateMeasurementSchema = z
 
 export const HistoryQuerySchema = z.object({
   bodyPart: BodyPartSchema,
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 export const UpsertGoalSchema = z.object({
@@ -37,4 +39,29 @@ export const UpsertGoalsSchema = z.object({
 
 export const GenerateBodyAnalysisSchema = z.object({
   locale: z.enum(['hu', 'en']).optional(),
+});
+
+const DateKeySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+export const FatHistoryQuerySchema = z.object({
+  from: DateKeySchema.optional(),
+  to: DateKeySchema.optional(),
+});
+
+export const UpsertFatSchema = z.object({
+  date: DateKeySchema,
+  fatPercent: z.number().min(3).max(70),
+});
+
+export const UpdateFatSchema = z
+  .object({
+    fatPercent: z.number().min(3).max(70).optional(),
+    date: DateKeySchema.optional(),
+  })
+  .refine((d) => d.fatPercent != null || d.date != null, {
+    message: 'Legalább a testzsírt vagy a dátumot meg kell adni.',
+  });
+
+export const UpsertFatGoalSchema = z.object({
+  goalPercent: z.number().min(3).max(70),
 });

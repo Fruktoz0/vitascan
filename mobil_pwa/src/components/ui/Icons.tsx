@@ -76,6 +76,8 @@ import {
   MdExpandLess,
   MdContentCopy,
   MdFlag,
+  MdFilterList,
+  MdPercent,
   MdTripOrigin,
 } from 'react-icons/md';
 import { FaAppleAlt } from 'react-icons/fa';
@@ -218,6 +220,8 @@ export const IconContentCopy = wrap(MdContentCopy);
 export const IconRefresh = wrap(MdRefresh);
 export const IconScreenRotation = wrap(MdScreenRotation);
 export const IconFlag = wrap(MdFlag);
+export const IconFilterList = wrap(MdFilterList);
+export const IconPercent = wrap(MdPercent);
 export const IconTripOrigin = wrap(MdTripOrigin);
 
 export const TAB_ICONS = {

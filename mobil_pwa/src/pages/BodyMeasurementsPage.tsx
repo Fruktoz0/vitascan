@@ -8,6 +8,7 @@ import {
   IconBolt,
   IconChevronRight,
   IconMoreHoriz,
+  IconPercent,
 } from '../components/ui/Icons';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import {
@@ -43,6 +44,7 @@ export default function BodyMeasurementsPage() {
   const [parts, setParts] = useState<
     Array<{ bodyPart: BodyPart; valueCm: number | null; loggedDate: string | null }>
   >([]);
+  const [fat, setFat] = useState<{ fatPercent: number; loggedDate: string } | null>(null);
   const [analysis, setAnalysis] = useState<BodyAnalysisContent | null>(null);
   const [remaining, setRemaining] = useState(3);
   const [aiBusy, setAiBusy] = useState(false);
@@ -56,10 +58,12 @@ export default function BodyMeasurementsPage() {
         bodyApi.getAnalysis().catch(() => null),
       ]);
       setParts(summary.parts);
+      setFat(summary.fat ?? null);
       setRemaining(ai?.remaining ?? 3);
       setAnalysis(parseAnalysis(ai?.content ?? null));
     } catch {
       setParts(BODY_PARTS.map((bodyPart) => ({ bodyPart, valueCm: null, loggedDate: null })));
+      setFat(null);
     } finally {
       setLoading(false);
     }
@@ -114,6 +118,38 @@ export default function BodyMeasurementsPage() {
             <span className={styles.ctaMore} aria-hidden>
               <IconMoreHoriz size={22} color={Colors.dashboard.stroke} />
             </span>
+          </button>
+        </div>
+
+        <div className={styles.partCardWrap}>
+          <span className={styles.partCardShadow} />
+          <button
+            type="button"
+            className={styles.fatHero}
+            onClick={() => navigate('/body/fat')}
+          >
+            <span className={styles.fatHeroIcon}>
+              <IconPercent size={22} color={Colors.dashboard.stroke} />
+            </span>
+            <span className={styles.partText}>
+              <span className={styles.partName}>{t('bodyData.fatTitle')}</span>
+              <span className={styles.partLast}>
+                {fat
+                  ? new Date(fat.loggedDate + 'T12:00:00').toLocaleDateString(
+                      i18n.language === 'hu' ? 'hu-HU' : 'en-US',
+                      { year: 'numeric', month: 'short', day: 'numeric' },
+                    )
+                  : t('bodyData.noFatHistory')}
+              </span>
+            </span>
+            <span className={styles.fatHeroValue}>
+              {fat ? `${fat.fatPercent.toFixed(1)}%` : '—'}
+            </span>
+            <IconChevronRight
+              size={22}
+              color={Colors.dashboard.stroke}
+              className={styles.partChevron}
+            />
           </button>
         </div>
 
