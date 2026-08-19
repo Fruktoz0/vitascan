@@ -184,11 +184,59 @@ export async function stopFast(prisma: PrismaClient, userId: string) {
   };
 }
 
+export async function updateGoal(
+  prisma: PrismaClient,
+  userId: string,
+  input: { protocol?: string; goalMinutes?: number },
+) {
+  const profile = await ensureProfile(prisma, userId);
+  const protocol = (input.protocol ?? profile.fastingProtocol ?? '16:8') as string;
+  if (!FASTING_PROTOCOLS.includes(protocol as FastingProtocol)) {
+    throw Object.assign(new Error('Érvénytelen böjt protokoll.'), { statusCode: 400 });
+  }
+  const goalMinutes = resolveGoalMinutes(
+    protocol,
+    input.goalMinutes ?? (protocol === 'CUSTOM' ? profile.fastingGoalMinutes : undefined),
+  );
+
+  await prisma.userProfile.update({
+    where: { userId },
+    data: { fastingProtocol: protocol, fastingGoalMinutes: goalMinutes },
+  });
+
+  const active = await prisma.fastSession.findFirst({
+    where: { userId, endedAt: null },
+    orderBy: { startedAt: 'desc' },
+    select: { id: true },
+  });
+  if (active) {
+    await prisma.fastSession.update({
+      where: { id: active.id },
+      data: { protocol, goalMinutes },
+    });
+  }
+
+  return getCurrent(prisma, userId);
+}
+
+export async function deleteSession(prisma: PrismaClient, userId: string, id: string) {
+  const row = await prisma.fastSession.findFirst({
+    where: { id, userId },
+    select: { id: true },
+  });
+  if (!row) {
+    throw Object.assign(new Error('A böjt nem található.'), { statusCode: 404 });
+  }
+  await prisma.fastSession.delete({ where: { id: row.id } });
+  return { ok: true as const };
+}
+
 export async function listHistory(
   prisma: PrismaClient,
   userId: string,
-  filters: { from?: string; to?: string },
+  filters: { from?: string; to?: string; limit?: number },
 ) {
+  const tz = await resolveUserTimezone(prisma, userId);
   const where: {
     userId: string;
     endedAt: { not: null; gte?: Date; lt?: Date };
@@ -197,22 +245,29 @@ export async function listHistory(
     endedAt: { not: null },
   };
   if (filters.from) {
-    const start = new Date(`${filters.from}T00:00:00.000Z`);
-    if (!Number.isNaN(start.getTime())) where.endedAt.gte = start;
+    where.endedAt.gte = zonedDayRange(filters.from, tz).start;
   }
   if (filters.to) {
-    const end = new Date(`${filters.to}T00:00:00.000Z`);
-    if (!Number.isNaN(end.getTime())) {
-      end.setUTCDate(end.getUTCDate() + 1);
-      where.endedAt.lt = end;
-    }
+    where.endedAt.lt = zonedDayRange(filters.to, tz).end;
   }
 
-  const items = await prisma.fastSession.findMany({
-    where,
-    orderBy: { endedAt: 'desc' },
-    take: 90,
-  });
+  const take = Math.min(Math.max(filters.limit ?? 90, 1), 365);
+  const [profile, latestRow, items] = await Promise.all([
+    ensureProfile(prisma, userId),
+    prisma.fastSession.findFirst({
+      where: { userId, endedAt: { not: null } },
+      orderBy: { endedAt: 'desc' },
+    }),
+    prisma.fastSession.findMany({
+      where,
+      orderBy: { endedAt: 'desc' },
+      take,
+    }),
+  ]);
 
-  return { items: items.map((row) => serializeSession(row, row.endedAt ?? new Date())) };
+  return {
+    items: items.map((row) => serializeSession(row, row.endedAt ?? new Date())),
+    latest: latestRow ? serializeSession(latestRow, latestRow.endedAt ?? new Date()) : null,
+    goalMinutes: profile.fastingGoalMinutes,
+  };
 }

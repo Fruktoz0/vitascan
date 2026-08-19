@@ -1,5 +1,21 @@
 export type FastingProtocol = '16:8' | '18:6' | '20:4' | 'OMAD' | 'CUSTOM';
 
+export function protocolLabelKey(protocol: string) {
+  if (protocol === '16:8') return 'fasting.protocol168';
+  if (protocol === '18:6') return 'fasting.protocol186';
+  if (protocol === '20:4') return 'fasting.protocol204';
+  if (protocol === 'OMAD') return 'fasting.protocolOMAD';
+  return 'fasting.protocolCUSTOM';
+}
+
+export function sessionDayKey(iso: string) {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export const FASTING_PROTOCOLS: FastingProtocol[] = ['16:8', '18:6', '20:4', 'OMAD', 'CUSTOM'];
 
 export const PROTOCOL_MINUTES: Record<Exclude<FastingProtocol, 'CUSTOM'>, number> = {
@@ -26,6 +42,27 @@ export function formatHms(ms: number, withSeconds = true): string {
   const mm = String(m).padStart(2, '0');
   const ss = String(s).padStart(2, '0');
   return withSeconds ? `${hh}:${mm}:${ss}` : `${hh}:${mm}`;
+}
+
+/** Human duration with unit, e.g. "8 óra 15 perc" / "8 h 15 min". */
+export function formatDurationLabel(ms: number, locale: string): string {
+  const totalMin = Math.max(0, Math.floor(ms / 60_000));
+  return formatMinutesLabel(totalMin, locale);
+}
+
+export function formatMinutesLabel(totalMin: number, locale: string): string {
+  const minutes = Math.max(0, Math.round(totalMin));
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  const hu = locale.toLowerCase().startsWith('hu');
+  if (hu) {
+    if (h === 0) return `${m} perc`;
+    if (m === 0) return `${h} óra`;
+    return `${h} óra ${m} perc`;
+  }
+  if (h === 0) return `${m} min`;
+  if (m === 0) return `${h} h`;
+  return `${h} h ${m} min`;
 }
 
 export function eatingWindowMinutes(goalMinutes: number): number {

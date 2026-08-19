@@ -3,11 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../design/tokens';
 import { IconArrowBack, IconChevronLeft, IconChevronRight, IconDownload } from '../components/ui/Icons';
-import { exportApi, getAccessToken, statsApi, weightApi, bodyApi, bodyFatApi, waterApi } from '../services/api';
+import { exportApi, getAccessToken, statsApi, weightApi, bodyApi, bodyFatApi, waterApi, fastingApi } from '../services/api';
 import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import { useTierStore } from '../stores/tierStore';
 import { kcalGoalTone } from '../utils/kcalGoalTone';
 import { isBodyPart } from '../utils/bodyMeta';
+import { sessionDayKey } from '../utils/fasting';
 import styles from './DatePickerPage.module.css';
 
 const DAY_LABELS = ['H', 'K', 'Sz', 'Cs', 'P', 'Szo', 'V'];
@@ -51,7 +52,8 @@ export default function DatePickerPage() {
   const isBodyMode = searchParams.get('mode') === 'body' && isBodyPart(bodyPartParam);
   const isBodyFatMode = searchParams.get('mode') === 'bodyfat';
   const isWaterMode = searchParams.get('mode') === 'water';
-  const isMeasureMode = isWeightMode || isBodyMode || isBodyFatMode || isWaterMode;
+  const isFastingMode = searchParams.get('mode') === 'fasting';
+  const isMeasureMode = isWeightMode || isBodyMode || isBodyFatMode || isWaterMode || isFastingMode;
   const { selectedDate, setDate } = useDateStore();
   const { fetch: fetchTier, isPremium } = useTierStore();
   const [viewYear, setViewYear] = useState(selectedDate.getFullYear());
@@ -75,11 +77,20 @@ export default function DatePickerPage() {
 
   useEffect(() => {
     let cancelled = false;
-    if (isWeightMode || isBodyMode || isBodyFatMode || isWaterMode) {
+    if (isWeightMode || isBodyMode || isBodyFatMode || isWaterMode || isFastingMode) {
       const from = toLocalDateStr(new Date(viewYear, viewMonth, 1));
       const to = toLocalDateStr(new Date(viewYear, viewMonth + 1, 0));
       const req =
-        isWaterMode
+        isFastingMode
+          ? fastingApi.history(from, to).then((r) => {
+              const map = new Map<string, number>();
+              for (const item of r.items ?? []) {
+                const key = sessionDayKey(item.endedAt ?? item.startedAt);
+                if (!map.has(key)) map.set(key, item.elapsedMinutes / 60);
+              }
+              return map;
+            })
+          : isWaterMode
           ? waterApi.history({ from, to }).then((r) =>
               new Map((r.items ?? []).map((item) => [item.loggedDate, item.totalMl / 1000])),
             )
@@ -118,7 +129,7 @@ export default function DatePickerPage() {
     return () => {
       cancelled = true;
     };
-  }, [viewYear, viewMonth, isWeightMode, isBodyMode, isBodyFatMode, isWaterMode, bodyPartParam]);
+  }, [viewYear, viewMonth, isWeightMode, isBodyMode, isBodyFatMode, isWaterMode, isFastingMode, bodyPartParam]);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -142,6 +153,9 @@ export default function DatePickerPage() {
     }
     if (isWaterMode) {
       sessionStorage.setItem('waterLogScrollDate', toLocalDateStr(target));
+    }
+    if (isFastingMode) {
+      sessionStorage.setItem('fastingLogScrollDate', toLocalDateStr(target));
     }
     navigate(-1);
   };

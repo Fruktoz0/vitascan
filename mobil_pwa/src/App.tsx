@@ -27,6 +27,7 @@ import WeightNewPage from './pages/WeightNewPage';
 import WaterLogPage from './pages/WaterLogPage';
 import WaterNewPage from './pages/WaterNewPage';
 import FastingPage from './pages/FastingPage';
+import FastingHistoryPage from './pages/FastingHistoryPage';
 import NotificationsPage from './pages/NotificationsPage';
 import DatePickerPage from './pages/DatePickerPage';
 import DataVaultPage from './pages/DataVaultPage';
@@ -102,6 +103,7 @@ export default function App() {
           <Route path="/weight/new" element={<WeightNewPage />} />
           <Route path="/water" element={<WaterLogPage />} />
           <Route path="/water/new" element={<WaterNewPage />} />
+          <Route path="/fasting/history" element={<FastingHistoryPage />} />
           <Route path="/fasting" element={<FastingPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/admin" element={<AdminPage />} />

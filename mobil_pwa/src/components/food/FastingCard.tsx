@@ -52,13 +52,8 @@ export default function FastingCard({
 
   let status = t('fasting.idleTitle');
   if (active) status = reached ? t('fasting.goalReached') : t('fasting.running');
-  else if (inEating) status = t('fasting.eatingWindow');
 
-  const timeText = active
-    ? formatHms(elapsedMs, false)
-    : inEating
-      ? formatHms(eatingLeft, false)
-      : formatHms(0, false);
+  const timeText = active ? formatHms(elapsedMs, false) : formatHms(0, false);
 
   return (
     <GlassCardSimple

@@ -2,25 +2,19 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../design/tokens';
-import { IconArrowBack, IconBolt, IconCheck, IconEvent, IconFire, IconPieChartOutline, IconRestaurant, IconTarget, IconTimer, IconTrophy } from '../components/ui/Icons';
+import { IconArrowBack, IconBolt, IconCheck, IconChevronRight, IconEvent, IconFire, IconPieChartOutline, IconRestaurant, IconTarget, IconTimer, IconTrophy } from '../components/ui/Icons';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import KcalRing from '../components/ui/KcalRing';
 import { fastingApi, getErrorMessage, type FastingCurrent, type FastSessionDto, type FastingProtocol } from '../services/api';
 import {
   FASTING_PROTOCOLS,
   formatHms,
+  formatMinutesLabel,
+  protocolLabelKey,
   resolveGoalMinutes,
 } from '../utils/fasting';
 import stack from './StackPage.module.css';
 import styles from './FastingPage.module.css';
-
-function protocolLabelKey(protocol: string) {
-  if (protocol === '16:8') return 'fasting.protocol168';
-  if (protocol === '18:6') return 'fasting.protocol186';
-  if (protocol === '20:4') return 'fasting.protocol204';
-  if (protocol === 'OMAD') return 'fasting.protocolOMAD';
-  return 'fasting.protocolCUSTOM';
-}
 
 const PROTOCOL_OPTIONS: Array<{
   key: FastingProtocol;
@@ -44,7 +38,12 @@ export default function FastingPage() {
   const [protocol, setProtocol] = useState<FastingProtocol>('16:8');
   const [customHours, setCustomHours] = useState('16');
   const [now, setNow] = useState(() => Date.now());
-  const [dialog, setDialog] = useState<{ title: string; message: string } | null>(null);
+  const [dialog, setDialog] = useState<{
+    kind: 'alert' | 'reset';
+    title: string;
+    message: string;
+    confirmLabel?: string;
+  } | null>(null);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -63,6 +62,7 @@ export default function FastingPage() {
       if (p === 'CUSTOM') setCustomHours(String(Math.round((cur.goalMinutes / 60) * 10) / 10));
     } catch (e) {
       setDialog({
+        kind: 'alert',
         title: t('food.errorTitle'),
         message: getErrorMessage(e, t('fasting.loadFailed')),
       });
@@ -101,6 +101,7 @@ export default function FastingPage() {
       await load();
     } catch (e) {
       setDialog({
+        kind: 'alert',
         title: t('food.errorTitle'),
         message: getErrorMessage(e, t('fasting.startFailed')),
       });
@@ -116,12 +117,56 @@ export default function FastingPage() {
       await load();
     } catch (e) {
       setDialog({
+        kind: 'alert',
         title: t('food.errorTitle'),
         message: getErrorMessage(e, t('fasting.stopFailed')),
       });
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleReset = async () => {
+    if (!active) return;
+    setBusy(true);
+    try {
+      await fastingApi.delete(active.id);
+      await load();
+    } catch (e) {
+      setDialog({
+        kind: 'alert',
+        title: t('food.errorTitle'),
+        message: getErrorMessage(e, t('fasting.resetFailed')),
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const persistGoal = async (nextProtocol: FastingProtocol, hoursOverride?: string) => {
+    const raw = Number(String(hoursOverride ?? customHours).replace(',', '.'));
+    const minutes =
+      nextProtocol === 'CUSTOM'
+        ? resolveGoalMinutes('CUSTOM', Number.isFinite(raw) ? Math.round(raw * 60) : 960)
+        : resolveGoalMinutes(nextProtocol);
+    setBusy(true);
+    try {
+      const cur = await fastingApi.setGoal({ protocol: nextProtocol, goalMinutes: minutes });
+      setCurrent(cur);
+    } catch (e) {
+      setDialog({
+        kind: 'alert',
+        title: t('food.errorTitle'),
+        message: getErrorMessage(e, t('fasting.goalSaveFailed')),
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleProtocol = (key: FastingProtocol) => {
+    setProtocol(key);
+    void persistGoal(key);
   };
 
   const locale = i18n.language === 'hu' ? 'hu-HU' : 'en-US';
@@ -141,10 +186,10 @@ export default function FastingPage() {
     return {
       completed,
       hitGoal,
-      longest: formatHms(longestMin * 60_000, false),
-      average: formatHms(avgMin * 60_000, false),
+      longest: formatMinutesLabel(longestMin, i18n.language),
+      average: formatMinutesLabel(avgMin, i18n.language),
     };
-  }, [history, active, elapsedMs]);
+  }, [history, active, elapsedMs, i18n.language]);
 
   return (
     <div className={`${stack.screen} page-scroll no-tab`}>
@@ -172,16 +217,16 @@ export default function FastingPage() {
                       ? reached
                         ? t('fasting.goalReached')
                         : t('fasting.running')
-                      : inEating
-                        ? t('fasting.eatingWindow')
-                        : t('fasting.idleTitle')}
+                      : t('fasting.idleTitle')}
                   </div>
                   <div className={styles.heroSub}>
                     {active && reached
                       ? t('fasting.overGoal', { time: formatHms(elapsedMs - goalMs, true) })
-                      : inEating
-                        ? t('fasting.eatingLeft', { time: formatHms(eatingLeft, true) })
-                        : t('fasting.goalLabel', { hours: Math.round(goalMinutes / 60) })}
+                      : active
+                        ? t('fasting.goalLabel', { hours: Math.round((active.goalMinutes ?? goalMinutes) / 60) })
+                        : inEating
+                          ? t('fasting.eatingLeft', { time: formatHms(eatingLeft, true) })
+                          : t('fasting.goalLabel', { hours: Math.round(goalMinutes / 60) })}
                   </div>
                 </div>
                 {active ? (
@@ -189,20 +234,12 @@ export default function FastingPage() {
                 ) : null}
               </div>
               <div className={styles.clock}>
-                {active ? formatHms(elapsedMs, true) : inEating ? formatHms(eatingLeft, true) : '00:00:00'}
+                {active ? formatHms(elapsedMs, true) : '00:00:00'}
               </div>
-            </div>
-
-            {!active ? (
-              <div className={styles.card}>
-                <div className={styles.cardHead}>
-                  <span className={`${styles.cardHeadIcon} ${styles.iconPeach}`}>
-                    <IconTimer size={18} color={Colors.dashboard.stroke} />
-                  </span>
-                  <div>
-                    <h2 className={styles.cardTitle}>{t('fasting.protocol')}</h2>
-                    <p className={styles.cardSub}>{t('fasting.protocolHint')}</p>
-                  </div>
+              <div className={styles.goalBlock}>
+                <div className={styles.goalBlockHead}>
+                  <span className={styles.goalBlockTitle}>{t('fasting.protocol')}</span>
+                  <span className={styles.goalBlockHint}>{t('fasting.protocolHint')}</span>
                 </div>
                 <div className={styles.protocolGrid}>
                   {PROTOCOL_OPTIONS.map((o) => (
@@ -210,7 +247,7 @@ export default function FastingPage() {
                       key={o.key}
                       type="button"
                       className={`${styles.protocolOption} ${protocol === o.key ? styles.protocolOptionActive : ''}`}
-                      onClick={() => setProtocol(o.key)}
+                      onClick={() => handleProtocol(o.key)}
                     >
                       <span className={styles.protocolIcon}>
                         <o.Icon size={18} color={o.iconColor} />
@@ -230,16 +267,34 @@ export default function FastingPage() {
                       step={0.5}
                       value={customHours}
                       onChange={(e) => setCustomHours(e.target.value)}
+                      onBlur={() => void persistGoal('CUSTOM')}
                     />
                   </label>
                 ) : null}
               </div>
-            ) : null}
+            </div>
 
             {active ? (
-              <button type="button" className={stack.saveBtn} disabled={busy} onClick={() => void handleStop()}>
-                {t('fasting.stop')}
-              </button>
+              <>
+                <button type="button" className={stack.saveBtn} disabled={busy} onClick={() => void handleStop()}>
+                  {t('fasting.stop')}
+                </button>
+                <button
+                  type="button"
+                  className={stack.aiBtn}
+                  disabled={busy}
+                  onClick={() =>
+                    setDialog({
+                      kind: 'reset',
+                      title: t('fasting.resetTitle'),
+                      message: t('fasting.resetMessage'),
+                      confirmLabel: t('fasting.reset'),
+                    })
+                  }
+                >
+                  {t('fasting.reset')}
+                </button>
+              </>
             ) : (
               <>
                 <button
@@ -318,26 +373,36 @@ export default function FastingPage() {
               </div>
             </div>
 
-            <div className={styles.card}>
+            <div
+              className={`${styles.card} ${styles.cardHit}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate('/fasting/history')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  navigate('/fasting/history');
+                }
+              }}
+            >
               <div className={styles.cardHead}>
                 <span className={`${styles.cardHeadIcon} ${styles.iconLavender}`}>
                   <IconEvent size={18} color={Colors.dashboard.stroke} />
                 </span>
-                <div>
+                <div className={styles.cardHeadText}>
                   <h2 className={styles.cardTitle}>{t('fasting.history')}</h2>
-                  <p className={styles.cardSub}>{t('fasting.historyHint')}</p>
+                  <p className={styles.cardSub}>{t('fasting.historyPreviewHint')}</p>
                 </div>
+                <IconChevronRight size={20} color={Colors.dashboard.stroke} />
               </div>
               {history.length === 0 ? (
                 <p className={styles.empty}>{t('fasting.historyEmpty')}</p>
               ) : (
                 <ul className={styles.history}>
-                  {history.map((item) => {
+                  {history.slice(0, 2).map((item) => {
                     const started = new Date(item.startedAt);
-                    const ended = item.endedAt ? new Date(item.endedAt) : null;
-                    const dur = ended ? ended.getTime() - started.getTime() : 0;
                     return (
-                      <li key={item.id} className={styles.historyItem}>
+                      <li key={item.id} className={styles.historyRow}>
                         <div>
                           <div className={styles.historyTitle}>{t(protocolLabelKey(item.protocol))}</div>
                           <div className={styles.historySub}>
@@ -349,12 +414,17 @@ export default function FastingPage() {
                             })}
                           </div>
                         </div>
-                        <div className={styles.historyDur}>{formatHms(dur, false)}</div>
+                        <div className={styles.historyDur}>
+                          {formatMinutesLabel(item.elapsedMinutes, i18n.language)}
+                        </div>
                       </li>
                     );
                   })}
                 </ul>
               )}
+              {history.length > 2 ? (
+                <p className={styles.historyMore}>{t('fasting.historyMore', { count: history.length - 2 })}</p>
+              ) : null}
             </div>
           </>
         )}
@@ -364,6 +434,9 @@ export default function FastingPage() {
         visible={!!dialog}
         title={dialog?.title ?? ''}
         message={dialog?.message ?? ''}
+        confirmLabel={dialog?.confirmLabel}
+        destructive={dialog?.kind === 'reset'}
+        onConfirm={dialog?.kind === 'reset' ? () => void handleReset() : undefined}
         onClose={() => setDialog(null)}
       />
     </div>

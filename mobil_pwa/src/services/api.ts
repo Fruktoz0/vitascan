@@ -726,6 +726,12 @@ export type FastingCurrent = {
   goalMinutes: number;
 };
 
+export type FastingHistory = {
+  items: FastSessionDto[];
+  latest: FastSessionDto | null;
+  goalMinutes: number;
+};
+
 export const fastingApi = {
   current: () => request<FastingCurrent>('/fasting/current'),
   start: (data?: { protocol?: FastingProtocol; goalMinutes?: number; source?: FastingSource }) =>
@@ -735,13 +741,17 @@ export const fastingApi = {
     }),
   stop: () =>
     request<{ session: FastSessionDto; eatingUntil: string }>('/fasting/stop', { method: 'POST' }),
-  history: (from?: string, to?: string) => {
+  setGoal: (data: { protocol?: FastingProtocol; goalMinutes?: number }) =>
+    request<FastingCurrent>('/fasting/goal', { method: 'PUT', body: JSON.stringify(data) }),
+  history: (from?: string, to?: string, limit?: number) => {
     const p = new URLSearchParams();
     if (from) p.set('from', from);
     if (to) p.set('to', to);
+    if (limit != null) p.set('limit', String(limit));
     const q = p.toString();
-    return request<{ items: FastSessionDto[] }>(`/fasting/history${q ? `?${q}` : ''}`);
+    return request<FastingHistory>(`/fasting/history${q ? `?${q}` : ''}`);
   },
+  delete: (id: string) => request<{ ok: boolean }>(`/fasting/${id}`, { method: 'DELETE' }),
 };
 
 export type DayNote = {
