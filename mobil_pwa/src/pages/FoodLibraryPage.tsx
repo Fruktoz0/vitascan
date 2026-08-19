@@ -29,8 +29,7 @@ import {
   type MealHistoryResult,
 } from '../services/api';
 import { daysFromToday, toLocalDateStr, useDateStore } from '../stores/dateStore';
-import { useProfileStore } from '../stores/profileStore';
-import { UserAvatar } from '../components/ui/AvatarPicker';
+import DoodleMascot from '../components/ui/DoodleMascot';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { AnalysisResultView } from '../components/food/AnalysisResult';
 import CopyMealSheet from '../components/food/CopyMealSheet';
@@ -39,6 +38,7 @@ import { parseAnalysisContent } from '../utils/parseAnalysisContent';
 import { Colors } from '../design/tokens';
 import { MEAL_META, parseMealType, type MealType } from '../utils/mealMeta';
 import { getNearestMealType, mealKcalGoal } from '../utils/mealInsights';
+import { doodleMoodForDay } from '../utils/doodleMood';
 import { groupDiaryLogs } from '../utils/groupDiaryLogs';
 import { useLongPress } from '../hooks/useLongPress';
 import { getItem, setItem } from '../services/storage';
@@ -97,7 +97,6 @@ export default function FoodLibraryPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { selectedDate } = useDateStore();
-  const avatarKey = useProfileStore((s) => s.avatarKey);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [manualOpen, setManualOpen] = useState(false);
@@ -230,6 +229,13 @@ export default function FoodLibraryPage() {
     diffDays === 0 ? t('date.today') : diffDays === 1 ? t('date.tomorrow') : diffDays === -1 ? t('date.yesterday') : null;
   const totals = data?.totals ?? { kcal: 0 };
   const dailyKcalGoal = data?.goals?.dailyKcalGoal ?? 2200;
+  const doodle = doodleMoodForDay({
+    isToday: diaryIsToday,
+    kcal: totals.kcal ?? 0,
+    goal: dailyKcalGoal,
+    sugar: totals.sugar,
+    byMealType: data?.byMealType ?? {},
+  });
   const meals: MealType[] = ['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK'];
   const labels: Record<MealType, string> = {
     BREAKFAST: t('food.breakfast'),
@@ -500,9 +506,7 @@ export default function FoodLibraryPage() {
   return (
     <div className={`${styles.screen} page-scroll`}>
       <header className={styles.header}>
-        <div className={styles.avatar}>
-          <UserAvatar avatarKey={avatarKey} size={40} />
-        </div>
+        <DoodleMascot doodle={doodle} />
         <h1 className={styles.headerTitle}>{t('foodLibrary')}</h1>
         <button type="button" className={styles.calBtn} onClick={() => navigate('/date-picker')}>
           <span className={styles.calShadow} />

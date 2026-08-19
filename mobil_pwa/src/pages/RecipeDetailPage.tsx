@@ -16,11 +16,13 @@ import {
   IconPersonOutline,
   IconPhotoCamera,
   IconRestaurant,
+  IconShoppingBasket,
 } from '../components/ui/Icons';
 import { RecipeNutritionCard } from '../components/recipes/RecipeNutritionCard';
 import { getErrorMessage, recipesApi, type RecipeDetail, type RecipeSourceType } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { toLocalDateStr, useDateStore } from '../stores/dateStore';
+import { useCartStore } from '../stores/cartStore';
 import { fileToCompressedJpegFile } from '../utils/imageToJpeg';
 import { MEAL_META, type MealType } from '../utils/mealMeta';
 import { RECIPE_CATEGORY_META } from '../utils/recipeMeta';
@@ -358,6 +360,30 @@ export default function RecipeDetailPage() {
             );
           })}
         </div>
+        {recipe.ingredients.length > 0 ? (
+          <button
+            type="button"
+            className={styles.cartAddBtn}
+            onClick={() => {
+              useCartStore.getState().openRecipePicker({
+                recipeId: recipe.id,
+                recipeTitle: recipe.title,
+                lines: recipe.ingredients.map((ing) => ({
+                  name: ing.name,
+                  qtyLabel:
+                    ing.amount != null ? `${ing.amount} ${ing.unit ?? ''}`.trim() : undefined,
+                  foodId: ing.foodId ?? undefined,
+                })),
+              });
+            }}
+          >
+            <span className={styles.cartAddShadow} />
+            <span className={styles.cartAddInner}>
+              <IconShoppingBasket size={18} color={Colors.dashboard.stroke} />
+              {t('cart.addIngredients')}
+            </span>
+          </button>
+        ) : null}
       </section>
 
       {recipe.instructions.length > 0 && (

@@ -55,49 +55,7 @@
   padding: calc(var(--safe-top) + 8px) 24px 8px;
   background: rgba(252, 249, 248, 0.92);
   backdrop-filter: blur(8px);
-}
-
-.doodleWrap {
-  position: relative;
-  width: 48px;
-  height: 48px;
-  flex-shrink: 0;
-  padding-right: 2px;
-  padding-bottom: 2px;
-}
-
-.doodleShadow {
-  position: absolute;
-  inset: 0;
-  top: 2px;
-  left: 2px;
-  background: var(--shadow-hard);
-  border-radius: 16px 24px 20px 20px;
-}
-
-.doodleFace {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #fff;
-  border: 1.5px solid var(--stroke);
-  border-radius: 16px 24px 20px 20px;
-  overflow: hidden;
-}
-
-.doodleCurious .doodleFace {
-  background: #f2faf3;
-}
-
-.doodleWarn .doodleFace {
-  background: #f4f7ef;
-}
-
-.doodleCelebrate .doodleFace {
-  background: #eef8f0;
+  overflow: visible;
 }
 
 .dateTitle {
@@ -112,6 +70,33 @@
   height: 40px;
   padding-right: 2px;
   padding-bottom: 2px;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.cartBadge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  z-index: 2;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--blob-mint);
+  border: 1.5px solid var(--stroke);
+  box-shadow: 1px 1px 0 var(--shadow-hard);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .calendarShadow {

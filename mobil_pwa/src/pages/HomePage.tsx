@@ -18,8 +18,9 @@ import WeeklyCalorieEvalCard from '../components/food/WeeklyCalorieEvalCard';
 import WeeklyInsightsSheet from '../components/food/WeeklyInsightsSheet';
 import StreakCard from '../components/food/StreakCard';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import DoodleCharacter from '../components/ui/DoodleCharacter';
-import { IconAddCircle, IconCalendarToday, IconWeight } from '../components/ui/Icons';
+import DoodleMascot from '../components/ui/DoodleMascot';
+import { IconAddCircle, IconCalendarToday, IconShoppingBasket, IconWeight } from '../components/ui/Icons';
+import { useCartStore } from '../stores/cartStore';
 import { Colors } from '../design/tokens';
 import {
   analysisApi,
@@ -42,6 +43,8 @@ export default function HomePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { selectedDate, setDate } = useDateStore();
+  const cartCount = useCartStore((s) => s.lists.reduce((sum, list) => sum + list.items.length, 0));
+  const openCart = useCartStore((s) => s.openSheet);
   const [data, setData] = useState<any>(null);
   const [water, setWater] = useState<any>(null);
   const [weight, setWeight] = useState<any>(null);
@@ -222,18 +225,6 @@ export default function HomePage() {
     sugar: totals.sugar,
     byMealType,
   });
-  const doodleHint =
-    doodle.hintKey === 'curious' && doodle.meal
-      ? t('homeScreen.doodleCurious', { meal: t(`food.${doodle.meal.toLowerCase()}`) })
-      : t(
-          doodle.hintKey === 'warnOver'
-            ? 'homeScreen.doodleWarnOver'
-            : doodle.hintKey === 'warnSugar'
-              ? 'homeScreen.doodleWarnSugar'
-              : doodle.hintKey === 'celebrate'
-                ? 'homeScreen.doodleCelebrate'
-                : 'homeScreen.doodleCalm',
-        );
 
   return (
     <div className={`${styles.screen} page-scroll`}>
@@ -242,32 +233,30 @@ export default function HomePage() {
       <div className={`${styles.blob} ${styles.blobLavender}`} />
 
       <header className={styles.topBar}>
-        <div
-          className={`${styles.doodleWrap} ${
-            doodle.mood === 'warn'
-              ? styles.doodleWarn
-              : doodle.mood === 'celebrate'
-                ? styles.doodleCelebrate
-                : doodle.mood === 'curious'
-                  ? styles.doodleCurious
-                  : ''
-          }`}
-          role="img"
-          aria-label={doodleHint}
-          title={doodleHint}
-        >
-          <span className={styles.doodleShadow} />
-          <span className={styles.doodleFace}>
-            <DoodleCharacter size={46} mood={doodle.mood} />
-          </span>
-        </div>
+        <DoodleMascot doodle={doodle} />
         <h1 className={styles.dateTitle}>{getHeaderDateText()}</h1>
-        <button type="button" className={styles.calendarBtn} onClick={() => navigate('/date-picker')}>
-          <span className={styles.calendarShadow} />
-          <span className={styles.calendarInner}>
-            <IconCalendarToday size={20} color={Colors.dashboard.stroke} />
-          </span>
-        </button>
+        <div className={styles.headerActions}>
+          <button
+            type="button"
+            className={styles.calendarBtn}
+            onClick={openCart}
+            aria-label={t('cart.open')}
+          >
+            <span className={styles.calendarShadow} />
+            <span className={styles.calendarInner}>
+              <IconShoppingBasket size={20} color={Colors.dashboard.stroke} />
+            </span>
+            {cartCount > 0 ? (
+              <span className={styles.cartBadge}>{cartCount > 99 ? '99+' : cartCount}</span>
+            ) : null}
+          </button>
+          <button type="button" className={styles.calendarBtn} onClick={() => navigate('/date-picker')}>
+            <span className={styles.calendarShadow} />
+            <span className={styles.calendarInner}>
+              <IconCalendarToday size={20} color={Colors.dashboard.stroke} />
+            </span>
+          </button>
+        </div>
       </header>
 
       <div className={styles.content}>

@@ -719,6 +719,52 @@
     "doodleWarnOver": "Ma kicsit a cél felett vagy",
     "doodleWarnSugar": "Ma sok cukor ment be",
     "doodleCelebrate": "Szép nap, a célen vagy",
+    "doodleEmptyDay": "Még üres a nap",
+    "doodleUnderGoal": "Van még kereted ma",
+    "doodleEveningWrap": "Szép nap volt",
+    "doodleTips": {
+      "calm": [
+        "Szép ritmus, így tovább.",
+        "Ma eddig minden rendben.",
+        "Haladsz — a napló is köszöni.",
+        "Egy lépés egyszerre, te már benne vagy."
+      ],
+      "curious": [
+        "{{meal}} még üres — beírnád?",
+        "Most jöhetne a {{meal}}.",
+        "Egy gyors bejegyzés: {{meal}}."
+      ],
+      "warnOver": [
+        "Kicsit a cél felett vagy — a következő étkezésnél finomhangolhatod.",
+        "Semmi gond, a nap még alakítható.",
+        "Ma bőségesebb volt — holnap könnyedén visszaveszed."
+      ],
+      "warnSugar": [
+        "Ma sok cukor ment be — egy könnyebb étkezés sokat számít.",
+        "Egy pohár víz és egy fehérjésebb fogás jól jönne.",
+        "Cukorban dús nap — a következő választás nálad van."
+      ],
+      "celebrate": [
+        "Szép nap, a célen vagy — így kell!",
+        "Ügyes, tarthatod a ritmust.",
+        "Ez már a célközeli nap. Büszke lehetsz rá."
+      ],
+      "emptyDay": [
+        "Még üres a nap — egy étkezés, és elindul.",
+        "Itt az első bejegyzés ideje.",
+        "Egy falat a naplóba, és megyünk."
+      ],
+      "underGoal": [
+        "Van még kereted ma — ráérsz nyugodtan enni.",
+        "Ma még van tér, ne spórolj az étkezésen.",
+        "Délután van, a célhoz még belefér egy étkezés."
+      ],
+      "eveningWrap": [
+        "Szép nap volt. Holnap folytatjuk.",
+        "Estére pakolhatod a naplót — holnap újra.",
+        "Ma ennyi volt, pihenj egyet."
+      ]
+    },
     "todayMeals": "Mai étkezések",
     "mealsOverview": "Étkezés áttekintés",
     "openDiary": "Napló",
@@ -1151,5 +1197,42 @@
     "copyTemplateDelete": "Törlés",
     "copyTemplateLimit": "Legfeljebb 20 mentett étkezés tárolható.",
     "copyTemplateError": "A sablon mentése sikertelen."
+  },
+  "cart": {
+    "title": "Kosár",
+    "badge": "{{count}} tétel",
+    "listsCount": "{{count}} lista",
+    "open": "Kosár megnyitása",
+    "emptyNoLists": "Még nincs bevásárlólistád",
+    "emptyTitle": "A lista üres",
+    "emptyHint": "Adj nevet egy listának, pl. Tesco vagy hétvége.",
+    "emptyListHint": "Írj be egy tételt, vagy tedd bele egy recept hozzávalóit.",
+    "progress": "{{checked}} / {{total}} beszerezve",
+    "progressEmpty": "Még nincs tétel",
+    "remaining": "{{count}} hátra",
+    "remainingShort": "hátra",
+    "done": "Kész",
+    "openList": "Megnyitás",
+    "newList": "Új lista",
+    "newListPlaceholder": "pl. Tesco, hétvége",
+    "createList": "Lista létrehozása",
+    "createAndAdd": "Létrehozás és hozzáadás",
+    "deleteList": "Lista törlése",
+    "deleteListMessage": "Törlöd a(z) „{{name}}” listát?",
+    "pickList": "Melyik listába?",
+    "pickListHint": "A(z) „{{title}}” hozzávalói",
+    "addIngredients": "Hozzávalók a kosárba",
+    "addItem": "Hozzáadás a listához",
+    "add": "Hozzáadás",
+    "itemNamePlaceholder": "pl. tej, kenyér",
+    "itemQtyPlaceholder": "Mennyiség",
+    "unitKg": "kg",
+    "unitMl": "ml",
+    "unitL": "l",
+    "unitPack": "csomag",
+    "clearChecked": "Megvettek törlése",
+    "share": "Megosztás",
+    "shareTitle": "Bevásárlólista",
+    "copied": "Lista a vágólapra másolva"
   }
 }

@@ -703,6 +703,52 @@
     "doodleWarnOver": "A bit over today's goal",
     "doodleWarnSugar": "Quite a bit of sugar today",
     "doodleCelebrate": "Nice day — on target",
+    "doodleEmptyDay": "The day is still empty",
+    "doodleUnderGoal": "You still have room today",
+    "doodleEveningWrap": "Nice day",
+    "doodleTips": {
+      "calm": [
+        "Nice rhythm — keep it going.",
+        "Looking good so far today.",
+        "You're on it — the diary thanks you.",
+        "One step at a time, you're already in it."
+      ],
+      "curious": [
+        "{{meal}} is still empty — log it?",
+        "Looks like time for {{meal}}.",
+        "A quick {{meal}} entry and you're set."
+      ],
+      "warnOver": [
+        "A bit over today's goal — you can ease the next meal.",
+        "No stress, the day can still be shaped.",
+        "A fuller day — tomorrow you can ease back."
+      ],
+      "warnSugar": [
+        "Quite a bit of sugar today — a lighter meal helps.",
+        "A glass of water and a protein-heavier bite would land well.",
+        "A sugary day — the next choice is yours."
+      ],
+      "celebrate": [
+        "Nice day, you're on target — that's the way!",
+        "Well done, you can keep this rhythm.",
+        "This is a goal-close day. Be proud of it."
+      ],
+      "emptyDay": [
+        "The day is still empty — one meal and it starts.",
+        "Time for the first entry.",
+        "One bite in the diary, and we're moving."
+      ],
+      "underGoal": [
+        "You still have room today — eat at ease.",
+        "There's still space, don't skip the meal.",
+        "Afternoon's here, another meal still fits the goal."
+      ],
+      "eveningWrap": [
+        "Nice day. We continue tomorrow.",
+        "You can pack the diary for tonight — again tomorrow.",
+        "That's it for today, take a rest."
+      ]
+    },
     "todayMeals": "Today's meals",
     "mealsOverview": "Meal overview",
     "openDiary": "Diary",
@@ -1150,5 +1196,42 @@
     "copyTemplateDelete": "Delete",
     "copyTemplateLimit": "You can save up to 20 meal templates.",
     "copyTemplateError": "Could not save the template."
+  },
+  "cart": {
+    "title": "Cart",
+    "badge": "{{count}} items",
+    "listsCount": "{{count}} lists",
+    "open": "Open cart",
+    "emptyNoLists": "No shopping lists yet",
+    "emptyTitle": "This list is empty",
+    "emptyHint": "Name a list, e.g. Tesco or weekend.",
+    "emptyListHint": "Type an item, or add ingredients from a recipe.",
+    "progress": "{{checked}} / {{total}} bought",
+    "progressEmpty": "No items yet",
+    "remaining": "{{count}} left",
+    "remainingShort": "left",
+    "done": "Done",
+    "openList": "Open",
+    "newList": "New list",
+    "newListPlaceholder": "e.g. Tesco, weekend",
+    "createList": "Create list",
+    "createAndAdd": "Create and add",
+    "deleteList": "Delete list",
+    "deleteListMessage": "Delete the “{{name}}” list?",
+    "pickList": "Add to which list?",
+    "pickListHint": "Ingredients from “{{title}}”",
+    "addIngredients": "Ingredients to cart",
+    "addItem": "Add to list",
+    "add": "Add",
+    "itemNamePlaceholder": "e.g. milk, bread",
+    "itemQtyPlaceholder": "Quantity",
+    "unitKg": "kg",
+    "unitMl": "ml",
+    "unitL": "l",
+    "unitPack": "pack",
+    "clearChecked": "Remove purchased",
+    "share": "Share",
+    "shareTitle": "Shopping list",
+    "copied": "List copied to clipboard"
   }
 }

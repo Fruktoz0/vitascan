@@ -60,6 +60,7 @@ import {
   MdScience,
   MdScreenRotation,
   MdSearch,
+  MdShare,
   MdShield,
   MdStar,
   MdThumbDownOffAlt,
@@ -81,6 +82,7 @@ import { FaAppleAlt } from 'react-icons/fa';
 import { LuLeaf, LuMilkOff, LuWheatOff } from 'react-icons/lu';
 import {
   IoBicycleOutline,
+  IoBasketOutline,
   IoBook,
   IoBookOutline,
   IoFitness,
@@ -153,7 +155,9 @@ export const IconQrCodeScanner = wrap(MdQrCodeScanner);
 export const IconRestaurant = wrap(MdRestaurant);
 export const IconDirectionsWalk = wrap(MdDirectionsWalk);
 export const IconSearch = wrap(MdSearch);
+export const IconShare = wrap(MdShare);
 export const IconShield = wrap(MdShield);
+export const IconShoppingBasket = wrap(IoBasketOutline);
 export const IconWaterDrop = wrap(MdWaterDrop);
 export const IconWeight = wrap(MdMonitorWeight);
 export const IconFlashlight = wrap(MdFlashlightOn);
