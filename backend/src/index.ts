@@ -22,6 +22,8 @@ import analysisRoutes from './modules/analysis/analysis.routes';
 import bodyRoutes from './modules/body/body.routes';
 import fitnessRoutes from './modules/fitness/fitness.routes';
 import recipeRoutes from './modules/recipes/recipes.routes';
+import sharesRoutes from './modules/shares/shares.routes';
+import cartRoutes from './modules/cart/cart.routes';
 import { startRefreshTokenCleanupScheduler } from './jobs/refresh-token-cleanup.scheduler';
 import { mapErrorToHttp } from './utils/httpErrors';
 
@@ -106,6 +108,8 @@ async function bootstrap() {
     await api.register(premiumRoutes);
     await api.register(adminRoutes, { prefix: '/admin' });
     await api.register(recipeRoutes, { prefix: '/recipes' });
+    await api.register(sharesRoutes, { prefix: '/shares' });
+    await api.register(cartRoutes, { prefix: '/cart' });
 
     // Scanner rate-limited endpoint
     await api.register(

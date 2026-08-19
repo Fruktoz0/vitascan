@@ -1,6 +1,8 @@
 import { NavLink, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TAB_ICONS } from '../components/ui/Icons';
+import { useShareInbox } from '../stores/shareInbox';
 import styles from './TabBar.module.css';
 
 const TABS = [
@@ -23,6 +25,21 @@ function isMenuSection(pathname: string) {
 export default function TabBar() {
   const { t } = useTranslation();
   const location = useLocation();
+  const pendingIncomingCount = useShareInbox((s) => s.pendingIncomingCount);
+  const refreshInbox = useShareInbox((s) => s.refresh);
+
+  useEffect(() => {
+    void refreshInbox();
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void refreshInbox();
+    };
+    window.addEventListener('focus', onVis);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('focus', onVis);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [refreshInbox]);
 
   return (
     <nav className={styles.root} data-vitascan-tabbar="1">
@@ -44,7 +61,12 @@ export default function TabBar() {
                   {active && <span className={styles.activeShadow} />}
                   <span className={`${styles.inner} ${active ? styles.activeInner : ''}`}>
                     <Icon size={18} color="currentColor" />
-                    <span className={styles.label}>{t(tab.labelKey)}</span>
+                    <span className={styles.labelWrap}>
+                      <span className={styles.label}>{t(tab.labelKey)}</span>
+                      {tab.to === '/menu' && pendingIncomingCount > 0 ? (
+                        <span className={styles.notifyDot} aria-hidden />
+                      ) : null}
+                    </span>
                   </span>
                 </span>
               );

@@ -29,7 +29,9 @@
     "goals": "Célok beállítása",
     "goalsHint": "Kalória, makrók és vízcélok",
     "recipes": "Receptek",
-    "recipesHint": "VitaScan receptgyűjtemény"
+    "recipesHint": "VitaScan receptgyűjtemény",
+    "sharing": "Adatok megosztása",
+    "sharingHint": "Élő megosztás másik felhasználóval"
   },
   "recipes": {
     "title": "Receptek",
@@ -1233,6 +1235,38 @@
     "clearChecked": "Megvettek törlése",
     "share": "Megosztás",
     "shareTitle": "Bevásárlólista",
-    "copied": "Lista a vágólapra másolva"
+    "copied": "Lista a vágólapra másolva",
+    "sharedBadge": "Megosztott"
+  },
+  "sharing": {
+    "title": "Adatok megosztása",
+    "lead": "Csak meglévő VitaScan-fióknak oszthatsz meg. A napló, súly, víz és testméret a megosztás elfogadásától élőben látható — a korábbi adatok nem. A bevásárlólista közös: mindketten szerkeszthetitek, és Megosztott jelzést kap.",
+    "aboutTitle": "Leírás",
+    "aboutToggle": "Ismertető",
+    "inviteTitle": "Megosztás email alapján",
+    "inviteHint": "Nincs email-értesítés. A partner a Menü ponton látja a meghívót.",
+    "emailPlaceholder": "partner@email.hu",
+    "send": "Megosztás küldése",
+    "inviteError": "A megosztás nem sikerült.",
+    "loadError": "Nem sikerült betölteni a megosztásokat.",
+    "incomingPending": "Bejövő meghívók",
+    "incomingActive": "Velem megosztva",
+    "outgoing": "Amit megosztottam",
+    "accept": "Elfogadás",
+    "decline": "Elutasítás",
+    "waiting": "várakozik",
+    "revoke": "Megosztás vége",
+    "stop": "Leállítás",
+    "revokeMessage": "Leállítod ezt a megosztást?",
+    "liveFrom": "Élő adat ettől a pillanattól",
+    "liveEmpty": "Még nincs új bejegyzés a megosztás óta.",
+    "cartHint": "A közös bevásárlólisták a kosárban jelennek meg, Megosztott jelzéssel.",
+    "cat": {
+      "FOOD": "Ételnapló",
+      "WEIGHT": "Súly",
+      "WATER": "Víz",
+      "BODY": "Testméret",
+      "CART": "Bevásárlólista"
+    }
   }
 }

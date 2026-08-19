@@ -14,7 +14,9 @@
     "goals": "Set goals",
     "goalsHint": "Calories, macros and water targets",
     "recipes": "Recipes",
-    "recipesHint": "VitaScan recipe collection"
+    "recipesHint": "VitaScan recipe collection",
+    "sharing": "Share data",
+    "sharingHint": "Live sharing with another user"
   },
   "recipes": {
     "title": "Recipes",
@@ -1232,6 +1234,38 @@
     "clearChecked": "Remove purchased",
     "share": "Share",
     "shareTitle": "Shopping list",
-    "copied": "List copied to clipboard"
+    "copied": "List copied to clipboard",
+    "sharedBadge": "Shared"
+  },
+  "sharing": {
+    "title": "Share data",
+    "lead": "You can only share with an existing VitaScan account. Diary, weight, water and body measurements are visible live from acceptance — past history is not included. Shopping lists are collaborative, and show a Shared badge.",
+    "aboutTitle": "About",
+    "aboutToggle": "About",
+    "inviteTitle": "Share by email",
+    "inviteHint": "No email notification. Your partner sees the invite on the Menu tab.",
+    "emailPlaceholder": "partner@email.com",
+    "send": "Send share",
+    "inviteError": "Could not send the share.",
+    "loadError": "Could not load shares.",
+    "incomingPending": "Incoming invites",
+    "incomingActive": "Shared with me",
+    "outgoing": "What I shared",
+    "accept": "Accept",
+    "decline": "Decline",
+    "waiting": "waiting",
+    "revoke": "Stop sharing",
+    "stop": "Stop",
+    "revokeMessage": "Stop this share?",
+    "liveFrom": "Live from this moment",
+    "liveEmpty": "No new entries since sharing started.",
+    "cartHint": "Shared shopping lists appear in the cart with a Shared badge.",
+    "cat": {
+      "FOOD": "Food diary",
+      "WEIGHT": "Weight",
+      "WATER": "Water",
+      "BODY": "Body",
+      "CART": "Shopping list"
+    }
   }
 }

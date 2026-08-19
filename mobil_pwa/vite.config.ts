@@ -10,7 +10,12 @@ export default defineConfig(({ mode }) => {
     'http://192.168.1.115:3005';
 
   const apiProxy = {
-    // Backend serves under /api — keep the prefix when proxying
+    '/api/cart/events': {
+      target: apiProxyTarget,
+      changeOrigin: true,
+      timeout: 0,
+      proxyTimeout: 0,
+    },
     '/api': {
       target: apiProxyTarget,
       changeOrigin: true,

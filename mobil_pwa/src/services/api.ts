@@ -1244,3 +1244,118 @@ export const recipesApi = {
     return request<{ tempImageKey: string }>(`/recipes/tmp/image${q}`, { method: 'POST', body: fd });
   },
 };
+
+export type ShareCategory = 'FOOD' | 'WEIGHT' | 'WATER' | 'BODY' | 'CART';
+export type ShareStatus = 'PENDING' | 'ACTIVE' | 'REVOKED';
+
+export type ShareDto = {
+  id: string;
+  direction: 'outgoing' | 'incoming';
+  categories: ShareCategory[];
+  status: ShareStatus;
+  createdAt: string;
+  acceptedAt: string | null;
+  owner: { id: string; username: string; email: string };
+  partner: { id: string; username: string; email: string };
+};
+
+export type ShareLiveItem = {
+  id: string;
+  title: string;
+  meta: string;
+  at: string;
+};
+
+export type CartItemDto = {
+  id: string;
+  name: string;
+  qtyLabel?: string;
+  foodId?: string;
+  recipeId?: string;
+  checked: boolean;
+  addedAt: number;
+};
+
+export type CartListDto = {
+  id: string;
+  ownerId: string;
+  name: string;
+  createdAt: number;
+  shared: boolean;
+  ownerLabel?: string;
+  items: CartItemDto[];
+};
+
+export const sharesApi = {
+  list: () => request<{ pendingIncomingCount: number; shares: ShareDto[] }>('/shares'),
+  create: (data: { email: string; categories: ShareCategory[] }) =>
+    request<ShareDto>('/shares', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, categories: ShareCategory[]) =>
+    request<ShareDto>(`/shares/${id}`, { method: 'PATCH', body: JSON.stringify({ categories }) }),
+  accept: (id: string) => request<ShareDto>(`/shares/${id}/accept`, { method: 'POST' }),
+  decline: (id: string) => request<ShareDto>(`/shares/${id}/decline`, { method: 'POST' }),
+  revoke: (id: string) => request<ShareDto>(`/shares/${id}/revoke`, { method: 'POST' }),
+  live: (id: string, category: Exclude<ShareCategory, 'CART'>) =>
+    request<{ category: ShareCategory; items: ShareLiveItem[] }>(`/shares/${id}/live/${category}`),
+};
+
+export const cartApi = {
+  list: () => request<{ lists: CartListDto[] }>('/cart/lists'),
+  migrate: (lists: Array<{ name: string; items: Array<Omit<CartItemDto, 'id'> & { id?: string }> }>) =>
+    request<{ lists: CartListDto[] }>('/cart/migrate', { method: 'POST', body: JSON.stringify({ lists }) }),
+  createList: (name: string) =>
+    request<CartListDto>('/cart/lists', { method: 'POST', body: JSON.stringify({ name }) }),
+  renameList: (id: string, name: string) =>
+    request<CartListDto>(`/cart/lists/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  deleteList: (id: string) => request<{ ok: boolean }>(`/cart/lists/${id}`, { method: 'DELETE' }),
+  addItem: (
+    listId: string,
+    data: { name: string; qtyLabel?: string; foodId?: string; recipeId?: string },
+  ) => request<{ list: CartListDto }>(`/cart/lists/${listId}/items`, { method: 'POST', body: JSON.stringify(data) }),
+  addRecipe: (listId: string, recipeId: string, lines: Array<{ name: string; qtyLabel?: string; foodId?: string }>) =>
+    request<{ list: CartListDto }>(`/cart/lists/${listId}/recipe`, {
+      method: 'POST',
+      body: JSON.stringify({ recipeId, lines }),
+    }),
+  clearChecked: (listId: string) =>
+    request<{ list: CartListDto }>(`/cart/lists/${listId}/clear-checked`, { method: 'POST' }),
+  updateItem: (id: string, data: { name?: string; qtyLabel?: string | null; checked?: boolean }) =>
+    request<{ list: CartListDto }>(`/cart/items/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteItem: (id: string) => request<{ list: CartListDto }>(`/cart/items/${id}`, { method: 'DELETE' }),
+  subscribeEvents: (onEvent: () => void): (() => void) => {
+    const ac = new AbortController();
+    const run = async () => {
+      while (!ac.signal.aborted) {
+        try {
+          const headers: Record<string, string> = {};
+          const token = getAccessToken();
+          if (token) headers.Authorization = `Bearer ${token}`;
+          const res = await fetch(`${API_BASE}/cart/events`, { headers, signal: ac.signal });
+          if (!res.ok || !res.body) {
+            await new Promise((r) => setTimeout(r, 1000));
+            continue;
+          }
+          onEvent();
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = '';
+          while (!ac.signal.aborted) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const parts = buf.split('\n\n');
+            buf = parts.pop() ?? '';
+            for (const part of parts) {
+              if (part.includes('data:')) onEvent();
+            }
+          }
+        } catch {
+          if (ac.signal.aborted) return;
+        }
+        await new Promise((r) => setTimeout(r, 800));
+      }
+    };
+    void run();
+    return () => ac.abort();
+  },
+};

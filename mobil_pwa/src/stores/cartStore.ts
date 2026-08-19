@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { getItem, setItem } from '../services/storage';
+import { cartApi, type CartListDto } from '../services/api';
+import { deleteItem, getItem } from '../services/storage';
 
 const STORAGE_BASE = 'vitascan.cart';
 const MAX_LISTS = 20;
@@ -26,6 +27,9 @@ export type CartList = {
   name: string;
   items: CartItem[];
   createdAt: number;
+  shared?: boolean;
+  ownerLabel?: string;
+  ownerId?: string;
 };
 
 export type CartRecipePicker = {
@@ -43,7 +47,8 @@ type CartState = {
   picker: CartRecipePicker | null;
   hydrated: boolean;
   hydrate: (userId: string | null) => Promise<void>;
-  createList: (name: string) => string | null;
+  refreshFromServer: () => Promise<void>;
+  createList: (name: string) => Promise<string | null>;
   renameList: (id: string, name: string) => void;
   deleteList: (id: string) => void;
   addItem: (input: CartAddInput, listId?: string) => void;
@@ -70,23 +75,32 @@ function newId(): string {
     : `c_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function persist(userId: string | null, lists: CartList[], activeListId: string | null): void {
-  if (!userId) return;
-  void setItem(namespaced(userId), JSON.stringify({ v: 2, lists, activeListId }));
+function fromDto(list: CartListDto): CartList {
+  return {
+    id: list.id,
+    name: list.name,
+    createdAt: list.createdAt,
+    shared: list.shared,
+    ownerLabel: list.ownerLabel,
+    ownerId: list.ownerId,
+    items: list.items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      qtyLabel: item.qtyLabel,
+      foodId: item.foodId,
+      recipeId: item.recipeId,
+      checked: item.checked,
+      addedAt: item.addedAt,
+    })),
+  };
 }
 
-function foldName(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '');
-}
-
-function isSameLine(item: CartItem, input: CartAddInput): boolean {
-  if (input.foodId && item.foodId && item.foodId === input.foodId) return true;
-  if (input.foodId || item.foodId) return false;
-  return foldName(item.name) === foldName(input.name) && (item.qtyLabel ?? '') === (input.qtyLabel ?? '');
+function upsertList(lists: CartList[], next: CartList): CartList[] {
+  const idx = lists.findIndex((list) => list.id === next.id);
+  if (idx < 0) return [...lists, next];
+  const copy = [...lists];
+  copy[idx] = next;
+  return copy;
 }
 
 function parseItem(row: unknown): CartItem | null {
@@ -144,26 +158,6 @@ function parsePayload(raw: string | null): { lists: CartList[]; activeListId: st
   }
 }
 
-function packRecipe(recipeId: string, lines: CartAddInput[]): CartItem[] {
-  const now = Date.now();
-  return lines
-    .map((line, i) => {
-      const name = line.name.trim();
-      if (!name) return null;
-      const item: CartItem = {
-        id: newId(),
-        name,
-        qtyLabel: line.qtyLabel?.trim() || undefined,
-        foodId: line.foodId || undefined,
-        recipeId,
-        checked: false,
-        addedAt: now - i,
-      };
-      return item;
-    })
-    .filter((row): row is CartItem => row != null);
-}
-
 export function listProgress(list: CartList): { checked: number; total: number } {
   const total = list.items.length;
   const checked = list.items.filter((item) => item.checked).length;
@@ -179,6 +173,17 @@ export function selectTotalCount(lists: CartList[]): number {
 }
 
 let hydrateGen = 0;
+
+function applyLists(
+  set: (partial: Partial<CartState>) => void,
+  get: () => CartState,
+  lists: CartList[],
+) {
+  const { activeListId, viewListId } = get();
+  const nextActive = lists.some((list) => list.id === activeListId) ? activeListId : (lists[0]?.id ?? null);
+  const nextView = viewListId && lists.some((list) => list.id === viewListId) ? viewListId : null;
+  set({ lists, activeListId: nextActive, viewListId: nextView, hydrated: true });
+}
 
 export const useCartStore = create<CartState>((set, get) => ({
   userId: null,
@@ -196,170 +201,177 @@ export const useCartStore = create<CartState>((set, get) => ({
       set({ lists: [], activeListId: null, viewListId: null, hydrated: true });
       return;
     }
-    const next = parsePayload(await getItem(namespaced(userId)));
-    if (gen !== hydrateGen) return;
-    set({ ...next, viewListId: null, hydrated: true });
+    try {
+      let { lists } = await cartApi.list();
+      if (gen !== hydrateGen) return;
+      const own = lists.filter((list) => !list.shared);
+      if (own.length === 0) {
+        const local = parsePayload(await getItem(namespaced(userId)));
+        if (local.lists.length > 0) {
+          const migrated = await cartApi.migrate(
+            local.lists.map((list) => ({
+              name: list.name,
+              items: list.items.map((item) => ({
+                name: item.name,
+                qtyLabel: item.qtyLabel,
+                foodId: item.foodId,
+                recipeId: item.recipeId,
+                checked: item.checked,
+                addedAt: item.addedAt,
+              })),
+            })),
+          );
+          lists = migrated.lists;
+          await deleteItem(namespaced(userId));
+        }
+      }
+      if (gen !== hydrateGen) return;
+      applyLists(set, get, lists.map(fromDto));
+    } catch {
+      if (gen !== hydrateGen) return;
+      const next = parsePayload(await getItem(namespaced(userId)));
+      if (gen !== hydrateGen) return;
+      set({ ...next, viewListId: null, hydrated: true });
+    }
   },
 
-  createList: (name) => {
+  refreshFromServer: async () => {
+    const { userId } = get();
+    if (!userId) return;
+    try {
+      const { lists } = await cartApi.list();
+      applyLists(set, get, lists.map(fromDto));
+    } catch {
+      /* keep current */
+    }
+  },
+
+  createList: async (name) => {
     const trimmed = name.trim();
     if (!trimmed) return null;
-    const { userId, lists } = get();
-    if (lists.length >= MAX_LISTS) return null;
-    const list: CartList = { id: newId(), name: trimmed, items: [], createdAt: Date.now() };
-    const next = [...lists, list];
-    set({ lists: next, activeListId: list.id, viewListId: list.id });
-    persist(userId, next, list.id);
-    return list.id;
+    const { lists } = get();
+    if (lists.filter((list) => !list.shared).length >= MAX_LISTS) return null;
+    try {
+      const created = fromDto(await cartApi.createList(trimmed));
+      const next = upsertList(get().lists, created);
+      set({ lists: next, activeListId: created.id, viewListId: created.id });
+      return created.id;
+    } catch {
+      return null;
+    }
   },
 
   renameList: (id, name) => {
     const trimmed = name.trim();
     if (!trimmed) return;
-    const { userId, lists, activeListId } = get();
-    const next = lists.map((list) => (list.id === id ? { ...list, name: trimmed } : list));
-    set({ lists: next });
-    persist(userId, next, activeListId);
+    set({ lists: get().lists.map((list) => (list.id === id ? { ...list, name: trimmed } : list)) });
+    void cartApi.renameList(id, trimmed).then((dto) => {
+      set({ lists: upsertList(get().lists, fromDto(dto)) });
+    });
   },
 
   deleteList: (id) => {
-    const { userId, lists, activeListId, viewListId } = get();
+    const { lists, activeListId, viewListId } = get();
     const next = lists.filter((list) => list.id !== id);
     const nextActive = activeListId === id ? (next[0]?.id ?? null) : activeListId;
     const nextView = viewListId === id ? null : viewListId;
     set({ lists: next, activeListId: nextActive, viewListId: nextView });
-    persist(userId, next, nextActive);
+    void cartApi.deleteList(id).catch(() => {
+      void get().refreshFromServer();
+    });
   },
 
   addItem: (input, listId) => {
     const name = input.name.trim();
     if (!name) return;
-    const qtyLabel = input.qtyLabel?.trim() || undefined;
-    const nextInput: CartAddInput = {
-      name,
-      qtyLabel,
-      foodId: input.foodId,
-      recipeId: input.recipeId,
-    };
-    const { userId, lists, activeListId, viewListId } = get();
-    const targetId = listId ?? viewListId ?? activeListId;
-    if (!targetId || !lists.some((list) => list.id === targetId)) return;
-    const next = lists.map((list) => {
-      if (list.id !== targetId) return list;
-      const idx = list.items.findIndex((item) => isSameLine(item, nextInput));
-      if (idx >= 0) {
-        const prev = list.items[idx];
-        const merged: CartItem = {
-          ...prev,
-          name,
-          qtyLabel: qtyLabel ?? prev.qtyLabel,
-          foodId: nextInput.foodId ?? prev.foodId,
-          checked: false,
-          addedAt: Date.now(),
-        };
-        return { ...list, items: [merged, ...list.items.filter((_, i) => i !== idx)] };
-      }
-      return {
-        ...list,
-        items: [
-          {
-            id: newId(),
-            name,
-            qtyLabel,
-            foodId: nextInput.foodId,
-            recipeId: nextInput.recipeId,
-            checked: false,
-            addedAt: Date.now(),
-          },
-          ...list.items,
-        ],
-      };
-    });
-    set({ lists: next, activeListId: targetId, viewListId: targetId });
-    persist(userId, next, targetId);
+    const targetId = listId ?? get().viewListId ?? get().activeListId;
+    if (!targetId) return;
+    void cartApi
+      .addItem(targetId, {
+        name,
+        qtyLabel: input.qtyLabel?.trim() || undefined,
+        foodId: input.foodId,
+        recipeId: input.recipeId,
+      })
+      .then(({ list }) => {
+        set({ lists: upsertList(get().lists, fromDto(list)), activeListId: targetId, viewListId: targetId });
+      });
   },
 
   updateItem: (id, patch) => {
-    const { userId, lists, activeListId, viewListId } = get();
-    const targetId = viewListId ?? activeListId;
-    if (!targetId) return;
-    const next = lists.map((list) => {
-      if (list.id !== targetId) return list;
-      return {
-        ...list,
-        items: list.items.map((item) => {
-          if (item.id !== id) return item;
-          return {
-            ...item,
-            name: patch.name?.trim() || item.name,
-            qtyLabel: patch.qtyLabel !== undefined ? patch.qtyLabel.trim() || undefined : item.qtyLabel,
-          };
-        }),
-      };
-    });
-    set({ lists: next });
-    persist(userId, next, activeListId);
+    void cartApi
+      .updateItem(id, {
+        name: patch.name,
+        qtyLabel: patch.qtyLabel,
+      })
+      .then(({ list }) => {
+        set({ lists: upsertList(get().lists, fromDto(list)) });
+      });
   },
 
   addRecipeIngredients: (recipeId, lines, listId) => {
     if (!recipeId) return;
-    const packed = packRecipe(recipeId, lines);
+    const packed = lines
+      .map((line) => ({ name: line.name.trim(), qtyLabel: line.qtyLabel, foodId: line.foodId }))
+      .filter((line) => line.name);
     if (packed.length === 0) return;
-    const { userId, lists, activeListId } = get();
-    const targetId = listId ?? activeListId;
-    if (!targetId || !lists.some((list) => list.id === targetId)) return;
-    const next = lists.map((list) => {
-      if (list.id !== targetId) return list;
-      return {
-        ...list,
-        items: [...packed, ...list.items.filter((item) => item.recipeId !== recipeId)],
-      };
+    const targetId = listId ?? get().activeListId;
+    if (!targetId) return;
+    void cartApi.addRecipe(targetId, recipeId, packed).then(({ list }) => {
+      set({ lists: upsertList(get().lists, fromDto(list)), activeListId: targetId, viewListId: targetId });
     });
-    set({ lists: next, activeListId: targetId, viewListId: targetId });
-    persist(userId, next, targetId);
   },
 
   toggle: (id) => {
-    const { userId, lists, activeListId, viewListId } = get();
+    const { lists, viewListId, activeListId } = get();
     const targetId = viewListId ?? activeListId;
-    if (!targetId) return;
-    const next = lists.map((list) =>
-      list.id === targetId
-        ? { ...list, items: list.items.map((item) => (item.id === id ? { ...item, checked: !item.checked } : item)) }
-        : list,
-    );
-    set({ lists: next });
-    persist(userId, next, activeListId);
+    const list = lists.find((row) => row.id === targetId);
+    const item = list?.items.find((row) => row.id === id);
+    if (!item) return;
+    const nextChecked = !item.checked;
+    set({
+      lists: lists.map((row) =>
+        row.id === targetId
+          ? { ...row, items: row.items.map((it) => (it.id === id ? { ...it, checked: nextChecked } : it)) }
+          : row,
+      ),
+    });
+    void cartApi.updateItem(id, { checked: nextChecked }).then(({ list: dto }) => {
+      set({ lists: upsertList(get().lists, fromDto(dto)) });
+    });
   },
 
   remove: (id) => {
-    const { userId, lists, activeListId, viewListId } = get();
+    const { lists, viewListId, activeListId } = get();
     const targetId = viewListId ?? activeListId;
-    if (!targetId) return;
-    const next = lists.map((list) =>
-      list.id === targetId ? { ...list, items: list.items.filter((item) => item.id !== id) } : list,
-    );
-    set({ lists: next });
-    persist(userId, next, activeListId);
+    set({
+      lists: lists.map((row) =>
+        row.id === targetId ? { ...row, items: row.items.filter((item) => item.id !== id) } : row,
+      ),
+    });
+    void cartApi.deleteItem(id).then(({ list }) => {
+      set({ lists: upsertList(get().lists, fromDto(list)) });
+    });
   },
 
   clearChecked: () => {
-    const { userId, lists, activeListId, viewListId } = get();
-    const targetId = viewListId ?? activeListId;
+    const targetId = get().viewListId ?? get().activeListId;
     if (!targetId) return;
-    const next = lists.map((list) =>
-      list.id === targetId ? { ...list, items: list.items.filter((item) => !item.checked) } : list,
-    );
-    set({ lists: next });
-    persist(userId, next, activeListId);
+    set({
+      lists: get().lists.map((row) =>
+        row.id === targetId ? { ...row, items: row.items.filter((item) => !item.checked) } : row,
+      ),
+    });
+    void cartApi.clearChecked(targetId).then(({ list }) => {
+      set({ lists: upsertList(get().lists, fromDto(list)) });
+    });
   },
 
   openSheet: () => set({ sheetOpen: true, viewListId: null }),
   openList: (id) => {
-    const { userId, lists } = get();
+    const { lists } = get();
     if (!lists.some((list) => list.id === id)) return;
     set({ sheetOpen: true, viewListId: id, activeListId: id });
-    persist(userId, lists, id);
   },
   closeList: () => set({ viewListId: null }),
   closeSheet: () => set({ sheetOpen: false, viewListId: null }),

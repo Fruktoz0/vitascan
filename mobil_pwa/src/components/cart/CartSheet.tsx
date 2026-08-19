@@ -17,6 +17,8 @@ import {
   IconCheck,
   IconChevronRight,
   IconDelete,
+  IconExpandLess,
+  IconExpandMore,
   IconShare,
   IconShoppingBasket,
 } from '../ui/Icons';
@@ -25,7 +27,7 @@ import styles from './CartSheet.module.css';
 
 const CART_UNITS = ['db', 'g', 'kg', 'ml', 'l', 'csomag', 'adag'] as const;
 type CartUnit = (typeof CART_UNITS)[number];
-const WHEEL_H = 36;
+const WHEEL_H = 40;
 
 function sortItems(items: CartItem[]): CartItem[] {
   return [...items].sort((a, b) => {
@@ -137,7 +139,13 @@ function WheelPicker({
     return () => window.clearTimeout(t);
   }, [value, items]);
 
-  return (
+  const step = (dir: -1 | 1) => {
+    const i = Math.max(0, items.indexOf(value));
+    const next = items[i + dir];
+    if (next) onChange(next);
+  };
+
+  const wheel = (
     <div
       ref={ref}
       className={`${styles.wheel} ${wide ? styles.wheelWide : ''} ${boxed ? styles.wheelBoxed : ''}`}
@@ -160,6 +168,35 @@ function WheelPicker({
       ))}
     </div>
   );
+
+  if (!boxed) return wheel;
+
+  const i = Math.max(0, items.indexOf(value));
+  return (
+    <div className={styles.wheelCue}>
+      <button
+        type="button"
+        className={styles.wheelCueBtn}
+        disabled={i <= 0}
+        onClick={() => step(-1)}
+        tabIndex={-1}
+        aria-hidden
+      >
+        <IconExpandLess size={16} color={Colors.dashboard.stroke} />
+      </button>
+      {wheel}
+      <button
+        type="button"
+        className={styles.wheelCueBtn}
+        disabled={i >= items.length - 1}
+        onClick={() => step(1)}
+        tabIndex={-1}
+        aria-hidden
+      >
+        <IconExpandMore size={16} color={Colors.dashboard.stroke} />
+      </button>
+    </div>
+  );
 }
 
 function qtyToneClass(unit: CartUnit): string {
@@ -167,8 +204,8 @@ function qtyToneClass(unit: CartUnit): string {
     db: styles.qtyDb,
     g: styles.qtyWeight,
     kg: styles.qtyWeight,
-    ml: styles.qtyVolume,
-    l: styles.qtyVolume,
+    ml: styles.qtyPack,
+    l: styles.qtyPack,
     csomag: styles.qtyPack,
     adag: styles.qtyServing,
   };
@@ -207,7 +244,7 @@ function QtyUnitWheels({
   );
 }
 
-const LIST_TONES = [styles.toneMint, styles.tonePeach, styles.toneSky, styles.toneLavender] as const;
+const LIST_TONES = [styles.toneMint, styles.tonePeach, styles.toneLavender] as const;
 
 function listToneClass(id: string): string {
   let hash = 0;
@@ -231,6 +268,12 @@ function ListCard({ list, onClick }: { list: CartList; onClick: () => void }) {
           </span>
           <span className={styles.listCardCopy}>
             <span className={styles.listCardName}>{list.name}</span>
+            {list.shared ? (
+              <span className={styles.sharedChip}>
+                {t('cart.sharedBadge')}
+                {list.ownerLabel ? ` · ${list.ownerLabel}` : ''}
+              </span>
+            ) : null}
             <span className={styles.listCardMeta}>
               {total === 0 ? t('cart.progressEmpty') : t('cart.progress', { checked, total })}
             </span>
@@ -296,7 +339,7 @@ function CreateListCard({
           aria-label={t('cart.newList')}
         />
         <button type="submit" className={styles.addMini} disabled={!name.trim()} aria-label={submitLabel}>
-          <IconAdd size={18} color={Colors.dashboard.stroke} />
+          <IconAdd size={20} color={Colors.dashboard.stroke} />
         </button>
       </span>
     </form>
@@ -325,6 +368,8 @@ export default function CartSheet() {
   const [itemUnit, setItemUnit] = useState<CartUnit>('db');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const addPanelRef = useRef<HTMLFormElement>(null);
 
   const viewList = useMemo(() => selectViewList({ lists, viewListId }), [lists, viewListId]);
   const items = viewList?.items ?? [];
@@ -340,6 +385,7 @@ export default function CartSheet() {
       setItemUnit('db');
       setEditingId(null);
       setDeleteOpen(false);
+      setAddOpen(false);
       return;
     }
     const prev = document.body.style.overflow;
@@ -356,6 +402,26 @@ export default function CartSheet() {
       window.removeEventListener('keydown', onKey);
     };
   }, [open, closeSheet, closeList]);
+
+  useEffect(() => {
+    setAddOpen(false);
+  }, [viewListId]);
+
+  useEffect(() => {
+    if (!addOpen) return;
+    const closeIfOutside = (target: EventTarget | null) => {
+      if (addPanelRef.current?.contains(target as Node)) return;
+      setAddOpen(false);
+    };
+    const onPointerDown = (e: PointerEvent) => closeIfOutside(e.target);
+    const onFocusIn = (e: FocusEvent) => closeIfOutside(e.target);
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('focusin', onFocusIn);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('focusin', onFocusIn);
+    };
+  }, [addOpen]);
 
   if (!open || typeof document === 'undefined') return null;
 
@@ -411,7 +477,7 @@ export default function CartSheet() {
                 : t('cart.listsCount', { count: lists.length })}
             </p>
           </div>
-          {inDetail ? (
+          {inDetail && !viewList?.shared ? (
             <button
               type="button"
               className={styles.closeBtn}
@@ -427,7 +493,10 @@ export default function CartSheet() {
 
         {inDetail ? (
           <form
+            ref={addPanelRef}
             className={styles.addPanel}
+            onFocus={() => setAddOpen(true)}
+            onClick={() => setAddOpen(true)}
             onSubmit={(e) => {
               e.preventDefault();
               handleAddItem();
@@ -435,43 +504,52 @@ export default function CartSheet() {
           >
             <div className={styles.bento}>
               <span className={styles.bentoShadow} />
-              <div className={`${styles.bentoInner} ${styles.addInner}`}>
-                <input
-                  className={styles.addName}
-                  value={itemName}
-                  onChange={(e) => setItemName(e.target.value)}
-                  placeholder={t('cart.itemNamePlaceholder')}
-                  maxLength={80}
-                />
-                <div className={styles.addMeta}>
-                  <div className={styles.addQty}>
-                    <WheelPicker
-                      boxed
-                      items={withCurrent(qtyOptions(itemUnit), itemQty)}
-                      value={itemQty}
-                      onChange={setItemQty}
-                    />
-                  </div>
-                  <div className={styles.addUnit}>
-                    <WheelPicker
-                      boxed
-                      wide
-                      items={CART_UNITS.map((u) => unitLabel(u, t))}
-                      value={unitLabel(itemUnit, t)}
-                      onChange={(label) => {
-                        const next = CART_UNITS.find((u) => unitLabel(u, t) === label);
-                        if (!next) return;
-                        setItemUnit(next);
-                        const opts = qtyOptions(next);
-                        if (!opts.includes(itemQty)) setItemQty(opts[0] ?? '1');
-                      }}
-                    />
-                  </div>
-                  <button type="submit" className={styles.addSubmit} disabled={!itemName.trim()}>
-                    <IconAdd size={16} color={Colors.dashboard.stroke} />
-                    {t('cart.add')}
+              <div className={`${styles.bentoInner} ${styles.addInner} ${addOpen ? styles.addInnerOpen : ''}`}>
+                <div className={styles.addRow}>
+                  <input
+                    className={styles.addName}
+                    value={itemName}
+                    onChange={(e) => setItemName(e.target.value)}
+                    placeholder={t('cart.itemNamePlaceholder')}
+                    maxLength={80}
+                    aria-label={t('cart.itemNamePlaceholder')}
+                  />
+                  <button
+                    type="submit"
+                    className={styles.addMini}
+                    disabled={!itemName.trim()}
+                    aria-label={t('cart.add')}
+                  >
+                    <IconAdd size={22} color={Colors.dashboard.stroke} />
                   </button>
                 </div>
+                {addOpen ? (
+                  <div className={styles.addMeta}>
+                    <div className={styles.addQty}>
+                      <WheelPicker
+                        boxed
+                        items={withCurrent(qtyOptions(itemUnit), itemQty)}
+                        value={itemQty}
+                        onChange={setItemQty}
+                      />
+                    </div>
+                    <div className={styles.addUnit}>
+                      <WheelPicker
+                        boxed
+                        wide
+                        items={CART_UNITS.map((u) => unitLabel(u, t))}
+                        value={unitLabel(itemUnit, t)}
+                        onChange={(label) => {
+                          const next = CART_UNITS.find((u) => unitLabel(u, t) === label);
+                          if (!next) return;
+                          setItemUnit(next);
+                          const opts = qtyOptions(next);
+                          if (!opts.includes(itemQty)) setItemQty(opts[0] ?? '1');
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           </form>
@@ -496,7 +574,9 @@ export default function CartSheet() {
               <CreateListCard
                 submitLabel={t('cart.createList')}
                 autoFocus={lists.length === 0}
-                onCreate={(name) => createList(name)}
+                onCreate={(name) => {
+                  void createList(name);
+                }}
               />
             </>
           ) : sorted.length === 0 ? (
@@ -532,7 +612,10 @@ export default function CartSheet() {
                           <button
                             type="button"
                             className={styles.rowMain}
-                            onClick={() => setEditingId(editing ? null : item.id)}
+                            onClick={() => {
+                              if (editing) setEditingId(null);
+                              toggle(item.id);
+                            }}
                           >
                             <span className={styles.rowName}>{item.name}</span>
                           </button>
@@ -552,7 +635,10 @@ export default function CartSheet() {
                             <button
                               type="button"
                               className={`${styles.qtyChip} ${qtyToneClass(parsed.unit)}`}
-                              onClick={() => setEditingId(item.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingId(item.id);
+                              }}
                             >
                               <span className={styles.qtyNum}>{parsed.qty}</span>
                               <span className={styles.qtyUnit}>{unitLabel(parsed.unit, t)}</span>
@@ -655,8 +741,8 @@ export function CartListPicker() {
           <CreateListCard
             submitLabel={t('cart.createAndAdd')}
             autoFocus={lists.length === 0}
-            onCreate={(name) => {
-              const id = createList(name);
+            onCreate={async (name) => {
+              const id = await createList(name);
               if (id) commit(id);
             }}
           />

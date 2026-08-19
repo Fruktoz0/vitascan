@@ -161,7 +161,7 @@ form.bento {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 12px;
   border-radius: 14px;
   border: 1.5px solid var(--stroke);
   overflow: hidden;
@@ -175,8 +175,8 @@ form.bento {
 }
 
 .listCardIcon {
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   border-radius: 10px;
   border: 1.5px solid var(--stroke);
   background: #c8f2d3;
@@ -206,6 +206,19 @@ form.bento {
   color: var(--tab-inactive);
 }
 
+.sharedChip {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1.5px solid var(--stroke);
+  background: #e7ddff;
+  box-shadow: 1px 1px 0 var(--shadow-hard);
+  font-size: 10px;
+  font-weight: 800;
+}
+
 .remainPill {
   flex-shrink: 0;
   display: inline-flex;
@@ -228,21 +241,21 @@ form.bento {
 }
 
 .remainNum {
-  padding: 5px 7px;
+  padding: 6px 10px;
   font-size: 12px;
   font-weight: 900;
   background: #a8e8b8;
 }
 
 .remainUnit {
-  padding: 5px 8px 5px 6px;
+  padding: 6px 12px 6px 8px;
   font-size: 11px;
   border-left: 1.5px solid rgba(28, 27, 27, 0.18);
 }
 
 .remainPill > .remainUnit:first-child {
   border-left: none;
-  padding: 5px 8px;
+  padding: 6px 12px;
 }
 
 .listCardTrack {
@@ -292,22 +305,6 @@ form.bento {
   background: #ffc49a;
 }
 
-.toneSky .listCardIcon {
-  background: #d9f1ff;
-}
-
-.toneSky .listCardFill {
-  background: #6eb3d6;
-}
-
-.toneSky .remainPill {
-  background: #d9f1ff;
-}
-
-.toneSky .remainNum {
-  background: #b7e4ff;
-}
-
 .toneLavender .listCardIcon {
   background: #e7ddff;
 }
@@ -326,14 +323,12 @@ form.bento {
 
 .toneMint .remainPill.remainDone,
 .tonePeach .remainPill.remainDone,
-.toneSky .remainPill.remainDone,
 .toneLavender .remainPill.remainDone {
   background: #c8f2d3;
 }
 
 .toneMint .remainPill.remainDone .remainNum,
 .tonePeach .remainPill.remainDone .remainNum,
-.toneSky .remainPill.remainDone .remainNum,
 .toneLavender .remainPill.remainDone .remainNum {
   background: #a8e8b8;
 }
@@ -342,33 +337,38 @@ form.bento {
   flex-direction: row;
   align-items: center;
   gap: 8px;
-  padding: 6px;
+  padding: 10px 12px;
 }
 
 .nameInput {
   width: 100%;
-  height: 36px;
-  border-radius: 10px;
+  height: 44px;
+  border-radius: 12px;
   border: 1.5px solid var(--stroke, #1c1b1b);
-  padding: 0 10px;
-  font-size: 14px;
+  padding: 0 12px;
+  font-size: 15px;
   font-weight: 700;
   font-family: inherit;
   background: #fff;
 }
 
 .addMini {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
-  border-radius: 12px;
+  border-radius: 50%;
   border: 1.5px solid var(--stroke);
-  background: var(--blob-mint, #e8f5e9);
+  background: #c8f2d3;
   box-shadow: 2px 2px 0 var(--shadow-hard);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+}
+
+.addMini:not(:disabled):active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--shadow-hard);
 }
 
 .addMini:disabled {
@@ -380,13 +380,31 @@ form.bento {
 .addInner {
   flex-direction: column;
   align-items: stretch;
-  gap: 10px;
-  padding: 10px;
+  gap: 0;
+  padding: 10px 12px;
+}
+
+.addInnerOpen {
+  gap: 12px;
+  padding: 12px;
+}
+
+.addInnerOpen .addMini {
+  width: 48px;
+  height: 48px;
+}
+
+.addRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .addName {
+  flex: 1;
+  min-width: 0;
   width: 100%;
-  height: 40px;
+  height: 44px;
   border: 1.5px solid var(--stroke, #1c1b1b);
   border-radius: 12px;
   padding: 0 12px;
@@ -396,6 +414,12 @@ form.bento {
   font-family: inherit;
   background: #fcf9f8;
   color: inherit;
+}
+
+.addInnerOpen .addName {
+  height: 48px;
+  padding: 0 14px;
+  font-size: 16px;
 }
 
 .addName:focus {
@@ -410,9 +434,21 @@ form.bento {
 
 .addMeta {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: stretch;
   gap: 10px;
+  animation: addMetaIn 0.16s ease-out;
+}
+
+@keyframes addMetaIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .addQty,
@@ -421,40 +457,51 @@ form.bento {
   width: 100%;
 }
 
+.addQty .wheelCue,
+.addUnit .wheelCue,
 .addQty .wheel,
 .addUnit .wheel {
   width: 100%;
 }
 
-.addSubmit {
-  justify-self: end;
-  align-self: center;
-  height: 36px;
-  padding: 0 12px 0 10px;
-  border-radius: 999px;
-  border: 1.5px solid var(--stroke);
-  background: var(--blob-mint, #e8f5e9);
-  box-shadow: 2px 2px 0 var(--shadow-hard);
+.wheelCue {
   display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  font-weight: 800;
-  font-size: 13px;
-  font-family: inherit;
-  color: var(--stroke);
-  cursor: pointer;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
+  border: 1.5px solid var(--stroke);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
 }
 
-.addSubmit:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  box-shadow: none;
+.wheelCueBtn {
+  flex-shrink: 0;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: #f4f1ef;
+  cursor: pointer;
+  color: var(--stroke, #1c1b1b);
+}
+
+.wheelCueBtn:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+
+.wheelCueBtn:not(:disabled):active {
+  background: #ece8e6;
 }
 
 .wheelBoxed {
-  border: 1.5px solid var(--stroke);
-  border-radius: 10px;
+  width: 100%;
+  border: none;
+  border-radius: 0;
   background: #fff;
   overflow: hidden;
 }
@@ -463,8 +510,8 @@ form.bento {
   display: flex;
   align-items: stretch;
   flex-shrink: 0;
-  height: 36px;
-  max-height: 36px;
+  height: 40px;
+  max-height: 40px;
   border: 1.5px solid var(--stroke);
   border-radius: 10px;
   overflow: hidden;
@@ -472,9 +519,9 @@ form.bento {
 }
 
 .wheel {
-  height: 36px;
-  min-height: 36px;
-  max-height: 36px;
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
   width: 44px;
   overflow-y: auto;
   overflow-x: hidden;
@@ -498,12 +545,12 @@ form.bento {
 }
 
 .wheelItem {
-  height: 36px;
+  height: 40px;
   scroll-snap-align: center;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
 }
 
@@ -542,8 +589,9 @@ form.bento {
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 8px;
-  padding: 6px 8px;
+  gap: 10px;
+  min-height: 52px;
+  padding: 10px 10px;
   border-radius: 14px;
   border: 1.5px solid var(--stroke);
   background: #fff;
@@ -554,9 +602,9 @@ form.bento {
 }
 
 .check {
-  width: 24px;
-  height: 24px;
-  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
   border: 1.5px solid var(--stroke, #1c1b1b);
   display: flex;
   align-items: center;
@@ -572,14 +620,23 @@ form.bento {
 .rowMain {
   flex: 1;
   min-width: 0;
+  align-self: stretch;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
   text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
 }
 
 .rowName {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
   letter-spacing: -0.2px;
 }
@@ -588,6 +645,7 @@ form.bento {
   flex-shrink: 0;
   display: inline-flex;
   align-items: stretch;
+  min-width: 76px;
   padding: 0;
   overflow: hidden;
   border-radius: 999px;
@@ -608,15 +666,16 @@ form.bento {
 }
 
 .qtyNum {
-  padding: 6px 8px;
-  font-size: 12px;
+  padding: 8px 12px;
+  font-size: 13px;
   font-weight: 900;
   letter-spacing: -0.2px;
 }
 
 .qtyUnit {
-  padding: 6px 9px 6px 7px;
-  font-size: 11px;
+  min-width: 40px;
+  padding: 8px 14px 8px 10px;
+  font-size: 12px;
   border-left: 1.5px solid rgba(28, 27, 27, 0.18);
 }
 
@@ -634,14 +693,6 @@ form.bento {
 
 .qtyWeight .qtyNum {
   background: #ffc49a;
-}
-
-.qtyVolume {
-  background: #d9f1ff;
-}
-
-.qtyVolume .qtyNum {
-  background: #b7e4ff;
 }
 
 .qtyPack {

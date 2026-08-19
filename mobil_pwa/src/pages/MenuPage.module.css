@@ -120,18 +120,41 @@
   background: #ffe8d6;
 }
 
-.rowText {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.iconShare {
+  background: #e7ddff;
 }
 
 .rowTitle {
   font-size: 16px;
   font-weight: 800;
   color: var(--stroke);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notifyBadge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--blob-peach, #ffdad6);
+  border: 1.5px solid var(--stroke);
+  box-shadow: 1px 1px 0 var(--shadow-hard);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rowText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .rowHint {

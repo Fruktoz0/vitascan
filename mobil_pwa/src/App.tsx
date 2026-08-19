@@ -33,6 +33,7 @@ import RecipeCreatePage from './pages/RecipeCreatePage';
 import RecipeReviewPage from './pages/RecipeReviewPage';
 import RecipeDetailPage from './pages/RecipeDetailPage';
 import RecipeImportPage from './pages/RecipeImportPage';
+import SharingPage from './pages/SharingPage';
 
 export default function App() {
   const restoreSession = useAuthStore((s) => s.restoreSession);
@@ -67,6 +68,7 @@ export default function App() {
             <Route path="/scanner" element={<ScannerPage />} />
             <Route path="/menu" element={<MenuPage />} />
             <Route path="/menu/profile" element={<ProfilePage />} />
+            <Route path="/menu/sharing" element={<SharingPage />} />
             <Route path="/profile" element={<Navigate to="/menu/profile" replace />} />
             <Route path="/recipes" element={<RecipesPage />} />
             <Route path="/recipes/new" element={<RecipeCreatePage />} />

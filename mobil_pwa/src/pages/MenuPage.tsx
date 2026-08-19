@@ -1,11 +1,19 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { IconChevronRight, IconPersonOutline, IconRestaurant, IconTarget } from '../components/ui/Icons';
+import { IconChevronRight, IconPeopleOutline, IconPersonOutline, IconRestaurant, IconTarget } from '../components/ui/Icons';
+import { useShareInbox } from '../stores/shareInbox';
 import styles from './MenuPage.module.css';
 
 export default function MenuPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const pendingIncomingCount = useShareInbox((s) => s.pendingIncomingCount);
+  const refreshInbox = useShareInbox((s) => s.refresh);
+
+  useEffect(() => {
+    void refreshInbox();
+  }, [refreshInbox]);
 
   return (
     <div className={`${styles.screen} page-scroll`}>
@@ -47,6 +55,21 @@ export default function MenuPage() {
             <span className={styles.rowText}>
               <span className={styles.rowTitle}>{t('menu.recipes')}</span>
               <span className={styles.rowHint}>{t('menu.recipesHint')}</span>
+            </span>
+            <IconChevronRight size={18} color="#B0BEC5" />
+          </button>
+          <button type="button" className={styles.row} onClick={() => navigate('/menu/sharing')}>
+            <span className={`${styles.rowIcon} ${styles.iconShare}`}>
+              <IconPeopleOutline size={22} color="#6A1B9A" />
+            </span>
+            <span className={styles.rowText}>
+              <span className={styles.rowTitle}>
+                {t('menu.sharing')}
+                {pendingIncomingCount > 0 ? (
+                  <span className={styles.notifyBadge}>{pendingIncomingCount > 9 ? '9+' : pendingIncomingCount}</span>
+                ) : null}
+              </span>
+              <span className={styles.rowHint}>{t('menu.sharingHint')}</span>
             </span>
             <IconChevronRight size={18} color="#B0BEC5" />
           </button>

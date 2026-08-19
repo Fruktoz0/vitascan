@@ -72,6 +72,13 @@
   border: 1.2px solid var(--stroke);
 }
 
+.labelWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .label {
   font-size: 9px;
   font-weight: 700;
@@ -79,4 +86,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 58px;
+}
+
+.notifyDot {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #ff8a80;
+  border: 1.5px solid var(--stroke);
+  box-shadow: 1px 1px 0 var(--shadow-hard);
 }
