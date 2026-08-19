@@ -5,6 +5,7 @@ import { Colors } from '../design/tokens';
 import AuthedImage from '../components/ui/AuthedImage';
 import { PrimaryButton } from '../components/ui/Button';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useFastingLogGuard } from '../hooks/useFastingLogGuard';
 import {
   IconArrowBack,
   IconCalendarToday,
@@ -63,6 +64,7 @@ function gramsPerServingOf(recipe: RecipeDetail): number {
 
 export default function RecipeDetailPage() {
   const { t, i18n } = useTranslation();
+  const { confirmIfActive, dialog: fastingDialog } = useFastingLogGuard();
   const navigate = useNavigate();
   const { id } = useParams();
   const isAdmin = useAuthStore((s) => s.user?.role === 'ADMIN');
@@ -167,6 +169,7 @@ export default function RecipeDetailPage() {
     setLogging(true);
     setLogMsg('');
     try {
+      await confirmIfActive();
       await recipesApi.log(
         recipe.id,
         logMode === 'grams'
@@ -559,6 +562,7 @@ export default function RecipeDetailPage() {
         onConfirm={() => void handleDelete()}
         onClose={() => setConfirmDelete(false)}
       />
+      {fastingDialog}
     </div>
   );
 }

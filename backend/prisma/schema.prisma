@@ -49,6 +49,7 @@ model User {
   shoppingLists   ShoppingList[]
   notificationPref   NotificationPref?
   pushSubscriptions  PushSubscription[]
+  fastSessions       FastSession[]
 
   deletedAt DateTime? // Soft delete (GDPR - 30 napos türelmi idő)
   createdAt DateTime  @default(now())
@@ -73,6 +74,12 @@ model UserProfile {
   dailyCarbsGoal   Float? // g / nap
   dailyFatGoal     Float? // g / nap
   avatarKey        String? // DiceBear seed, pl. Felix — ingyenes választható avatar
+
+  showHomeWaterCard   Boolean @default(true)
+  showHomeStreakCard  Boolean @default(true)
+  showHomeFastingCard Boolean @default(false)
+  fastingProtocol     String  @default("16:8") // 16:8 | 18:6 | 20:4 | OMAD | CUSTOM
+  fastingGoalMinutes  Int     @default(960)
 
   // FitnessSyncer OAuth (per-user Personal Application credentials + tokens)
   fsClientId             String?
@@ -362,6 +369,24 @@ model WeightLog {
   @@index([userId, loggedDate])
 }
 
+model FastSession {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  startedAt   DateTime
+  endedAt     DateTime?
+  goalMinutes Int
+  protocol    String // 16:8 | 18:6 | 20:4 | OMAD | CUSTOM
+  source      String @default("MANUAL") // MANUAL | FROM_LAST_MEAL
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, endedAt])
+  @@index([userId, startedAt])
+}
+
 /** Napi megjegyzés — egy sor / user / nap (tünetek, közérzet). */
 model DayNote {
   id     String @id @default(uuid())
@@ -629,12 +654,14 @@ model NotificationPref {
 
   cartPartnerEnabled  Boolean @default(true)
   shareInviteEnabled  Boolean @default(true)
+  fastingGoalEnabled  Boolean @default(true)
 
   timezone String @default("Europe/Budapest")
 
-  lastWaterPushAt DateTime?
-  lastMealSlot    String?
-  lastDailyDate   String?
+  lastWaterPushAt        DateTime?
+  lastMealSlot           String?
+  lastDailyDate          String?
+  lastFastingGoalPushAt  DateTime?
 
   updatedAt DateTime @updatedAt
 }

@@ -197,4 +197,60 @@ async function tick(fastify: FastifyInstance) {
       pref.lastDailyDate = ymd;
     }
   }
+
+  await tickFastingGoals(fastify, now);
+}
+
+async function tickFastingGoals(fastify: FastifyInstance, now: Date) {
+  const sessions = await fastify.prisma.fastSession.findMany({
+    where: {
+      endedAt: null,
+      user: { deletedAt: null, pushSubscriptions: { some: {} } },
+    },
+    include: {
+      user: {
+        select: {
+          notificationPref: {
+            select: { id: true, fastingGoalEnabled: true, lastFastingGoalPushAt: true },
+          },
+          pushSubscriptions: { select: { endpoint: true, p256dh: true, auth: true } },
+        },
+      },
+    },
+  });
+
+  for (const session of sessions) {
+    const pref = session.user.notificationPref;
+    if (pref && pref.fastingGoalEnabled === false) continue;
+    const goalAt = session.startedAt.getTime() + session.goalMinutes * 60_000;
+    if (now.getTime() < goalAt) continue;
+    if (pref?.lastFastingGoalPushAt && pref.lastFastingGoalPushAt.getTime() >= session.startedAt.getTime()) {
+      continue;
+    }
+
+    const hours = Math.round(session.goalMinutes / 60);
+    const subs = session.user.pushSubscriptions;
+    if (subs.length === 0) continue;
+
+    await sendPushToSubscriptions(fastify.prisma, subs, {
+      title: 'Böjt cél elérve',
+      body: `${hours} órás böjt kész. Szép munka — ha szeretnéd, folytathatod, vagy lezárhatod.`,
+      url: '/fasting',
+      kind: 'fasting',
+      tag: `vitascan-fasting-${session.id}`,
+    });
+
+    if (pref) {
+      await fastify.prisma.notificationPref.update({
+        where: { id: pref.id },
+        data: { lastFastingGoalPushAt: now },
+      });
+    } else {
+      await fastify.prisma.notificationPref.upsert({
+        where: { userId: session.userId },
+        create: { userId: session.userId, lastFastingGoalPushAt: now },
+        update: { lastFastingGoalPushAt: now },
+      });
+    }
+  }
 }

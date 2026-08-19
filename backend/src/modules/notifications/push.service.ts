@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import webpush from 'web-push';
 
-export type PushKind = 'meal' | 'water' | 'daily' | 'cart' | 'share';
+export type PushKind = 'meal' | 'water' | 'daily' | 'cart' | 'share' | 'fasting';
 
 export type PushPayload = {
   title: string;

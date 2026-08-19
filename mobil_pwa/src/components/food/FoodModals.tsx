@@ -34,6 +34,7 @@ import {
 } from '../ui/Icons';
 import { GlassCardSimple } from '../ui/GlassCard';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { useFastingLogGuard } from '../../hooks/useFastingLogGuard';
 import { SwipeDeleteRow } from '../ui/SwipeDeleteRow';
 import { adminApi, foodApi, getErrorMessage, logApi, type Food, type FoodOrigin, type FoodStatus } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
@@ -516,6 +517,7 @@ export function FoodDetailModal({
   initialMealType = 'SNACK',
 }: FoodDetailModalProps) {
   const { t } = useTranslation();
+  const { confirmIfActive, dialog: fastingDialog } = useFastingLogGuard();
   const isAdmin = useAuthStore((s) => s.user?.role === 'ADMIN');
   const selectedDate = useDateStore((s) => s.selectedDate);
   const [amount, setAmount] = useState('100');
@@ -638,6 +640,7 @@ export function FoodDetailModal({
     }
     setAdding(true);
     try {
+      await confirmIfActive();
       const isUuid =
         typeof currentFood.id === 'string' &&
         /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -993,6 +996,7 @@ export function FoodDetailModal({
         }}
         onClose={() => setConfirmDeleteFood(false)}
       />
+      {fastingDialog}
 
       <EditFoodModal
         visible={editOpen}

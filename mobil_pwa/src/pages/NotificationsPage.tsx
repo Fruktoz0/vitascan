@@ -33,6 +33,7 @@ const DEFAULT_PREFS: PrefsState = {
   dailySummaryAt: '20:00',
   cartPartnerEnabled: true,
   shareInviteEnabled: true,
+  fastingGoalEnabled: true,
   timezone: 'Europe/Budapest',
 };
 

@@ -26,6 +26,7 @@ import WeightLogPage from './pages/WeightLogPage';
 import WeightNewPage from './pages/WeightNewPage';
 import WaterLogPage from './pages/WaterLogPage';
 import WaterNewPage from './pages/WaterNewPage';
+import FastingPage from './pages/FastingPage';
 import NotificationsPage from './pages/NotificationsPage';
 import DatePickerPage from './pages/DatePickerPage';
 import DataVaultPage from './pages/DataVaultPage';
@@ -36,6 +37,7 @@ import RecipeCreatePage from './pages/RecipeCreatePage';
 import RecipeReviewPage from './pages/RecipeReviewPage';
 import RecipeDetailPage from './pages/RecipeDetailPage';
 import RecipeImportPage from './pages/RecipeImportPage';
+import HomeCardsPage from './pages/HomeCardsPage';
 import SharingPage from './pages/SharingPage';
 
 export default function App() {
@@ -76,6 +78,7 @@ export default function App() {
             <Route path="/scanner" element={<ScannerPage />} />
             <Route path="/menu" element={<MenuPage />} />
             <Route path="/menu/profile" element={<ProfilePage />} />
+            <Route path="/menu/home-cards" element={<HomeCardsPage />} />
             <Route path="/menu/sharing" element={<SharingPage />} />
             <Route path="/profile" element={<Navigate to="/menu/profile" replace />} />
             <Route path="/recipes" element={<RecipesPage />} />
@@ -99,6 +102,7 @@ export default function App() {
           <Route path="/weight/new" element={<WeightNewPage />} />
           <Route path="/water" element={<WaterLogPage />} />
           <Route path="/water/new" element={<WaterNewPage />} />
+          <Route path="/fasting" element={<FastingPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/admin" element={<AdminPage />} />
         </Route>

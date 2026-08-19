@@ -20,6 +20,11 @@ const UpsertProfileSchema = z.object({
   dailyFatGoal: z.number().min(10).max(300).optional(),
   avatarKey: z.string().min(1).max(64).optional(),
   tier: z.enum(['FREE', 'PREMIUM']).optional(),
+  showHomeWaterCard: z.boolean().optional(),
+  showHomeStreakCard: z.boolean().optional(),
+  showHomeFastingCard: z.boolean().optional(),
+  fastingProtocol: z.enum(['16:8', '18:6', '20:4', 'OMAD', 'CUSTOM']).optional(),
+  fastingGoalMinutes: z.number().int().min(60).max(1439).optional(),
 });
 
 const profileRoutes: FastifyPluginAsync = async (fastify) => {

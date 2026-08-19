@@ -10,6 +10,7 @@ import {
   IconPhotoLibrary,
 } from '../components/ui/Icons';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useFastingLogGuard } from '../hooks/useFastingLogGuard';
 import { foodApi, getErrorMessage, logApi } from '../services/api';
 import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import type { MealType } from '../utils/mealMeta';
@@ -150,6 +151,7 @@ function applyAmountScale(
 
 export default function AiRecognizePage() {
   const { t, i18n } = useTranslation();
+  const { confirmIfActive, dialog: fastingDialog } = useFastingLogGuard();
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
@@ -447,6 +449,7 @@ export default function AiRecognizePage() {
 
     setSaving(true);
     try {
+      await confirmIfActive();
       const round1 = (n: number) => Math.round(n * 10) / 10;
       const totalG = parsed.reduce((s, p) => s + p.amountG, 0);
       const totalMacros = parsed.reduce(
@@ -1030,6 +1033,7 @@ export default function AiRecognizePage() {
           if (go) navigate(-1);
         }}
       />
+      {fastingDialog}
     </div>
   );
 }

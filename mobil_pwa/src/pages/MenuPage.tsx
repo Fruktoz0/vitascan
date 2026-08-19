@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { IconChevronRight, IconPeopleOutline, IconPersonOutline, IconRestaurant, IconTarget } from '../components/ui/Icons';
+import { IconChevronRight, IconDashboard, IconPeopleOutline, IconPersonOutline, IconRestaurant, IconTarget } from '../components/ui/Icons';
 import { useShareInbox } from '../stores/shareInbox';
 import styles from './MenuPage.module.css';
 
@@ -55,6 +55,16 @@ export default function MenuPage() {
             <span className={styles.rowText}>
               <span className={styles.rowTitle}>{t('menu.recipes')}</span>
               <span className={styles.rowHint}>{t('menu.recipesHint')}</span>
+            </span>
+            <IconChevronRight size={18} color="#B0BEC5" />
+          </button>
+          <button type="button" className={styles.row} onClick={() => navigate('/menu/home-cards')}>
+            <span className={`${styles.rowIcon} ${styles.iconCards}`}>
+              <IconDashboard size={22} color="#5D4037" />
+            </span>
+            <span className={styles.rowText}>
+              <span className={styles.rowTitle}>{t('menu.homeCards')}</span>
+              <span className={styles.rowHint}>{t('menu.homeCardsHint')}</span>
             </span>
             <IconChevronRight size={18} color="#B0BEC5" />
           </button>

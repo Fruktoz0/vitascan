@@ -1,0 +1,251 @@
+.hero {
+  background: #fff;
+  border: 1.5px solid var(--stroke);
+  border-radius: 24px;
+  padding: 18px 16px 14px;
+  box-shadow: 3px 3px 0 var(--shadow-hard);
+}
+
+.heroTop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.heroIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  border: 1.5px solid var(--stroke);
+  background: #f6efe6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.heroTitle {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.heroSub {
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.65;
+}
+
+.clock {
+  margin-top: 12px;
+  font-size: 40px;
+  font-weight: 900;
+  letter-spacing: -1.2px;
+  text-align: center;
+}
+
+.card {
+  background: #fff;
+  border: 1.5px solid var(--stroke);
+  border-radius: 24px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 3px 3px 0 var(--shadow-hard);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cardHeadIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  border: 1.5px solid var(--stroke);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.iconPeach {
+  background: #eadecc;
+}
+
+.iconMint {
+  background: #e8f5e9;
+}
+
+.iconLavender {
+  background: #e7ddff;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+}
+
+.cardSub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tab-inactive);
+  line-height: 1.35;
+}
+
+.protocolGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.protocolOption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 84px;
+  padding: 12px 6px;
+  border-radius: 18px;
+  border: 1.5px solid var(--stroke);
+  background: #f7f4f1;
+  font: inherit;
+  color: var(--stroke);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.protocolOptionActive {
+  background: var(--blob-mint);
+  box-shadow: 2px 2px 0 var(--shadow-hard);
+}
+
+.protocolIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  border: 1.2px solid var(--stroke);
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.protocolLabel {
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  line-height: 1.2;
+  letter-spacing: -0.1px;
+}
+
+.customRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.disclaimer {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  opacity: 0.55;
+  text-align: center;
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.statChip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1.5px solid var(--stroke);
+  background: #faf9f6;
+  min-height: 58px;
+}
+
+.statIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  border: 1.2px solid var(--stroke);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.statChip > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.statLabel {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.55;
+}
+
+.statValue {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+  line-height: 1.15;
+}
+
+.empty {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.6;
+}
+
+.history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.historyItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.historyTitle {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.historySub {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.55;
+}
+
+.historyDur {
+  font-size: 14px;
+  font-weight: 800;
+}

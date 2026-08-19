@@ -79,6 +79,8 @@ import {
   MdFilterList,
   MdPercent,
   MdTripOrigin,
+  MdTimer,
+  MdDashboard,
 } from 'react-icons/md';
 import { FaAppleAlt } from 'react-icons/fa';
 import { LuLeaf, LuMilkOff, LuWheatOff } from 'react-icons/lu';
@@ -102,6 +104,7 @@ import {
   IoQrCodeOutline,
   IoRestaurantOutline,
   IoScaleOutline,
+  IoTimerOutline,
   IoWater,
   IoWaterOutline,
 } from 'react-icons/io5';
@@ -223,6 +226,9 @@ export const IconFlag = wrap(MdFlag);
 export const IconFilterList = wrap(MdFilterList);
 export const IconPercent = wrap(MdPercent);
 export const IconTripOrigin = wrap(MdTripOrigin);
+export const IconTimer = wrap(MdTimer);
+export const IconTimerOutline = wrap(IoTimerOutline);
+export const IconDashboard = wrap(MdDashboard);
 
 export const TAB_ICONS = {
   home: { outline: IconHomeOutline, filled: IconHome },

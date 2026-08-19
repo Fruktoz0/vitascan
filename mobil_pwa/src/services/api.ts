@@ -703,6 +703,47 @@ export const waterApi = {
   delete: (id: string) => request(`/water/${id}`, { method: 'DELETE' }),
 };
 
+export type FastingProtocol = '16:8' | '18:6' | '20:4' | 'OMAD' | 'CUSTOM';
+export type FastingSource = 'MANUAL' | 'FROM_LAST_MEAL';
+
+export type FastSessionDto = {
+  id: string;
+  startedAt: string;
+  endedAt: string | null;
+  goalMinutes: number;
+  protocol: string;
+  source: string;
+  elapsedMinutes: number;
+  eatingWindowMinutes: number;
+};
+
+export type FastingCurrent = {
+  active: FastSessionDto | null;
+  lastEnded: FastSessionDto | null;
+  eatingUntil: string | null;
+  lastMealAt: string | null;
+  protocol: string;
+  goalMinutes: number;
+};
+
+export const fastingApi = {
+  current: () => request<FastingCurrent>('/fasting/current'),
+  start: (data?: { protocol?: FastingProtocol; goalMinutes?: number; source?: FastingSource }) =>
+    request<{ session: FastSessionDto }>('/fasting/start', {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
+  stop: () =>
+    request<{ session: FastSessionDto; eatingUntil: string }>('/fasting/stop', { method: 'POST' }),
+  history: (from?: string, to?: string) => {
+    const p = new URLSearchParams();
+    if (from) p.set('from', from);
+    if (to) p.set('to', to);
+    const q = p.toString();
+    return request<{ items: FastSessionDto[] }>(`/fasting/history${q ? `?${q}` : ''}`);
+  },
+};
+
 export type DayNote = {
   id: string;
   content: string;
@@ -1361,6 +1402,7 @@ export type NotificationPrefs = {
   dailySummaryAt: string;
   cartPartnerEnabled: boolean;
   shareInviteEnabled: boolean;
+  fastingGoalEnabled: boolean;
   timezone: string;
   vapidPublicKey: string | null;
 };

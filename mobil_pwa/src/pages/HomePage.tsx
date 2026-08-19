@@ -17,6 +17,7 @@ import WeeklyKcalChart, { type WeeklyDay } from '../components/food/WeeklyKcalCh
 import WeeklyCalorieEvalCard from '../components/food/WeeklyCalorieEvalCard';
 import WeeklyInsightsSheet from '../components/food/WeeklyInsightsSheet';
 import StreakCard from '../components/food/StreakCard';
+import FastingCard from '../components/food/FastingCard';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import DoodleMascot from '../components/ui/DoodleMascot';
 import { IconAddCircle, IconCalendarToday, IconShoppingBasket, IconWeight } from '../components/ui/Icons';
@@ -27,11 +28,14 @@ import {
   statsApi,
   waterApi,
   weightApi,
+  fastingApi,
   type DailyAnalysisResult,
+  type FastingCurrent,
   type Food,
   type WeeklyStatsResult,
 } from '../services/api';
 import { toLocalDateStr, useDateStore } from '../stores/dateStore';
+import { useProfileStore } from '../stores/profileStore';
 import { doodleMoodForDay } from '../utils/doodleMood';
 import { parseMealType, type MealType } from '../utils/mealMeta';
 import type { MealAvgEntry } from '../utils/mealInsights';
@@ -48,9 +52,14 @@ export default function HomePage() {
     s.lists.reduce((sum, list) => sum + list.items.filter((item) => !item.checked).length, 0),
   );
   const openCart = useCartStore((s) => s.openSheet);
+  const showHomeWaterCard = useProfileStore((s) => s.showHomeWaterCard);
+  const showHomeStreakCard = useProfileStore((s) => s.showHomeStreakCard);
+  const showHomeFastingCard = useProfileStore((s) => s.showHomeFastingCard);
   const [data, setData] = useState<any>(null);
   const [water, setWater] = useState<any>(null);
   const [weight, setWeight] = useState<any>(null);
+  const [fasting, setFasting] = useState<FastingCurrent | null>(null);
+  const [fastingBusy, setFastingBusy] = useState(false);
   const [weeklyDays, setWeeklyDays] = useState<WeeklyDay[]>([]);
   const [weekAvgKcal, setWeekAvgKcal] = useState<number | null>(null);
   const [weeklyStats, setWeeklyStats] = useState<WeeklyStatsResult | null>(null);
@@ -130,16 +139,18 @@ export default function HomePage() {
     try {
       const dateStr = toLocalDateStr(selectedDate);
 
-      const [summary, waterData, weightData, weekly, streakData] = await Promise.all([
+      const [summary, waterData, weightData, weekly, streakData, fastingData] = await Promise.all([
         statsApi.day(dateStr),
-        waterApi.getByDate(dateStr),
+        showHomeWaterCard ? waterApi.getByDate(dateStr) : Promise.resolve(null),
         weightApi.getByDate(dateStr),
         statsApi.weekly().catch(() => null),
-        statsApi.streak().catch(() => null),
+        showHomeStreakCard ? statsApi.streak().catch(() => null) : Promise.resolve(null),
+        showHomeFastingCard ? fastingApi.current().catch(() => null) : Promise.resolve(null),
       ]);
       setData(summary);
       setWater(waterData);
       setWeight(weightData);
+      setFasting(fastingData);
       if (weekly?.days) {
         setWeeklyDays(weekly.days);
         setWeekAvgKcal(typeof weekly.avg?.kcal === 'number' ? weekly.avg.kcal : null);
@@ -166,7 +177,7 @@ export default function HomePage() {
       setStreak(typeof streakData?.streak === 'number' ? streakData.streak : 0);
     } catch {}
     setLoading(false);
-  }, [selectedDate]);
+  }, [selectedDate, showHomeWaterCard, showHomeStreakCard, showHomeFastingCard]);
 
   useEffect(() => {
     fetchData();
@@ -192,6 +203,27 @@ export default function HomePage() {
       const nextWeight = Math.max(20, Math.min(500, Math.round((base + delta) * 10) / 10));
       setWeight(await weightApi.setForDate(dateStr, nextWeight));
     } catch {}
+  };
+
+  const handleStartFast = async () => {
+    setFastingBusy(true);
+    try {
+      await fastingApi.start({
+        protocol: (fasting?.protocol as '16:8' | '18:6' | '20:4' | 'OMAD' | 'CUSTOM') || '16:8',
+        goalMinutes: fasting?.goalMinutes,
+      });
+      setFasting(await fastingApi.current());
+    } catch {}
+    setFastingBusy(false);
+  };
+
+  const handleStopFast = async () => {
+    setFastingBusy(true);
+    try {
+      await fastingApi.stop();
+      setFasting(await fastingApi.current());
+    } catch {}
+    setFastingBusy(false);
   };
 
   if (loading && !data) {
@@ -362,12 +394,27 @@ export default function HomePage() {
           />
         )}
 
-        <WaterProgressBar
-          totalMl={water?.totalMl ?? 0}
-          goalMl={water?.goalMl ?? 2500}
-          onAdjust={handleAdjustWater}
-          onOpenLog={() => navigate('/water')}
-        />
+        {showHomeWaterCard ? (
+          <WaterProgressBar
+            totalMl={water?.totalMl ?? 0}
+            goalMl={water?.goalMl ?? 2500}
+            onAdjust={handleAdjustWater}
+            onOpenLog={() => navigate('/water')}
+          />
+        ) : null}
+
+        {showHomeFastingCard ? (
+          <FastingCard
+            active={fasting?.active ?? null}
+            eatingUntil={fasting?.eatingUntil ?? null}
+            protocol={fasting?.protocol ?? '16:8'}
+            goalMinutes={fasting?.goalMinutes ?? 960}
+            onOpen={() => navigate('/fasting')}
+            onStart={() => void handleStartFast()}
+            onStop={() => void handleStopFast()}
+            busy={fastingBusy}
+          />
+        ) : null}
 
         <div className={styles.weightWrap}>
           <span className={styles.weightShadow} />
@@ -402,7 +449,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        <StreakCard streak={streak} />
+        {showHomeStreakCard ? <StreakCard streak={streak} /> : null}
 
         <button type="button" className={styles.addFoodOuter} onClick={() => openAddFood('SNACK')}>
           <span className={styles.addFoodShadow} />

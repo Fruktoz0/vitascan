@@ -26,6 +26,7 @@ const PrefsSchema = z.object({
   dailySummaryAt: HHMM.optional(),
   cartPartnerEnabled: z.boolean().optional(),
   shareInviteEnabled: z.boolean().optional(),
+  fastingGoalEnabled: z.boolean().optional(),
   timezone: z.string().min(1).max(64).optional(),
 });
 
@@ -60,6 +61,7 @@ function serializePrefs(row: {
   dailySummaryAt: string;
   cartPartnerEnabled: boolean;
   shareInviteEnabled: boolean;
+  fastingGoalEnabled: boolean;
   timezone: string;
 }) {
   return {
@@ -80,6 +82,7 @@ function serializePrefs(row: {
     dailySummaryAt: row.dailySummaryAt,
     cartPartnerEnabled: row.cartPartnerEnabled,
     shareInviteEnabled: row.shareInviteEnabled,
+    fastingGoalEnabled: row.fastingGoalEnabled,
     timezone: row.timezone,
     vapidPublicKey: getVapidPublicKey(),
   };
