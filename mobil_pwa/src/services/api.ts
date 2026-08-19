@@ -399,9 +399,10 @@ export interface Food {
 }
 
 export const foodApi = {
-  search: (q: string, opts?: { limit?: number; offset?: number; mine?: boolean }) => {
+  search: (q: string, opts?: { limit?: number; offset?: number; mine?: boolean; scope?: string }) => {
     const p = new URLSearchParams({ q, limit: String(opts?.limit ?? 20), offset: String(opts?.offset ?? 0) });
     if (opts?.mine) p.set('mine', '1');
+    if (opts?.scope) p.set('scope', opts.scope);
     return request<{ foods: Food[]; total: number }>(`/foods?${p}`);
   },
   recent: (limit = 20) =>

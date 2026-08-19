@@ -32,7 +32,7 @@ import {
 import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import { useProfileStore } from '../stores/profileStore';
 import { UserAvatar } from '../components/ui/AvatarPicker';
-import type { MealType } from '../utils/mealMeta';
+import { parseMealType, type MealType } from '../utils/mealMeta';
 import type { MealAvgEntry } from '../utils/mealInsights';
 import { parseAnalysisContent } from '../utils/parseAnalysisContent';
 import styles from './HomePage.module.css';
@@ -79,18 +79,19 @@ export default function HomePage() {
       openAddFood?: boolean;
       prefillBarcode?: string;
       productNotFound?: boolean;
+      mealType?: MealType;
     } | null;
     if (!st) return;
 
     if (st.productNotFound) {
-      setMealForAdd('SNACK');
+      setMealForAdd(parseMealType(st.mealType));
       setNotFoundDialog({ barcode: st.prefillBarcode });
       navigate(location.pathname, { replace: true, state: {} });
       return;
     }
 
     if (!st.openAddFood) return;
-    setMealForAdd('SNACK');
+    setMealForAdd(parseMealType(st.mealType));
     setPrefillBarcode(st.prefillBarcode);
     setManualOpen(true);
     navigate(location.pathname, { replace: true, state: {} });
@@ -387,7 +388,9 @@ export default function HomePage() {
         onCreated={(food) => {
           setSelectedFood(food);
         }}
-        onOpenScanner={() => navigate('/scanner', { state: { returnPath: '/home' } })}
+        onOpenScanner={() =>
+          navigate('/scanner', { state: { returnPath: '/home', mealType: mealForAdd } })
+        }
         onOpenAiRecognize={() =>
           navigate(`/ai-recognize?mealType=${mealForAdd}`, { state: { returnPath: '/home' } })
         }

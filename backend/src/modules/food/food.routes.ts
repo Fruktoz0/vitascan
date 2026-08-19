@@ -209,6 +209,64 @@ function decorateFoods(
     );
 }
 
+const SEARCH_SCOPES = new Set(['favorites', 'frequent', 'recent', 'mine']);
+
+async function scopedFoodIds(
+  prisma: any,
+  userId: string,
+  scope: string,
+): Promise<string[] | null> {
+  if (scope === 'favorites') {
+    const rows = await prisma.foodFavorite.findMany({
+      where: { userId },
+      select: { foodId: true },
+    });
+    return rows.map((r: { foodId: string }) => r.foodId);
+  }
+  if (scope === 'frequent') {
+    const grouped = await prisma.dailyLog.groupBy({
+      by: ['foodId'],
+      where: { userId, foodId: { not: null } },
+      _count: { foodId: true },
+      orderBy: { _count: { foodId: 'desc' } },
+      take: 100,
+    });
+    return grouped
+      .map((g: { foodId: string | null }) => g.foodId)
+      .filter(Boolean) as string[];
+  }
+  if (scope === 'recent') {
+    const logs = await prisma.dailyLog.findMany({
+      where: { userId, foodId: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      select: { foodId: true },
+    });
+    const ids: string[] = [];
+    const seen = new Set<string>();
+    for (const row of logs) {
+      if (!row.foodId || seen.has(row.foodId)) continue;
+      seen.add(row.foodId);
+      ids.push(row.foodId);
+    }
+    return ids;
+  }
+  return null;
+}
+
+async function userFoodUsageCounts(prisma: any, userId: string): Promise<Map<string, number>> {
+  const grouped = await prisma.dailyLog.groupBy({
+    by: ['foodId'],
+    where: { userId, foodId: { not: null } },
+    _count: { foodId: true },
+  });
+  const map = new Map<string, number>();
+  for (const g of grouped) {
+    if (g.foodId) map.set(g.foodId, g._count.foodId);
+  }
+  return map;
+}
+
 // ─── Routes ──────────────────────────────────────────────────────────────────
 
 export default async function foodRoutes(fastify: FastifyInstance) {
@@ -217,7 +275,7 @@ export default async function foodRoutes(fastify: FastifyInstance) {
   fastify.get('/', {
     preHandler: [authenticate],
   }, async (req, reply) => {
-    const { q = '', status, limit = '20', offset = '0', mine } =
+    const { q = '', status, limit = '20', offset = '0', mine, scope: scopeRaw } =
       req.query as any;
 
     const prisma = (fastify as any).prisma;
@@ -226,7 +284,10 @@ export default async function foodRoutes(fastify: FastifyInstance) {
     const lim = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
     const off = Math.max(parseInt(offset, 10) || 0, 0);
     const query = String(q).trim();
-    const onlyMine = mine === '1' || mine === 'true';
+    const scope = SEARCH_SCOPES.has(String(scopeRaw || '').toLowerCase())
+      ? String(scopeRaw).toLowerCase()
+      : '';
+    const onlyMine = mine === '1' || mine === 'true' || scope === 'mine';
 
     const where: any = {
       status: status ?? { not: 'BANNED' },
@@ -238,32 +299,52 @@ export default async function foodRoutes(fastify: FastifyInstance) {
       where.source = 'USER_SCAN';
       where.externalId = null;
     }
+    const scopedIds = scope && scope !== 'mine' ? await scopedFoodIds(prisma, userId, scope) : null;
+    if (scopedIds && scopedIds.length === 0) {
+      return reply.send({ foods: [], total: 0 });
+    }
+
     let foodsRaw: any[] = [];
     let totalLocal = 0;
     const matchedIds = query ? await findFoodIdsByAccentInsensitiveName(prisma, query) : null;
-    if (!matchedIds || matchedIds.length > 0) {
-      if (matchedIds && matchedIds.length > 0) {
-        where.id = { in: matchedIds };
-      }
-      [foodsRaw, totalLocal] = await Promise.all([
-        prisma.food.findMany({
-          where,
-          orderBy: { createdAt: 'desc' },
-          include: foodInclude,
-        }),
-        prisma.food.count({ where }),
-      ]);
+    if (matchedIds && matchedIds.length === 0) {
+      return reply.send({ foods: [], total: 0 });
     }
+
+    let allowedIds: string[] | null = null;
+    if (scopedIds && matchedIds) {
+      const matchedSet = new Set(matchedIds);
+      allowedIds = scopedIds.filter((id) => matchedSet.has(id));
+    } else if (scopedIds) {
+      allowedIds = scopedIds;
+    } else if (matchedIds) {
+      allowedIds = matchedIds;
+    }
+    if (allowedIds) {
+      if (allowedIds.length === 0) return reply.send({ foods: [], total: 0 });
+      where.id = { in: allowedIds };
+    }
+
+    [foodsRaw, totalLocal] = await Promise.all([
+      prisma.food.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        include: foodInclude,
+      }),
+      prisma.food.count({ where }),
+    ]);
+
+    const usageCounts = query ? await userFoodUsageCounts(prisma, userId) : undefined;
 
     const localSorted = foodsRaw
       .filter((f: any) => !foodHasCyrillic(f))
       .slice()
-      .sort((a: any, b: any) => compareFoodsForSearch(a, b, query));
+      .sort((a: any, b: any) => compareFoodsForSearch(a, b, query, usageCounts));
 
     const localPage = localSorted.slice(off, off + lim);
 
     const shouldFetchExternal =
-      !onlyMine && query.length >= MIN_EXTERNAL_QUERY_LEN && off === 0;
+      !onlyMine && !scope && query.length >= MIN_EXTERNAL_QUERY_LEN && off === 0;
 
     let externalFoods: any[] = [];
 
@@ -314,10 +395,13 @@ export default async function foodRoutes(fastify: FastifyInstance) {
         }
       }
 
-      externalFoods.sort((a, b) => compareFoodsForSearch(a, b, query));
+      externalFoods.sort((a, b) => compareFoodsForSearch(a, b, query, usageCounts));
     }
 
-    const combined = [...localPage, ...externalFoods].slice(0, lim);
+    const combined = [...localPage, ...externalFoods]
+      .slice()
+      .sort((a, b) => compareFoodsForSearch(a, b, query, usageCounts))
+      .slice(0, lim);
     const favIds = await favoriteIdSet(prisma, userId, combined.map((f) => f.id));
 
     const foods = combined.map((food) => {

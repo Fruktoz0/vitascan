@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { IconFlashlight, IconFlashlightOff, IconKeyboardOutline, IconScreenRotation } from '../components/ui/Icons';
 import { FoodDetailModal } from '../components/food/FoodModals';
 import { ApiError, foodApi, type Food } from '../services/api';
+import { parseMealType, type MealType } from '../utils/mealMeta';
 import styles from './ScannerPage.module.css';
 
 /** 0 = no rotate, 1 = 90° CW, 3 = 90° CCW. 1D readers need horizontal bars. */
@@ -45,6 +46,7 @@ type FrameOrientation = 'landscape' | 'portrait';
 
 type ScannerLocationState = {
   returnPath?: string;
+  mealType?: MealType;
 };
 
 type ExtendedCapabilities = MediaTrackCapabilities & {
@@ -125,8 +127,9 @@ export default function ScannerPage() {
   const [tapFocusSupported, setTapFocusSupported] = useState(false);
   const [frameOrientation, setFrameOrientation] = useState<FrameOrientation>('landscape');
 
-  const returnPath =
-    (location.state as ScannerLocationState | null)?.returnPath || '/home';
+  const scannerState = (location.state as ScannerLocationState | null) ?? {};
+  const returnPath = scannerState.returnPath || '/home';
+  const mealType = parseMealType(scannerState.mealType);
 
   const stopCamera = useCallback(() => {
     if (focusRestoreTimer.current != null) {
@@ -170,6 +173,7 @@ export default function ScannerPage() {
           replace: true,
           state: {
             productNotFound: true,
+            mealType,
             ...(opts.barcode ? { prefillBarcode: opts.barcode } : {}),
           },
         });
@@ -177,10 +181,10 @@ export default function ScannerPage() {
       }
       navigate(returnPath, {
         replace: true,
-        state: { openAddFood: true },
+        state: { openAddFood: true, mealType },
       });
     },
-    [navigate, returnPath, stopCamera],
+    [mealType, navigate, returnPath, stopCamera],
   );
 
   const handleBarcode = useCallback(
@@ -468,6 +472,7 @@ export default function ScannerPage() {
           navigate(returnPath, { replace: true });
         }}
         logSource="SCAN"
+        initialMealType={mealType}
       />
     </div>
   );

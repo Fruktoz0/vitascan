@@ -9,6 +9,14 @@ import {
 
 export type MealType = 'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK';
 
+export const MEAL_TYPES: MealType[] = ['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK'];
+
+export function parseMealType(value: unknown, fallback: MealType = 'SNACK'): MealType {
+  return typeof value === 'string' && MEAL_TYPES.includes(value as MealType)
+    ? (value as MealType)
+    : fallback;
+}
+
 export const MEAL_META: Record<MealType, { Icon: typeof IconBakeryDining; bg: string }> = {
   BREAKFAST: { Icon: IconBakeryDining, bg: Colors.dashboard.tertiaryFixed },
   TIZORAI: { Icon: IconEggAlt, bg: Colors.dashboard.primaryFixed },

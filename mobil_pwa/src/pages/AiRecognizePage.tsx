@@ -176,7 +176,7 @@ export default function AiRecognizePage() {
     ?.prefillSuggestion;
 
   const goToAddFood = () => {
-    navigate(returnPath, { replace: true, state: { openAddFood: true } });
+    navigate(returnPath, { replace: true, state: { openAddFood: true, mealType } });
   };
 
   const [mode, setMode] = useState<Mode>('choose');

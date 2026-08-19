@@ -37,7 +37,7 @@ import CopyMealSheet from '../components/food/CopyMealSheet';
 import CopyUndoBar from '../components/food/CopyUndoBar';
 import { parseAnalysisContent } from '../utils/parseAnalysisContent';
 import { Colors } from '../design/tokens';
-import { MEAL_META, type MealType } from '../utils/mealMeta';
+import { MEAL_META, parseMealType, type MealType } from '../utils/mealMeta';
 import { getNearestMealType, mealKcalGoal } from '../utils/mealInsights';
 import { groupDiaryLogs } from '../utils/groupDiaryLogs';
 import { useLongPress } from '../hooks/useLongPress';
@@ -202,18 +202,19 @@ export default function FoodLibraryPage() {
       openAddFood?: boolean;
       prefillBarcode?: string;
       productNotFound?: boolean;
+      mealType?: MealType;
     } | null;
     if (!st) return;
 
     if (st.productNotFound) {
-      setMealForAdd('SNACK');
+      setMealForAdd(parseMealType(st.mealType));
       setNotFoundDialog({ barcode: st.prefillBarcode });
       navigate(location.pathname, { replace: true, state: {} });
       return;
     }
 
     if (!st.openAddFood) return;
-    setMealForAdd('SNACK');
+    setMealForAdd(parseMealType(st.mealType));
     setPrefillBarcode(st.prefillBarcode);
     setManualOpen(true);
     navigate(location.pathname, { replace: true, state: {} });
@@ -909,7 +910,9 @@ export default function FoodLibraryPage() {
           setPrefillBarcode(undefined);
         }}
         onCreated={(food) => setSelectedFood(food)}
-        onOpenScanner={() => navigate('/scanner', { state: { returnPath: '/food-library' } })}
+        onOpenScanner={() =>
+          navigate('/scanner', { state: { returnPath: '/food-library', mealType: mealForAdd } })
+        }
         onOpenAiRecognize={() =>
           navigate(`/ai-recognize?mealType=${mealForAdd}`, {
             state: { returnPath: '/food-library' },

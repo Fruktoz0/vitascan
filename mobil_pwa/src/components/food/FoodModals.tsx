@@ -40,6 +40,14 @@ import { useAuthStore } from '../../stores/authStore';
 import { Colors } from '../../design/tokens';
 import { toLocalDateStr, useDateStore } from '../../stores/dateStore';
 import { fileToCompressedJpeg } from '../../utils/imageToJpeg';
+import {
+  bumpFoodOpen,
+  loadFoodOpenCounts,
+  loadFoodSearchHistory,
+  matchSearchSuggestions,
+  rankFoodsByOpens,
+  rememberFoodSearch,
+} from '../../utils/foodSearchPrefs';
 import styles from './FoodModals.module.css';
 
 type MealType = 'BREAKFAST' | 'TIZORAI' | 'LUNCH' | 'UZSONNA' | 'DINNER' | 'SNACK';
@@ -1854,6 +1862,7 @@ export function AddFoodManualModal({
 }: AddFoodManualModalProps) {
   const { t } = useTranslation();
   const isAdmin = useAuthStore((s) => s.user?.role === 'ADMIN');
+  const userId = useAuthStore((s) => s.user?.id);
   const [query, setQuery] = useState(prefillName ?? prefillBarcode ?? '');
   const [foods, setFoods] = useState<Food[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1862,16 +1871,31 @@ export function AddFoodManualModal({
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Food | null>(null);
   const [deletingFood, setDeletingFood] = useState(false);
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [openCounts, setOpenCounts] = useState<Record<string, number>>({});
   const cleanQuery = query.trim();
   const searchSeq = useRef(0);
-  const isSearching = cleanQuery.length >= 3;
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const openCountsRef = useRef(openCounts);
+  const isSearching = cleanQuery.length >= 2;
+  const searchScope: FilterTab | null =
+    isSearching && activeTab !== 'recent' ? activeTab : null;
+  const suggestions = matchSearchSuggestions(searchHistory, query);
+
+  openCountsRef.current = openCounts;
+
+  const applyFoods = (list: Food[]) => {
+    setFoods(rankFoodsByOpens(list, openCountsRef.current));
+  };
 
   useEffect(() => {
     if (!visible) return;
     setQuery(prefillName ?? prefillBarcode ?? '');
     setActiveTab('recent');
     setCreateOpen(false);
-  }, [visible, prefillName, prefillBarcode]);
+    void loadFoodSearchHistory(userId).then(setSearchHistory);
+    void loadFoodOpenCounts(userId).then(setOpenCounts);
+  }, [visible, prefillName, prefillBarcode, userId]);
 
   useEffect(() => {
     if (!visible) return;
@@ -1882,16 +1906,23 @@ export function AddFoodManualModal({
       const timer = setTimeout(async () => {
         setLoading(true);
         try {
-          const res = await foodApi.search(cleanQuery, { limit: 20 });
+          const scoped = searchScope === 'mine' || searchScope === 'favorites' || searchScope === 'frequent';
+          const res = await foodApi.search(cleanQuery, {
+            limit: scoped ? 50 : 20,
+            mine: searchScope === 'mine',
+            scope: searchScope === 'favorites' || searchScope === 'frequent' ? searchScope : undefined,
+          });
           if (seq !== searchSeq.current) return;
-          setFoods(res.foods);
+          applyFoods(res.foods);
+          const nextHistory = await rememberFoodSearch(cleanQuery, userId);
+          if (seq === searchSeq.current) setSearchHistory(nextHistory);
         } catch {
           if (seq !== searchSeq.current) return;
           setFoods([]);
         } finally {
           if (seq === searchSeq.current) setLoading(false);
         }
-      }, 500);
+      }, 400);
       return () => clearTimeout(timer);
     }
 
@@ -1905,7 +1936,7 @@ export function AddFoodManualModal({
         else if (activeTab === 'mine') res = await foodApi.search('', { limit: 30, mine: true });
         else res = await foodApi.recent(20);
         if (cancelled || seq !== searchSeq.current) return;
-        setFoods(res.foods);
+        applyFoods(res.foods);
       } catch {
         if (cancelled || seq !== searchSeq.current) return;
         setFoods([]);
@@ -1917,7 +1948,7 @@ export function AddFoodManualModal({
     return () => {
       cancelled = true;
     };
-  }, [cleanQuery, visible, activeTab, isSearching]);
+  }, [cleanQuery, visible, activeTab, isSearching, searchScope, userId]);
 
   const toggleFavorite = async (item: Food, e: MouseEvent) => {
     e.stopPropagation();
@@ -1986,27 +2017,54 @@ export function AddFoodManualModal({
             <div className={styles.searchBoxInner}>
               <IconSearch size={18} color={Colors.dashboard.tabInactive} />
               <input
+                ref={searchInputRef}
                 className={styles.searchInputInner}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t('food.searchPlaceholder')}
                 autoFocus
               />
+              {query.length > 0 ? (
+                <button
+                  type="button"
+                  className={styles.searchClearBtn}
+                  aria-label={t('food.clearSearch')}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setQuery('');
+                    searchInputRef.current?.focus();
+                  }}
+                >
+                  <IconClose size={16} color={Colors.dashboard.stroke} />
+                </button>
+              ) : null}
             </div>
           </div>
 
+          {suggestions.length > 0 ? (
+            <div className={styles.suggestRow} aria-label={t('food.searchSuggestions')}>
+              {suggestions.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={styles.suggestChip}
+                  onClick={() => setQuery(item)}
+                >
+                  <span className={styles.suggestChipText}>{item}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           <div className={styles.tabRow}>
             {FILTER_TABS.map((tab) => {
-              const active = !isSearching && activeTab === tab.id;
+              const active = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
                   type="button"
                   className={`${styles.tabChip} ${active ? styles.tabChipActive : ''}`}
-                  onClick={() => {
-                    setQuery('');
-                    setActiveTab(tab.id);
-                  }}
+                  onClick={() => setActiveTab(tab.id)}
                 >
                   <span className={active ? styles.tabChipTextActive : styles.tabChipText}>
                     {t(tab.labelKey)}
@@ -2094,6 +2152,7 @@ export function AddFoodManualModal({
                     type="button"
                     className={styles.quickRowMain}
                     onClick={() => {
+                      void bumpFoodOpen(item.id, userId).then(setOpenCounts);
                       onCreated?.(item);
                     }}
                   >

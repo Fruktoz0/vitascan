@@ -42,27 +42,70 @@ export function foldedLikePattern(query: string): string | null {
   return `%${folded}%`;
 }
 
+/** Szavakra bontás: minden token a név/márka bármely szavának belsejében is egyezhet. */
+export function tokenizeSearchQuery(query: string): string[] {
+  const folded = foldDiacritics(query).replace(/[%_\\]/g, '');
+  if (!folded) return [];
+
+  const seen = new Set<string>();
+  const tokens: string[] = [];
+  for (const raw of folded.split(/[\s,;+/]+/)) {
+    const t = raw.replace(/^[-.]+|[-.]+$/g, '');
+    if (t.length < 2 || seen.has(t)) continue;
+    seen.add(t);
+    tokens.push(t);
+  }
+  if (tokens.length === 0) {
+    const compact = folded.replace(/\s+/g, '');
+    if (compact.length >= 2) return [compact];
+  }
+  return tokens;
+}
+
 type PrismaRaw = {
   $queryRaw: <T = unknown>(query: TemplateStringsArray, ...values: unknown[]) => Promise<T>;
 };
 
-/** Ékezetfüggetlen név/márka egyezés a Food táblán. */
-export async function findFoodIdsByAccentInsensitiveName(
-  prisma: PrismaRaw,
-  query: string,
-): Promise<string[]> {
-  const pattern = foldedLikePattern(query);
-  if (!pattern) return [];
+async function findFoodIdsForToken(prisma: PrismaRaw, token: string): Promise<string[]> {
+  const pattern = `%${token}%`;
   const from = SQL_ACCENT_FROM;
   const to = SQL_ACCENT_TO;
   const rows = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT id FROM "Food"
-    WHERE translate(lower(coalesce(name, '')), ${from}, ${to}) LIKE ${pattern}
-       OR translate(lower(coalesce("nameHu", '')), ${from}, ${to}) LIKE ${pattern}
-       OR translate(lower(coalesce("nameEn", '')), ${from}, ${to}) LIKE ${pattern}
-       OR translate(lower(coalesce(brand, '')), ${from}, ${to}) LIKE ${pattern}
+    WHERE translate(
+            lower(
+              coalesce(name, '') || ' ' ||
+              coalesce("nameHu", '') || ' ' ||
+              coalesce("nameEn", '') || ' ' ||
+              coalesce(brand, '')
+            ),
+            ${from},
+            ${to}
+          ) LIKE ${pattern}
   `;
   return rows.map((r) => r.id);
+}
+
+/** Ékezetfüggetlen név/márka egyezés. Több szó: mindegyik tokennek szerepelnie kell. */
+export async function findFoodIdsByAccentInsensitiveName(
+  prisma: PrismaRaw,
+  query: string,
+): Promise<string[]> {
+  const tokens = tokenizeSearchQuery(query);
+  if (tokens.length === 0) return [];
+
+  let ids: string[] | null = null;
+  for (const token of tokens) {
+    const tokenIds = await findFoodIdsForToken(prisma, token);
+    if (ids === null) {
+      ids = tokenIds;
+    } else {
+      const set = new Set(tokenIds);
+      ids = ids.filter((id) => set.has(id));
+    }
+    if (ids.length === 0) return [];
+  }
+  return ids ?? [];
 }
 
 export function hasCyrillic(...parts: Array<string | null | undefined>): boolean {
@@ -94,9 +137,34 @@ export function resolveOrigin(
   return 'local';
 }
 
+function tokenFieldScore(
+  value: string | null | undefined,
+  token: string,
+  weight: number,
+): number {
+  if (!value) return 0;
+  const v = foldDiacritics(value);
+  if (!v) return 0;
+  if (v === token) return 1000 * weight;
+  if (v.startsWith(token)) return 820 * weight - Math.min(v.length, 80);
+
+  const words = v.split(/[\s,;+/]+/).filter(Boolean);
+  let best = 0;
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i]!;
+    const later = i === 0 ? 0 : 12;
+    if (w === token) best = Math.max(best, 780 * weight - later);
+    else if (w.startsWith(token)) best = Math.max(best, 700 * weight - later);
+    else if (w.includes(token)) best = Math.max(best, 620 * weight - later);
+  }
+  if (v.includes(token)) best = Math.max(best, 480 * weight);
+  return best;
+}
+
 /**
  * Szöveges relevancia: nagyobb = jobb.
  * Preferálja a nameHu egyezést; idegen (csak nameEn) hátrébb.
+ * Tokenenként a szavak belsejében és a 2. (későbbi) szavakban is pontoz.
  */
 export function textRelevanceScore(
   food: {
@@ -107,31 +175,31 @@ export function textRelevanceScore(
   },
   query: string,
 ): number {
-  const q = foldDiacritics(query);
-  if (!q) return 0;
+  const tokens = tokenizeSearchQuery(query);
+  if (tokens.length === 0) return 0;
 
-  const scoreField = (value: string | null | undefined, weight: number): number => {
-    if (!value) return 0;
-    const v = foldDiacritics(value);
-    if (!v) return 0;
-    if (v === q) return 1000 * weight;
-    if (v.startsWith(q)) return 800 * weight - Math.min(v.length, 200);
-    if (v.includes(q)) return 500 * weight - Math.min(v.length, 200);
-    return 0;
-  };
-
-  const hu = scoreField(food.nameHu, 1.2);
-  const name = scoreField(food.name, 1.0);
-  const brand = scoreField(food.brand, 0.7);
-  const en = scoreField(food.nameEn, 0.55);
-
-  // Ha csak EN egyezik (HU/name/brand nem), büntetés
-  let score = Math.max(hu, name, brand, en);
-  if (en > 0 && hu === 0 && name === 0 && brand === 0) {
-    score *= 0.45;
+  let total = 0;
+  for (const token of tokens) {
+    const hu = tokenFieldScore(food.nameHu, token, 1.2);
+    const name = tokenFieldScore(food.name, token, 1.0);
+    const brand = tokenFieldScore(food.brand, token, 0.7);
+    const en = tokenFieldScore(food.nameEn, token, 0.55);
+    let score = Math.max(hu, name, brand, en);
+    if (en > 0 && hu === 0 && name === 0 && brand === 0) {
+      score *= 0.45;
+    }
+    total += score;
   }
 
-  return score;
+  const avg = total / tokens.length;
+  const phrase = foldDiacritics(query);
+  const blob = foldDiacritics(
+    [food.nameHu, food.name, food.nameEn, food.brand].filter(Boolean).join(' '),
+  );
+  if (phrase.length >= 2 && blob.includes(phrase)) {
+    return avg + 120;
+  }
+  return avg;
 }
 
 export function rankBySourceAndStatus(food: { source?: string; status?: string }): number {
@@ -142,15 +210,24 @@ export function rankBySourceAndStatus(food: { source?: string; status?: string }
   return 4;
 }
 
-/** Forrás rank + szöveges relevancia + createdAt */
-export function compareFoodsForSearch(a: any, b: any, query: string): number {
-  const rankDiff = rankBySourceAndStatus(a) - rankBySourceAndStatus(b);
-  if (rankDiff !== 0) return rankDiff;
-
+/** Forrás rank + használati gyakoriság + szöveges relevancia + createdAt */
+export function compareFoodsForSearch(
+  a: any,
+  b: any,
+  query: string,
+  usageCounts?: Map<string, number>,
+): number {
   if (query) {
+    const usageA = usageCounts?.get(a.id) ?? 0;
+    const usageB = usageCounts?.get(b.id) ?? 0;
+    if (usageB !== usageA) return usageB - usageA;
+
     const relDiff = textRelevanceScore(b, query) - textRelevanceScore(a, query);
     if (relDiff !== 0) return relDiff;
   }
+
+  const rankDiff = rankBySourceAndStatus(a) - rankBySourceAndStatus(b);
+  if (rankDiff !== 0) return rankDiff;
 
   const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
   const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
