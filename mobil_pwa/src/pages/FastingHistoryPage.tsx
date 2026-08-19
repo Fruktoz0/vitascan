@@ -44,10 +44,6 @@ const PROTOCOL_META: Record<string, { Icon: typeof IconTimer; color: string; bg:
   CUSTOM: { Icon: IconTarget, color: '#2e7d32', bg: '#e8f5e9' },
 };
 
-function hoursValue(item: FastSessionDto) {
-  return Math.round((item.elapsedMinutes / 60) * 10) / 10;
-}
-
 export default function FastingHistoryPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
