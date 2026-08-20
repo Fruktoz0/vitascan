@@ -1,0 +1,984 @@
+.screen {
+  position: relative;
+  min-height: 100%;
+  background: var(--page);
+  overflow-x: hidden;
+}
+
+.blob {
+  position: absolute;
+  border: 1.5px solid var(--stroke);
+  pointer-events: none;
+  opacity: 0.55;
+  z-index: 0;
+}
+
+.blobMint {
+  width: 280px;
+  height: 280px;
+  top: -50px;
+  right: -90px;
+  background: rgba(232, 245, 233, 0.7);
+  border-radius: 140px 180px 120px 200px;
+}
+
+.blobPeach {
+  width: 220px;
+  height: 220px;
+  bottom: 18%;
+  left: -80px;
+  background: rgba(255, 218, 214, 0.65);
+  border-radius: 110px 130px 90px 150px;
+}
+
+.blobWood {
+  width: 200px;
+  height: 200px;
+  top: 38%;
+  right: -70px;
+  background: rgba(234, 222, 204, 0.7);
+  border-radius: 90px 120px 80px 140px;
+}
+
+.topBar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(var(--safe-top) + 12px) 16px 8px;
+}
+
+.round,
+.back {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+}
+
+.backShadow,
+.calShadow,
+.btnShadow {
+  position: absolute;
+  inset: 0;
+  top: 2px;
+  left: 2px;
+  background: var(--shadow-hard);
+  border-radius: 20px;
+}
+
+.backInner,
+.calInner {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1.5px solid var(--stroke);
+  border-radius: 20px;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  text-align: center;
+  flex: 1;
+  letter-spacing: -0.2px;
+}
+
+.weekCard {
+  position: relative;
+  z-index: 1;
+  margin: 0 16px 12px;
+  background: #fff;
+  border: 1.5px solid var(--stroke);
+  border-radius: 24px;
+  padding: 16px;
+  box-shadow: 4px 4px 0 var(--shadow-hard);
+}
+
+.monthRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.monthRow h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.monthRow button {
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  border: 1px solid var(--stroke);
+  background: var(--surface-low);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.weekHead,
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+
+.weekHead {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--tab-inactive);
+}
+
+.calDay {
+  height: 44px;
+  border-radius: 12px;
+  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  color: inherit;
+  padding: 0;
+}
+
+.calDayToday {
+  border: 1.5px solid var(--stroke);
+}
+
+.calDayOn {
+  background: var(--blob-mint);
+  border: 1.5px solid var(--stroke);
+  box-shadow: 2px 2px 0 var(--shadow-hard);
+}
+
+.calDayNum {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.calDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #2d8a4e;
+}
+
+.switcher {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 10px;
+  overflow-x: auto;
+}
+
+.chip {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1.5px solid var(--stroke);
+  background: #fff;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-weight: 800;
+  font-size: 13px;
+  box-shadow: 2px 2px 0 var(--shadow-hard);
+}
+
+.chipOn {
+  background: var(--blob-mint, #e8f5e9);
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+  padding: 0 16px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.slot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.slotIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  border: 1.5px solid var(--stroke);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.slotIcon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.slotText {
+  flex: 1;
+  min-width: 0;
+}
+
+.slotMeal {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+.slotTitle {
+  display: block;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.slotMeta {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.logBtn {
+  position: relative;
+  flex-shrink: 0;
+  width: auto;
+  min-width: 88px;
+  height: 40px;
+  padding-right: 2px;
+  padding-bottom: 2px;
+  border: none;
+  background: transparent;
+}
+
+.logBtn .btnShadow {
+  border-radius: 16px;
+}
+
+.logFace {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e8f5e9;
+  border: 1.5px solid var(--stroke);
+  border-radius: 16px;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.logBtn:active .logFace {
+  transform: translate(2px, 2px);
+}
+
+.logBtn:disabled {
+  opacity: 0.45;
+}
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+}
+
+.hardBtn {
+  position: relative;
+  flex: 1;
+  height: 48px;
+  padding-right: 2px;
+  padding-bottom: 2px;
+  border: none;
+  background: transparent;
+}
+
+.hardBtn .btnShadow {
+  border-radius: 999px;
+}
+
+.hardFace {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1.5px solid var(--stroke);
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 13px;
+  background: var(--surface-low, #f3efe6);
+}
+
+.hardBtnMint .hardFace {
+  background: #e8f5e9;
+}
+
+.hardBtnLav .hardFace {
+  background: #efe8ff;
+}
+
+.hardBtn:active:not(:disabled) .hardFace {
+  transform: translate(2px, 2px);
+}
+
+.hardBtn:disabled {
+  opacity: 0.5;
+}
+
+.genCard {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.genHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.genIcon {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 16px;
+  border: 1.5px solid var(--stroke);
+  background: #efe8ff;
+  box-shadow: 3px 3px 0 var(--shadow-hard);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.genHeaderText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.genTitle {
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+}
+
+.genSubtitle {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.optBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.optLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  opacity: 0.7;
+}
+
+.proTag {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #7a4dd6;
+  background: #efe8ff;
+  border: 1px solid var(--stroke);
+  border-radius: 999px;
+  padding: 1px 6px;
+  opacity: 1;
+}
+
+.segmented {
+  display: flex;
+  gap: 0;
+  border: 1.5px solid var(--stroke);
+  border-radius: 999px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.seg {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 9px 12px;
+  font-weight: 800;
+  font-size: 13px;
+  font-family: inherit;
+  color: inherit;
+}
+
+.seg + .seg {
+  border-left: 1.5px solid var(--stroke);
+}
+
+.segOn {
+  background: var(--blob-mint, #e8f5e9);
+}
+
+.chipWrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dietChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1.5px solid var(--stroke);
+  background: #fff;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-weight: 800;
+  font-size: 12px;
+  font-family: inherit;
+  color: inherit;
+}
+
+.dietChipOn {
+  background: var(--blob-mint, #e8f5e9);
+  box-shadow: 2px 2px 0 var(--shadow-hard);
+}
+
+.dietChipLocked {
+  opacity: 0.45;
+}
+
+.genPrimary {
+  height: 52px;
+  flex: none;
+}
+
+.toggleRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toggle {
+  border: 1.5px solid var(--stroke);
+  background: #fff;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.toggleOn {
+  background: var(--blob-mint, #e8f5e9);
+  box-shadow: 2px 2px 0 var(--shadow-hard);
+}
+
+.quota {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.weekBoard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.weekDayBlock {
+  padding: 8px 4px 10px;
+  border-top: 1.5px solid rgba(28, 27, 27, 0.1);
+}
+
+.weekDayBlock:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.dayCardHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 4px 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.dayCardTitle {
+  font-size: 15px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.dayCardKcal {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+.weekSlot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.weekSlot .slotIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+}
+
+.weekSlot .slotMeal {
+  display: none;
+}
+
+.weekSlot .slotTitle {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.weekSlot .slotMeta {
+  font-size: 11px;
+}
+
+.weekSlot .logBtn {
+  min-width: 72px;
+  height: 32px;
+}
+
+.weekSlot .logFace {
+  font-size: 11px;
+  border-radius: 12px;
+}
+
+.weekSlot .logBtn .btnShadow {
+  border-radius: 12px;
+}
+
+.ghost {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-weight: 700;
+  font-size: 13px;
+  opacity: 0.7;
+  padding: 8px;
+}
+
+.empty {
+  text-align: center;
+  font-weight: 600;
+  padding: 12px 8px 20px;
+}
+
+.error {
+  color: #b71c1c;
+  font-weight: 700;
+  margin: 0;
+}
+
+.center {
+  padding: 48px 16px;
+  text-align: center;
+}
+
+/* ── Pantry ── */
+
+.pantryHero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.pantryShelfIcon {
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
+  border: 1.5px solid var(--stroke);
+  background: #eadecc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 3px 3px 0 var(--shadow-hard);
+  flex-shrink: 0;
+}
+
+.pantryLead {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.75;
+  line-height: 1.35;
+}
+
+.pantryActions {
+  display: flex;
+  gap: 10px;
+}
+
+.aiAddBtn {
+  position: relative;
+  flex: 0 0 52px;
+  height: 48px;
+  padding-right: 2px;
+  padding-bottom: 2px;
+  border: none;
+  background: transparent;
+}
+
+.aiAddBtn .btnShadow {
+  border-radius: 999px;
+}
+
+.aiAddFace {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 1.5px solid var(--stroke);
+  border-radius: 999px;
+  background: #efe8ff;
+}
+
+.aiAddBtn:active .aiAddFace {
+  transform: translate(2px, 2px);
+}
+
+.pantrySearch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1.5px solid var(--stroke);
+  background: #fff8ef;
+  border-radius: 16px;
+  padding: 10px 12px;
+}
+
+.pantryInput,
+.pantryQty {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-weight: 700;
+  width: 100%;
+  font-family: inherit;
+}
+
+.hitList {
+  display: flex;
+  flex-direction: column;
+  border: 1.5px solid var(--stroke);
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.hit {
+  text-align: left;
+  border: none;
+  background: #fff;
+  padding: 10px 12px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--stroke);
+}
+
+.hit:last-child {
+  border-bottom: none;
+}
+
+.pantryQtyRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pantryQty {
+  width: 72px;
+  border: 1.5px solid var(--stroke);
+  background: #fff;
+  border-radius: 14px;
+  padding: 8px 10px;
+}
+
+.unitChip {
+  border: 1.5px solid var(--stroke);
+  background: #fff;
+  border-radius: 12px;
+  padding: 8px 10px;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.shelf {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 14px 10px 16px;
+  background: linear-gradient(180deg, #d7b07a 0%, #b88958 100%);
+  border: 1.5px solid var(--stroke);
+  border-radius: 24px;
+  box-shadow: 4px 4px 0 var(--shadow-hard);
+}
+
+.shelfBay {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.shelfItem {
+  background: #fff8ef;
+  border: 1.5px solid var(--stroke);
+  border-radius: 16px 16px 8px 8px;
+  padding: 10px 12px 8px;
+}
+
+.shelfPlank {
+  height: 12px;
+  margin: 0 2px 10px;
+  background: linear-gradient(180deg, #d4b896 0%, #b08968 55%, #8b5a2b 100%);
+  border: 1.5px solid var(--stroke);
+  border-radius: 0 0 8px 8px;
+  box-shadow: 2px 3px 0 var(--shadow-hard);
+}
+
+.jar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.jarMark {
+  width: 48px;
+  height: 56px;
+  border-radius: 12px 12px 16px 16px;
+  border: 1.5px solid var(--stroke);
+  background: linear-gradient(180deg, #fff8ef 0%, #eadecc 100%);
+  box-shadow: 2px 2px 0 var(--shadow-hard);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.jarLid {
+  width: 28px;
+  height: 6px;
+  border-radius: 3px;
+  background: #c4a574;
+  border: 1px solid var(--stroke);
+  margin-bottom: 4px;
+}
+
+.jarQty {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+}
+
+.jarBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.jarName {
+  display: block;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.jarMacros {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+/* ── Calendar overlay ── */
+
+.calOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(28, 27, 27, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.calCard {
+  width: 100%;
+  max-width: 380px;
+  background: #fff;
+  border: 1.5px solid var(--stroke);
+  border-radius: 24px;
+  padding: 16px;
+  box-shadow: 5px 5px 0 var(--shadow-hard);
+}
+
+.calTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.calTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+  text-transform: capitalize;
+}
+
+.calClose {
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  border: 1.5px solid var(--stroke);
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 2px 2px 0 var(--shadow-hard);
+}
+
+.calHint {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.6;
+}
+
+.calGridHead,
+.calRow {
+  display: grid;
+  grid-template-columns: 28px repeat(7, 1fr);
+  gap: 4px;
+  align-items: center;
+}
+
+.calGridHead {
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--tab-inactive);
+  text-align: center;
+}
+
+.calRow {
+  margin-bottom: 4px;
+}
+
+.calWeekBtn {
+  height: 38px;
+  border-radius: 10px;
+  border: 1.5px solid var(--stroke);
+  background: #f3efe6;
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+  padding: 0;
+}
+
+.calWeekBtnOn {
+  background: var(--blob-mint, #e8f5e9);
+  box-shadow: 2px 2px 0 var(--shadow-hard);
+}
+
+.calCell {
+  height: 38px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  font-weight: 700;
+  font-size: 14px;
+  font-family: inherit;
+  color: inherit;
+}
+
+.calCellOther {
+  opacity: 0.35;
+}
+
+.calCellToday {
+  border: 1.5px solid var(--stroke);
+}
+
+.calCellOn {
+  background: var(--blob-mint, #e8f5e9);
+  border: 1.5px solid var(--stroke);
+  box-shadow: 2px 2px 0 var(--shadow-hard);
+}

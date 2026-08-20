@@ -50,6 +50,9 @@ model User {
   notificationPref   NotificationPref?
   pushSubscriptions  PushSubscription[]
   fastSessions       FastSession[]
+  mealPlans          MealPlan[]
+  mealPlanSlotLogs   MealPlanSlotLog[]
+  pantryItems        PantryItem[]
 
   deletedAt DateTime? // Soft delete (GDPR - 30 napos türelmi idő)
   createdAt DateTime  @default(now())
@@ -75,9 +78,10 @@ model UserProfile {
   dailyFatGoal     Float? // g / nap
   avatarKey        String? // DiceBear seed, pl. Felix — ingyenes választható avatar
 
-  showHomeWaterCard   Boolean @default(true)
-  showHomeStreakCard  Boolean @default(true)
-  showHomeFastingCard Boolean @default(false)
+  showHomeWaterCard    Boolean @default(true)
+  showHomeStreakCard   Boolean @default(true)
+  showHomeFastingCard  Boolean @default(false)
+  showHomeMealPlanCard Boolean @default(false)
   fastingProtocol     String  @default("16:8") // 16:8 | 18:6 | 20:4 | OMAD | CUSTOM
   fastingGoalMinutes  Int     @default(960)
 
@@ -200,6 +204,8 @@ model Food {
   templateItems MealTemplateItem[] @relation("TemplateItemFood")
   templatePreparedItems MealTemplateItem[] @relation("TemplatePreparedFood")
   recipeIngredients RecipeIngredient[]
+  mealPlanSlots     MealPlanSlot[]
+  pantryItems       PantryItem[]
   /** Receptből materializált prepared Food — ne jelenjen meg ételkeresésben. */
   preparedFromRecipeId String? @unique
   preparedFromRecipe   Recipe? @relation("RecipeMaterializedFood", fields: [preparedFromRecipeId], references: [id], onDelete: SetNull)
@@ -290,6 +296,7 @@ model DailyLog {
 
   @@index([userId, logGroupId])
   @@index([sourcePreparedFoodId])
+  mealPlanSlotLogs MealPlanSlotLog[]
 }
 
 model MealTemplate {
@@ -299,6 +306,7 @@ model MealTemplate {
   name      String
   mealType  MealType
   items     MealTemplateItem[]
+  mealPlanSlots MealPlanSlot[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -417,7 +425,7 @@ model DailyAnalysis {
   userId          String
   user            User     @relation(fields: [userId], references: [id])
   loggedDate      DateTime @db.Date
-  /** nutrition | fitness | coach | mealSuggest | weeklyNutrition */
+  /** nutrition | fitness | coach | mealSuggest | weeklyNutrition | mealPlanGenerate */
   kind            String   @default("nutrition")
   content         String
   generationCount Int      @default(1)
@@ -451,6 +459,12 @@ model Recipe {
   instructions     Json              // string[]
   category         RecipeCategory?
   dietTags         RecipeDietTag[]   @default([])
+  prepMinutes      Int?
+  cookMinutes      Int?
+  /** QUICK | NORMAL | PROJECT */
+  effort           String?
+  seasonMonths     Int[]             @default([])
+  leftoverDays     Int               @default(0)
   sourceUrl        String?
   sourceType       RecipeSourceType  @default(MANUAL)
   sourceExternalId String?
@@ -462,6 +476,7 @@ model Recipe {
   images           RecipeImage[]
   favorites        RecipeFavorite[]
   materializedFood Food?             @relation("RecipeMaterializedFood")
+  mealPlanSlots    MealPlanSlot[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
@@ -638,6 +653,80 @@ model ShoppingListItem {
   @@index([listId])
 }
 
+/** Háztartási kamra — a terv tulajdonosához tartozik. */
+model PantryItem {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  foodId    String?
+  food      Food?     @relation(fields: [foodId], references: [id], onDelete: SetNull)
+  name      String
+  quantity  Float
+  unit      String // g | ml | db
+  expiresOn DateTime? @db.Date
+  /** MANUAL | BARCODE | CART_CHECKED | LEFTOVER */
+  source    String    @default("MANUAL")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([userId, foodId])
+}
+
+model MealPlan {
+  id        String         @id @default(uuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStart DateTime       @db.Date
+  slots     MealPlanSlot[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([userId, weekStart])
+  @@index([userId, weekStart])
+}
+
+model MealPlanSlot {
+  id         String             @id @default(uuid())
+  planId     String
+  plan       MealPlan           @relation(fields: [planId], references: [id], onDelete: Cascade)
+  slotDate   DateTime           @db.Date
+  mealType   MealType
+  source     MealPlanSlotSource
+  recipeId   String?
+  recipe     Recipe?            @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  templateId String?
+  template   MealTemplate?      @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  foodId     String?
+  food       Food?              @relation(fields: [foodId], references: [id], onDelete: SetNull)
+  servings   Float              @default(1)
+  amountG    Float?
+  logs       MealPlanSlotLog[]
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  @@unique([planId, slotDate, mealType])
+  @@index([planId, slotDate])
+  @@index([recipeId])
+  @@index([templateId])
+}
+
+model MealPlanSlotLog {
+  id         String       @id @default(uuid())
+  slotId     String
+  slot       MealPlanSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logId      String?
+  log        DailyLog?    @relation(fields: [logId], references: [id], onDelete: SetNull)
+  logGroupId String?
+  createdAt  DateTime     @default(now())
+
+  @@unique([slotId, userId])
+  @@index([userId])
+  @@index([logId])
+}
+
 model NotificationPref {
   id     String @id @default(uuid())
   userId String @unique
@@ -803,6 +892,14 @@ enum ShareCategory {
   WATER
   BODY
   CART
+  MEAL_PLAN
+}
+
+enum MealPlanSlotSource {
+  RECIPE
+  TEMPLATE
+  FOOD
+  SKIPPED
 }
 
 enum ShareStatus {

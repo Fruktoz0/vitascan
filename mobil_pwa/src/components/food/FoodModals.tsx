@@ -36,7 +36,7 @@ import { GlassCardSimple } from '../ui/GlassCard';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useFastingLogGuard } from '../../hooks/useFastingLogGuard';
 import { SwipeDeleteRow } from '../ui/SwipeDeleteRow';
-import { adminApi, foodApi, getErrorMessage, logApi, type Food, type FoodOrigin, type FoodStatus } from '../../services/api';
+import { adminApi, foodApi, getErrorMessage, logApi, pantryApi, type Food, type FoodOrigin, type FoodStatus } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
 import { Colors } from '../../design/tokens';
 import { toLocalDateStr, useDateStore } from '../../stores/dateStore';
@@ -258,6 +258,9 @@ interface FoodDetailModalProps {
   onFoodDeleted?: (id: string) => void;
   logSource?: 'SCAN' | 'SEARCH' | 'MANUAL';
   initialMealType?: MealType;
+  intent?: 'log' | 'pantry';
+  pantryOwnerId?: string;
+  onPantryAdded?: () => void;
 }
 
 function MacroBar({
@@ -515,6 +518,9 @@ export function FoodDetailModal({
   onFoodDeleted,
   logSource = 'SEARCH',
   initialMealType = 'SNACK',
+  intent = 'log',
+  pantryOwnerId,
+  onPantryAdded,
 }: FoodDetailModalProps) {
   const { t } = useTranslation();
   const { confirmIfActive, dialog: fastingDialog } = useFastingLogGuard();
@@ -640,6 +646,20 @@ export function FoodDetailModal({
     }
     setAdding(true);
     try {
+      if (intent === 'pantry') {
+        const unit: 'g' | 'ml' | 'db' = displayUnit === 'db' ? 'db' : 'g';
+        const quantity = unit === 'db' ? qty : g;
+        await pantryApi.add({
+          ownerId: pantryOwnerId,
+          foodId: isLocalFoodId(currentFood.id) ? currentFood.id : undefined,
+          name: displayName,
+          quantity,
+          unit,
+          source: 'BARCODE',
+        });
+        onPantryAdded?.();
+        return;
+      }
       await confirmIfActive();
       const isUuid =
         typeof currentFood.id === 'string' &&
@@ -925,6 +945,7 @@ export function FoodDetailModal({
             )}
           </GlassCardSimple>
 
+          {intent === 'log' ? (
           <GlassCardSimple padding={20} radius={24} shadowOffset={3}>
             <div className={styles.sectionHeaderSmall}>
               <SectionIcon background={Colors.dashboard.blobPeach}>
@@ -953,6 +974,7 @@ export function FoodDetailModal({
               })}
             </div>
           </GlassCardSimple>
+          ) : null}
 
           {canEditFood && (
             <>
@@ -978,7 +1000,11 @@ export function FoodDetailModal({
           <span className={styles.addBtnInner}>
             <IconAddCircle size={24} color="#fff" />
             <span className={styles.addBtnLabel}>
-              {adding ? 'Folyamatban...' : t('food.addToLog')}
+              {adding
+                ? t('common.loading', 'Betöltés...')
+                : intent === 'pantry'
+                  ? t('mealPlan.addToPantry')
+                  : t('food.addToLog')}
             </span>
           </span>
         </button>

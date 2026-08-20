@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { resolveAvatarKey } from '../design/avatars';
 import { profileApi } from '../services/api';
 
-type HomeCardKey = 'showHomeWaterCard' | 'showHomeStreakCard' | 'showHomeFastingCard';
+type HomeCardKey = 'showHomeWaterCard' | 'showHomeStreakCard' | 'showHomeFastingCard' | 'showHomeMealPlanCard';
 
 interface ProfileState {
   avatarKey: string | null;
@@ -10,6 +10,7 @@ interface ProfileState {
   showHomeWaterCard: boolean;
   showHomeStreakCard: boolean;
   showHomeFastingCard: boolean;
+  showHomeMealPlanCard: boolean;
   kcalGoalFollowsWeight: boolean;
   load: () => Promise<void>;
   setAvatarKey: (key: string) => Promise<void>;
@@ -22,6 +23,7 @@ function flagsFromProfile(profile: any) {
     showHomeWaterCard: profile?.showHomeWaterCard !== false,
     showHomeStreakCard: profile?.showHomeStreakCard !== false,
     showHomeFastingCard: profile?.showHomeFastingCard === true,
+    showHomeMealPlanCard: profile?.showHomeMealPlanCard === true,
     kcalGoalFollowsWeight: profile?.kcalGoalFollowsWeight !== false,
   };
 }
@@ -32,6 +34,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   showHomeWaterCard: true,
   showHomeStreakCard: true,
   showHomeFastingCard: false,
+  showHomeMealPlanCard: false,
   kcalGoalFollowsWeight: true,
 
   load: async () => {

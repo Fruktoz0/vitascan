@@ -168,6 +168,10 @@ const MERGE_TABLE_ORDER = [
   'AiBodyAnalysis',
   'WorkoutLog',
   'DailyStepLog',
+  'PantryItem',
+  'MealPlan',
+  'MealPlanSlot',
+  'MealPlanSlotLog',
 ];
 
 /**

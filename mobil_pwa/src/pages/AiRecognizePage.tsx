@@ -11,9 +11,10 @@ import {
 } from '../components/ui/Icons';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useFastingLogGuard } from '../hooks/useFastingLogGuard';
-import { foodApi, getErrorMessage, logApi } from '../services/api';
+import { foodApi, getErrorMessage, logApi, pantryApi } from '../services/api';
 import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import type { MealType } from '../utils/mealMeta';
+import { getPlanOwnerId } from '../utils/mealPlan';
 import { fileToCompressedJpeg } from '../utils/imageToJpeg';
 import styles from './AiRecognizePage.module.css';
 
@@ -159,7 +160,8 @@ export default function AiRecognizePage() {
   const mealParam = params.get('mealType') as MealType | null;
   const mealType: MealType = mealParam && MEALS.includes(mealParam) ? mealParam : 'SNACK';
   const returnPath =
-    (location.state as { returnPath?: string } | null)?.returnPath || '/home';
+    (location.state as { returnPath?: string; pantry?: boolean } | null)?.returnPath || '/home';
+  const pantryMode = Boolean((location.state as { pantry?: boolean } | null)?.pantry);
 
   type PrefillSuggestion = {
     dishName?: string;
@@ -178,6 +180,10 @@ export default function AiRecognizePage() {
     ?.prefillSuggestion;
 
   const goToAddFood = () => {
+    if (pantryMode) {
+      navigate(returnPath, { replace: true });
+      return;
+    }
     navigate(returnPath, { replace: true, state: { openAddFood: true, mealType } });
   };
 
@@ -449,7 +455,7 @@ export default function AiRecognizePage() {
 
     setSaving(true);
     try {
-      await confirmIfActive();
+      if (!pantryMode) await confirmIfActive();
       const round1 = (n: number) => Math.round(n * 10) / 10;
       const totalG = parsed.reduce((s, p) => s + p.amountG, 0);
       const totalMacros = parsed.reduce(
@@ -474,7 +480,7 @@ export default function AiRecognizePage() {
       const savedBrand = dishBrand.trim() || parsed[0]?.brand;
       const savedBarcode = dishBarcode.trim() || parsed[0]?.barcode;
 
-      if (saveToLibrary) {
+      if (saveToLibrary || pantryMode) {
         const to100 = (n: number) =>
           totalG > 0 ? Math.round((n / totalG) * 100 * 10) / 10 : 0;
         const food = await foodApi.create({
@@ -506,8 +512,31 @@ export default function AiRecognizePage() {
         preparedFoodId = food.id;
       }
 
-      const date = toLocalDateStr(selectedDate);
       const dishLabel = dishName.trim();
+
+      if (pantryMode) {
+        const pantryUnit = savedServingUnit === 'db' || savedServingUnit === 'adag' ? 'db' : 'g';
+        const pantryQty =
+          pantryUnit === 'db'
+            ? 1
+            : Math.max(1, Math.round(totalG * 10) / 10);
+        await pantryApi.add({
+          ownerId: getPlanOwnerId() || undefined,
+          foodId: preparedFoodId,
+          name: dishLabel || parsed[0]!.name,
+          quantity: pantryQty,
+          unit: pantryUnit,
+          source: 'AI',
+        });
+        setDialog({
+          title: t('aiRecognize.savedTitle'),
+          message: t('mealPlan.pantryAiSaved'),
+          goBack: true,
+        });
+        return;
+      }
+
+      const date = toLocalDateStr(selectedDate);
 
       if (!showIngredients) {
         await logApi.create({
@@ -573,9 +602,11 @@ export default function AiRecognizePage() {
       </header>
 
       <div className={styles.content}>
-        {mode === 'choose' && (
+            {mode === 'choose' && (
           <>
-            <p className={styles.lead}>{t('aiRecognize.chooseLead')}</p>
+            <p className={styles.lead}>
+              {pantryMode ? t('mealPlan.pantryAiLead') : t('aiRecognize.chooseLead')}
+            </p>
             <button type="button" className={styles.modeCard} onClick={() => setMode('photo')}>
               <span className={styles.modeIcon} style={{ background: '#D8EADF' }}>
                 <IconPhotoCamera size={24} color={Colors.dashboard.stroke} />
@@ -992,6 +1023,7 @@ export default function AiRecognizePage() {
               </>
             )}
 
+            {!pantryMode ? (
             <label className={styles.preparedCheck}>
               <span className={styles.preparedCheckBox} data-checked={saveToLibrary || undefined}>
                 <input
@@ -1005,6 +1037,7 @@ export default function AiRecognizePage() {
                 <strong>{t('aiRecognize.saveToLibrary')}</strong>
               </span>
             </label>
+            ) : null}
 
             <button
               type="button"
@@ -1014,6 +1047,8 @@ export default function AiRecognizePage() {
             >
               {saving ? (
                 <span className="spinner" style={{ width: 22, height: 22 }} />
+              ) : pantryMode ? (
+                t('mealPlan.addToPantry')
               ) : (
                 t('aiRecognize.addToMeal')
               )}
@@ -1030,7 +1065,10 @@ export default function AiRecognizePage() {
         onClose={() => {
           const go = dialog?.goBack;
           setDialog(null);
-          if (go) navigate(-1);
+          if (go) {
+            if (pantryMode) navigate(returnPath, { replace: true });
+            else navigate(-1);
+          }
         }}
       />
       {fastingDialog}

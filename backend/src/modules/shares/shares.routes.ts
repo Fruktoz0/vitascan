@@ -4,8 +4,9 @@ import { z } from 'zod';
 import { authenticate } from '../../middleware/authenticate';
 import { notifyCartUsers } from '../cart/cartEvents';
 import { notifyShareInvitePush } from '../notifications/push.service';
+import { liveMealPlanItems } from '../mealPlan/mealPlan.service';
 
-const CATEGORIES = ['FOOD', 'WEIGHT', 'WATER', 'BODY', 'CART'] as const;
+const CATEGORIES = ['FOOD', 'WEIGHT', 'WATER', 'BODY', 'CART', 'MEAL_PLAN'] as const;
 
 const CreateShareSchema = z.object({
   email: z.string().email(),
@@ -16,7 +17,7 @@ const PatchShareSchema = z.object({
   categories: z.array(z.enum(CATEGORIES)).min(1),
 });
 
-const LiveCategorySchema = z.enum(['FOOD', 'WEIGHT', 'WATER', 'BODY']);
+const LiveCategorySchema = z.enum(['FOOD', 'WEIGHT', 'WATER', 'BODY', 'MEAL_PLAN']);
 
 function publicUser(u: { id: string; username: string; email: string }) {
   return { id: u.id, username: u.username, email: u.email };
@@ -313,6 +314,11 @@ const sharesRoutes: FastifyPluginAsync = async (fastify) => {
           at: log.updatedAt.toISOString(),
         })),
       });
+    }
+
+    if (cat === 'MEAL_PLAN') {
+      const items = await liveMealPlanItems(fastify.prisma, ownerId);
+      return reply.send({ category: cat, items });
     }
 
     const logs = await fastify.prisma.bodyMeasurementLog.findMany({

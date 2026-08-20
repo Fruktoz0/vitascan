@@ -8,6 +8,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useFastingLogGuard } from '../hooks/useFastingLogGuard';
 import {
   IconArrowBack,
+  IconCalendarMonthOutline,
   IconCalendarToday,
   IconCheck,
   IconEdit,
@@ -20,12 +21,13 @@ import {
   IconShoppingBasket,
 } from '../components/ui/Icons';
 import { RecipeNutritionCard } from '../components/recipes/RecipeNutritionCard';
-import { getErrorMessage, recipesApi, type RecipeDetail, type RecipeSourceType } from '../services/api';
+import { getErrorMessage, mealPlanApi, recipesApi, type RecipeDetail, type RecipeSourceType } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import { useCartStore } from '../stores/cartStore';
 import { fileToCompressedJpegFile } from '../utils/imageToJpeg';
 import { MEAL_META, type MealType } from '../utils/mealMeta';
+import { getPlanOwnerId, PLAN_MEALS, startOfIsoWeek, weekDates } from '../utils/mealPlan';
 import { RECIPE_CATEGORY_META } from '../utils/recipeMeta';
 import styles from './RecipeDetailPage.module.css';
 
@@ -82,6 +84,12 @@ export default function RecipeDetailPage() {
   const [logging, setLogging] = useState(false);
   const [logMsg, setLogMsg] = useState('');
   const [imageRev, setImageRev] = useState<number | string>(0);
+  const [planOpen, setPlanOpen] = useState(false);
+  const [planSaving, setPlanSaving] = useState(false);
+  const weekStart = toLocalDateStr(startOfIsoWeek(new Date()));
+  const planDays = weekDates(weekStart);
+  const [planDate, setPlanDate] = useState(toLocalDateStr(new Date()));
+  const [planMeal, setPlanMeal] = useState<MealType>('LUNCH');
 
   const date = toLocalDateStr(diaryDate);
   const dateLabel = diaryDate.toLocaleDateString(i18n.language === 'hu' ? 'hu-HU' : 'en-US', {
@@ -161,6 +169,28 @@ export default function RecipeDetailPage() {
       navigate('/recipes', { replace: true });
     } catch (err) {
       window.alert(getErrorMessage(err, t('recipes.deleteError')));
+    }
+  };
+
+  const handleAddToPlan = async () => {
+    if (!recipe) return;
+    setPlanSaving(true);
+    try {
+      await mealPlanApi.upsertSlot({
+        weekStart,
+        ownerId: getPlanOwnerId() || undefined,
+        slotDate: planDate,
+        mealType: planMeal,
+        source: 'RECIPE',
+        recipeId: recipe.id,
+        servings: 1,
+      });
+      setPlanOpen(false);
+      navigate('/meal-plan' + (getPlanOwnerId() ? `?ownerId=${getPlanOwnerId()}` : ''));
+    } catch (err) {
+      window.alert(getErrorMessage(err, t('mealPlan.saveError')));
+    } finally {
+      setPlanSaving(false);
     }
   };
 
@@ -364,6 +394,7 @@ export default function RecipeDetailPage() {
           })}
         </div>
         {recipe.ingredients.length > 0 ? (
+          <>
           <button
             type="button"
             className={styles.cartAddBtn}
@@ -386,6 +417,26 @@ export default function RecipeDetailPage() {
               {t('cart.addIngredients')}
             </span>
           </button>
+          <button
+            type="button"
+            className={styles.cartAddBtn}
+            onClick={() => {
+              setPlanDate(toLocalDateStr(new Date()));
+              setPlanMeal(
+                recipe.category === 'BREAKFAST' || recipe.category === 'DINNER' || recipe.category === 'LUNCH'
+                  ? recipe.category
+                  : 'LUNCH',
+              );
+              setPlanOpen(true);
+            }}
+          >
+            <span className={styles.cartAddShadow} />
+            <span className={styles.cartAddInner}>
+              <IconCalendarMonthOutline size={18} color={Colors.dashboard.stroke} />
+              {t('recipes.addToPlan')}
+            </span>
+          </button>
+          </>
         ) : null}
       </section>
 
@@ -551,6 +602,61 @@ export default function RecipeDetailPage() {
           if (file) void onPickImage(file);
         }}
       />
+
+      {planOpen ? (
+        <div className={styles.planOverlay} role="presentation" onClick={() => setPlanOpen(false)}>
+          <div className={styles.planSheet} onClick={(e) => e.stopPropagation()}>
+            <h3 className={styles.sectionTitle}>{t('recipes.addToPlan')}</h3>
+            <span className={styles.fieldLabel}>{t('mealPlan.pickDay')}</span>
+            <div className={styles.meals}>
+              {planDays.map((d) => {
+                const dt = new Date(`${d}T00:00:00`);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    className={`${styles.mealChip} ${planDate === d ? styles.mealChipOn : ''}`}
+                    onClick={() => setPlanDate(d)}
+                  >
+                    {dt.toLocaleDateString(i18n.language === 'hu' ? 'hu-HU' : 'en-US', {
+                      weekday: 'short',
+                      day: 'numeric',
+                    })}
+                  </button>
+                );
+              })}
+            </div>
+            <span className={styles.fieldLabel}>{t('mealPlan.pickMeal')}</span>
+            <div className={styles.meals}>
+              {PLAN_MEALS.map((meal) => {
+                const meta = MEAL_META[meal];
+                const Icon = meta.Icon;
+                return (
+                  <button
+                    key={meal}
+                    type="button"
+                    className={`${styles.mealChip} ${planMeal === meal ? styles.mealChipOn : ''}`}
+                    onClick={() => setPlanMeal(meal)}
+                  >
+                    <span className={styles.mealIcon} style={{ background: meta.bg }}>
+                      <Icon size={16} color={Colors.dashboard.stroke} />
+                    </span>
+                    {t(MEAL_I18N[meal])}
+                  </button>
+                );
+              })}
+            </div>
+            <div className={styles.logCta}>
+              <PrimaryButton
+                label={planSaving ? t('mealPlan.pushing') : t('mealPlan.saveToPlan')}
+                onClick={() => void handleAddToPlan()}
+                loading={planSaving}
+                disabled={planSaving}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <ConfirmDialog
         visible={confirmDelete}

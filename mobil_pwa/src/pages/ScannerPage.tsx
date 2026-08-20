@@ -6,6 +6,7 @@ import { IconFlashlight, IconFlashlightOff, IconKeyboardOutline, IconScreenRotat
 import { FoodDetailModal } from '../components/food/FoodModals';
 import { ApiError, foodApi, type Food } from '../services/api';
 import { parseMealType, type MealType } from '../utils/mealMeta';
+import { getPlanOwnerId } from '../utils/mealPlan';
 import styles from './ScannerPage.module.css';
 
 /** 0 = no rotate, 1 = 90° CW, 3 = 90° CCW. 1D readers need horizontal bars. */
@@ -47,6 +48,7 @@ type FrameOrientation = 'landscape' | 'portrait';
 type ScannerLocationState = {
   returnPath?: string;
   mealType?: MealType;
+  pantry?: boolean;
 };
 
 type ExtendedCapabilities = MediaTrackCapabilities & {
@@ -130,6 +132,7 @@ export default function ScannerPage() {
   const scannerState = (location.state as ScannerLocationState | null) ?? {};
   const returnPath = scannerState.returnPath || '/home';
   const mealType = parseMealType(scannerState.mealType);
+  const pantryMode = Boolean(scannerState.pantry);
 
   const stopCamera = useCallback(() => {
     if (focusRestoreTimer.current != null) {
@@ -171,12 +174,18 @@ export default function ScannerPage() {
       if (opts?.productNotFound) {
         navigate(returnPath, {
           replace: true,
-          state: {
-            productNotFound: true,
-            mealType,
-            ...(opts.barcode ? { prefillBarcode: opts.barcode } : {}),
-          },
+          state: pantryMode
+            ? { pantryNotFound: true, ...(opts.barcode ? { prefillBarcode: opts.barcode } : {}) }
+            : {
+                productNotFound: true,
+                mealType,
+                ...(opts.barcode ? { prefillBarcode: opts.barcode } : {}),
+              },
         });
+        return;
+      }
+      if (pantryMode) {
+        navigate(returnPath, { replace: true });
         return;
       }
       navigate(returnPath, {
@@ -184,7 +193,7 @@ export default function ScannerPage() {
         state: { openAddFood: true, mealType },
       });
     },
-    [mealType, navigate, returnPath, stopCamera],
+    [mealType, navigate, pantryMode, returnPath, stopCamera],
   );
 
   const handleBarcode = useCallback(
@@ -467,6 +476,13 @@ export default function ScannerPage() {
           busy.current = false;
         }}
         onLogAdded={() => {
+          navigatingAway.current = true;
+          stopCamera();
+          navigate(returnPath, { replace: true });
+        }}
+        intent={pantryMode ? 'pantry' : 'log'}
+        pantryOwnerId={pantryMode ? getPlanOwnerId() || undefined : undefined}
+        onPantryAdded={() => {
           navigatingAway.current = true;
           stopCamera();
           navigate(returnPath, { replace: true });

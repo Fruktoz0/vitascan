@@ -91,6 +91,11 @@ export function mapRecipeDetail(
     sourceUrl: string | null;
     sourceType: string;
     sourceExternalId?: string | null;
+    prepMinutes?: number | null;
+    cookMinutes?: number | null;
+    effort?: string | null;
+    seasonMonths?: number[];
+    leftoverDays?: number | null;
     status: string;
     rejectReason?: string | null;
     createdAt: Date;
@@ -137,6 +142,11 @@ export function mapRecipeDetail(
     sourceUrl: recipe.sourceUrl,
     sourceType: recipe.sourceType,
     sourceExternalId: recipe.sourceExternalId ?? null,
+    prepMinutes: recipe.prepMinutes ?? null,
+    cookMinutes: recipe.cookMinutes ?? null,
+    effort: recipe.effort ?? null,
+    seasonMonths: recipe.seasonMonths ?? [],
+    leftoverDays: recipe.leftoverDays ?? 0,
     status: recipe.status,
     rejectReason: recipe.rejectReason ?? null,
     createdAt: recipe.createdAt,
@@ -270,6 +280,11 @@ export async function createRecipe(
         sourceUrl: data.sourceUrl ?? null,
         sourceType: data.sourceType,
         sourceExternalId: data.sourceExternalId?.trim() || null,
+        prepMinutes: data.prepMinutes ?? null,
+        cookMinutes: data.cookMinutes ?? null,
+        effort: data.effort ?? null,
+        seasonMonths: data.seasonMonths ?? [],
+        leftoverDays: data.leftoverDays ?? 0,
         status: role === 'ADMIN' ? 'PUBLISHED' : 'PENDING',
         createdBy: userId,
         ingredients: {
@@ -360,6 +375,11 @@ export async function updateRecipe(
       ...(data.instructions !== undefined ? { instructions: data.instructions } : {}),
       ...(data.sourceUrl !== undefined ? { sourceUrl: data.sourceUrl } : {}),
       ...(data.sourceType !== undefined ? { sourceType: data.sourceType } : {}),
+      ...(data.prepMinutes !== undefined ? { prepMinutes: data.prepMinutes } : {}),
+      ...(data.cookMinutes !== undefined ? { cookMinutes: data.cookMinutes } : {}),
+      ...(data.effort !== undefined ? { effort: data.effort } : {}),
+      ...(data.seasonMonths !== undefined ? { seasonMonths: data.seasonMonths } : {}),
+      ...(data.leftoverDays !== undefined ? { leftoverDays: data.leftoverDays } : {}),
       ...(resubmit ? { status: 'PENDING' as const, rejectReason: null } : {}),
       ...(role === 'ADMIN' && existing.createdBy === userId && existing.status === 'PENDING'
         ? { status: 'PUBLISHED' as const }
@@ -574,7 +594,7 @@ export async function moderateRecipe(
   return mapRecipeDetail(recipe, existing.createdBy);
 }
 
-async function upsertPreparedFood(prisma: PrismaClient, recipeId: string) {
+export async function upsertPreparedFood(prisma: PrismaClient, recipeId: string) {
   const recipe = await prisma.recipe.findUnique({
     where: { id: recipeId },
     include: {

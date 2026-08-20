@@ -40,6 +40,7 @@ import RecipeDetailPage from './pages/RecipeDetailPage';
 import RecipeImportPage from './pages/RecipeImportPage';
 import HomeCardsPage from './pages/HomeCardsPage';
 import SharingPage from './pages/SharingPage';
+import MealPlanPage from './pages/MealPlanPage';
 
 export default function App() {
   const restoreSession = useAuthStore((s) => s.restoreSession);
@@ -88,6 +89,7 @@ export default function App() {
             <Route path="/recipes/review" element={<RecipeReviewPage />} />
             <Route path="/recipes/:id/edit" element={<RecipeReviewPage />} />
             <Route path="/recipes/:id" element={<RecipeDetailPage />} />
+            <Route path="/meal-plan" element={<MealPlanPage />} />
             <Route path="/date-picker" element={<DatePickerPage />} />
             <Route path="/data-vault" element={<DataVaultPage />} />
           </Route>

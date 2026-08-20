@@ -26,6 +26,8 @@ import sharesRoutes from './modules/shares/shares.routes';
 import cartRoutes from './modules/cart/cart.routes';
 import notificationRoutes from './modules/notifications/notifications.routes';
 import fastingRoutes from './modules/fasting/fasting.routes';
+import mealPlanRoutes from './modules/mealPlan/mealPlan.routes';
+import pantryRoutes from './modules/pantry/pantry.routes';
 import { startRefreshTokenCleanupScheduler } from './jobs/refresh-token-cleanup.scheduler';
 import { startNotificationPushScheduler } from './jobs/notification-push.scheduler';
 import { mapErrorToHttp } from './utils/httpErrors';
@@ -115,6 +117,8 @@ async function bootstrap() {
     await api.register(cartRoutes, { prefix: '/cart' });
     await api.register(notificationRoutes, { prefix: '/notifications' });
     await api.register(fastingRoutes, { prefix: '/fasting' });
+    await api.register(mealPlanRoutes, { prefix: '/meal-plan' });
+    await api.register(pantryRoutes, { prefix: '/pantry' });
 
     // Scanner rate-limited endpoint
     await api.register(

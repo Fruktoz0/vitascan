@@ -1,6 +1,7 @@
 /**
  * Gemini: rövid AI testelemzés legfrissebb mérések + személyes adatok alapján.
  */
+import { geminiModelChain } from '../../utils/geminiModels';
 
 export type BodyAnalysisResult = {
   headline: string;
@@ -164,12 +165,11 @@ export async function generateBodyAnalysisWithGemini(
     throw Object.assign(new Error('Gemini API kulcs nincs beállítva.'), { statusCode: 503 });
   }
 
-  const primary = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
-  const fallback = process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-2.0-flash';
+  const models = geminiModelChain();
 
-  let result = await callGemini(apiKey, primary, input);
-  if (!result && fallback && fallback !== primary) {
-    result = await callGemini(apiKey, fallback, input);
+  let result = await callGemini(apiKey, models[0], input);
+  for (let i = 1; i < models.length && !result; i += 1) {
+    result = await callGemini(apiKey, models[i], input);
   }
   if (!result) {
     throw Object.assign(

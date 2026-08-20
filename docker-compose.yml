@@ -30,8 +30,10 @@ services:
       DB_TOOLS_URL: ${DB_TOOLS_URL:-http://db-tools:3010}
       DB_TOOLS_SECRET: ${DB_TOOLS_SECRET:-changeme-generate-strong-db-tools-secret}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
-      GEMINI_FALLBACK_MODEL: ${GEMINI_FALLBACK_MODEL:-gemini-3.5-flash-lite}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.7-flash}
+      GEMINI_FALLBACK_MODEL: ${GEMINI_FALLBACK_MODEL:-gemini-3.6-flash}
+      GEMINI_FALLBACK_MODEL_2: ${GEMINI_FALLBACK_MODEL_2:-gemini-3.5-flash}
+      GEMINI_FALLBACK_MODEL_3: ${GEMINI_FALLBACK_MODEL_3:-gemini-3.5-flash-lite}
       USDA_API_KEY: ${USDA_API_KEY:-}
       FITNESS_CREDENTIALS_KEY: ${FITNESS_CREDENTIALS_KEY:-}
       PUBLIC_API_URL: ${PUBLIC_API_URL:-}

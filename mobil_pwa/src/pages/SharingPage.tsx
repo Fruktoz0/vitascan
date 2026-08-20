@@ -20,7 +20,7 @@ import { useShareInbox } from '../stores/shareInbox';
 import { useCartStore } from '../stores/cartStore';
 import styles from './SharingPage.module.css';
 
-const ALL_CATEGORIES: ShareCategory[] = ['FOOD', 'WEIGHT', 'WATER', 'BODY', 'CART'];
+const ALL_CATEGORIES: ShareCategory[] = ['FOOD', 'WEIGHT', 'WATER', 'BODY', 'CART', 'MEAL_PLAN'];
 const ABOUT_KEY = 'vitascan.sharing.aboutCollapsed';
 
 export default function SharingPage() {
@@ -291,6 +291,18 @@ export default function SharingPage() {
                     </div>
                     {share.categories.includes('CART') ? (
                       <p className={styles.hint}>{t('sharing.cartHint')}</p>
+                    ) : null}
+                    {share.categories.includes('MEAL_PLAN') ? (
+                      <>
+                        <p className={styles.hint}>{t('sharing.mealPlanHint')}</p>
+                        <button
+                          type="button"
+                          className={styles.primary}
+                          onClick={() => navigate(`/meal-plan?ownerId=${share.owner.id}`)}
+                        >
+                          {t('sharing.openMealPlan')}
+                        </button>
+                      </>
                     ) : null}
                     {liveId === share.id && liveCat ? (
                       <ul className={styles.liveList}>

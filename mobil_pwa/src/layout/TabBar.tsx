@@ -18,7 +18,9 @@ function isMenuSection(pathname: string) {
     pathname === '/menu' ||
     pathname.startsWith('/menu/') ||
     pathname === '/recipes' ||
-    pathname.startsWith('/recipes/')
+    pathname.startsWith('/recipes/') ||
+    pathname === '/meal-plan' ||
+    pathname.startsWith('/meal-plan/')
   );
 }
 

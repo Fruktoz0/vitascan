@@ -1243,6 +1243,11 @@ export type RecipeDraft = {
   sourceUrl?: string | null;
   sourceExternalId?: string | null;
   sourceType: RecipeSourceType;
+  prepMinutes?: number | null;
+  cookMinutes?: number | null;
+  effort?: 'QUICK' | 'NORMAL' | 'PROJECT' | null;
+  seasonMonths?: number[];
+  leftoverDays?: number;
 };
 
 export type RecipeListItem = {
@@ -1378,7 +1383,162 @@ export const recipesApi = {
   },
 };
 
-export type ShareCategory = 'FOOD' | 'WEIGHT' | 'WATER' | 'BODY' | 'CART';
+export type MealPlanSlotSource = 'RECIPE' | 'TEMPLATE' | 'FOOD' | 'SKIPPED';
+export type MealPlanMealType =
+  | 'BREAKFAST'
+  | 'TIZORAI'
+  | 'LUNCH'
+  | 'UZSONNA'
+  | 'DINNER'
+  | 'SNACK'
+  | 'OTHER';
+
+export type MealPlanSlot = {
+  id: string;
+  slotDate: string;
+  mealType: MealPlanMealType;
+  source: MealPlanSlotSource;
+  recipeId: string | null;
+  templateId: string | null;
+  foodId: string | null;
+  servings: number;
+  amountG: number | null;
+  title: string | null;
+  kcal: number | null;
+  protein: number | null;
+  carbs: number | null;
+  fat: number | null;
+  loggable: boolean;
+  logged: boolean;
+  hasImage: boolean;
+  imageRevision: string | null;
+};
+
+export type MealPlanSwitcher = {
+  ownerId: string;
+  username: string;
+  isOwn: boolean;
+  shareId: string | null;
+};
+
+export type MealPlanWeek = {
+  weekStart: string;
+  weekEnd: string;
+  owner: { id: string; username: string };
+  isOwn: boolean;
+  plans: MealPlanSwitcher[];
+  slots: MealPlanSlot[];
+  generate?: { used: number; limit: number; remaining: number };
+};
+
+export type PantryItem = {
+  id: string;
+  foodId: string | null;
+  name: string;
+  quantity: number;
+  unit: string;
+  qtyLabel: string;
+  expiresOn: string | null;
+  source: string;
+  macros?: { kcal: number; protein: number; carbs: number; fat: number } | null;
+};
+
+export const mealPlanApi = {
+  get: (opts?: { weekStart?: string; ownerId?: string }) => {
+    const p = new URLSearchParams();
+    if (opts?.weekStart) p.set('weekStart', opts.weekStart);
+    if (opts?.ownerId) p.set('ownerId', opts.ownerId);
+    const q = p.toString();
+    return request<MealPlanWeek>(`/meal-plan${q ? `?${q}` : ''}`);
+  },
+  upsertSlot: (data: {
+    weekStart?: string;
+    ownerId?: string;
+    slotDate: string;
+    mealType: string;
+    source: MealPlanSlotSource;
+    recipeId?: string | null;
+    templateId?: string | null;
+    foodId?: string | null;
+    servings?: number;
+    amountG?: number | null;
+  }) => request<{ slot: MealPlanSlot }>('/meal-plan/slots', { method: 'PUT', body: JSON.stringify(data) }),
+  deleteSlot: (id: string, alsoDiary = false) =>
+    request<{ ok: boolean }>(`/meal-plan/slots/${id}${alsoDiary ? '?alsoDiary=true' : ''}`, { method: 'DELETE' }),
+  deleteDay: (date: string, opts?: { alsoDiary?: boolean; ownerId?: string }) => {
+    const p = new URLSearchParams();
+    if (opts?.alsoDiary) p.set('alsoDiary', 'true');
+    if (opts?.ownerId) p.set('ownerId', opts.ownerId);
+    const q = p.toString();
+    return request<{ ok: boolean; deleted: number }>(`/meal-plan/days/${date}${q ? `?${q}` : ''}`, {
+      method: 'DELETE',
+    });
+  },
+  logSlot: (id: string, data?: { servings?: number; amountG?: number; date?: string; deductPantry?: boolean }) =>
+    request<{ ok: boolean; alreadyLogged: boolean; slot: MealPlanSlot }>(`/meal-plan/slots/${id}/log`, {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
+  generate: (data?: {
+    weekStart?: string;
+    ownerId?: string;
+    meals?: Array<'BREAKFAST' | 'LUNCH' | 'DINNER'>;
+    usePantry?: boolean;
+    seasonal?: boolean;
+    scope?: 'day' | 'week';
+    date?: string;
+    diet?: Array<'GLUTEN_FREE' | 'DAIRY_FREE' | 'VEGAN' | 'SUGAR_FREE'>;
+    matchKcal?: boolean;
+    locale?: 'hu' | 'en';
+  }) =>
+    request<MealPlanWeek & { filled: number }>('/meal-plan/generate', {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
+  missing: (opts?: { weekStart?: string; ownerId?: string }) => {
+    const p = new URLSearchParams();
+    if (opts?.weekStart) p.set('weekStart', opts.weekStart);
+    if (opts?.ownerId) p.set('ownerId', opts.ownerId);
+    const q = p.toString();
+    return request<{
+      recipeId: string;
+      recipeTitle: string;
+      lines: Array<{ name: string; qtyLabel?: string; foodId?: string }>;
+    }>(`/meal-plan/missing${q ? `?${q}` : ''}`);
+  },
+  addToCart: (data?: { weekStart?: string; ownerId?: string; listId?: string }) =>
+    request<{
+      added: number;
+      listId: string | null;
+      recipeId: string;
+      recipeTitle: string;
+      lines: Array<{ name: string; qtyLabel?: string; foodId?: string }>;
+    }>('/meal-plan/cart', { method: 'POST', body: JSON.stringify(data ?? {}) }),
+};
+
+export const pantryApi = {
+  list: (ownerId?: string) => {
+    const q = ownerId ? `?ownerId=${encodeURIComponent(ownerId)}` : '';
+    return request<{ items: PantryItem[] }>(`/pantry${q}`);
+  },
+  add: (data: {
+    ownerId?: string;
+    foodId?: string | null;
+    name: string;
+    quantity: number;
+    unit?: string;
+    expiresOn?: string | null;
+    source?: string;
+  }) => request<{ item: PantryItem }>('/pantry', { method: 'POST', body: JSON.stringify(data) }),
+  patch: (id: string, data: { name?: string; quantity?: number; unit?: string; expiresOn?: string | null }) =>
+    request<{ deleted: boolean; item: PantryItem | null }>(`/pantry/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  remove: (id: string) => request<{ ok: boolean }>(`/pantry/${id}`, { method: 'DELETE' }),
+};
+
+export type ShareCategory = 'FOOD' | 'WEIGHT' | 'WATER' | 'BODY' | 'CART' | 'MEAL_PLAN';
 export type ShareStatus = 'PENDING' | 'ACTIVE' | 'REVOKED';
 
 export type ShareDto = {

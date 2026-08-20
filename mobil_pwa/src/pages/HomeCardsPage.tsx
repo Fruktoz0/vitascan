@@ -10,12 +10,13 @@ import {
   IconTimer,
   IconTrophy,
   IconWaterDrop,
+  IconCalendarMonthOutline,
 } from '../components/ui/Icons';
 import { getErrorMessage } from '../services/api';
 import { useProfileStore } from '../stores/profileStore';
 import styles from './HomeCardsPage.module.css';
 
-type CardKey = 'showHomeWaterCard' | 'showHomeStreakCard' | 'showHomeFastingCard';
+type CardKey = 'showHomeWaterCard' | 'showHomeStreakCard' | 'showHomeFastingCard' | 'showHomeMealPlanCard';
 
 export default function HomeCardsPage() {
   const { t } = useTranslation();
@@ -23,6 +24,7 @@ export default function HomeCardsPage() {
   const showHomeWaterCard = useProfileStore((s) => s.showHomeWaterCard);
   const showHomeStreakCard = useProfileStore((s) => s.showHomeStreakCard);
   const showHomeFastingCard = useProfileStore((s) => s.showHomeFastingCard);
+  const showHomeMealPlanCard = useProfileStore((s) => s.showHomeMealPlanCard);
   const kcalGoalFollowsWeight = useProfileStore((s) => s.kcalGoalFollowsWeight);
   const setHomeCard = useProfileStore((s) => s.setHomeCard);
   const setKcalGoalFollowsWeight = useProfileStore((s) => s.setKcalGoalFollowsWeight);
@@ -85,6 +87,17 @@ export default function HomeCardsPage() {
       iconBg: '#f6efe6',
       href: '/fasting',
       openLabel: t('homeCards.openFasting'),
+    },
+    {
+      key: 'showHomeMealPlanCard',
+      on: showHomeMealPlanCard,
+      title: t('homeCards.mealPlan'),
+      hint: t('homeCards.mealPlanHint'),
+      Icon: IconCalendarMonthOutline,
+      iconColor: '#2E7D32',
+      iconBg: '#e8f5e9',
+      href: '/meal-plan',
+      openLabel: t('homeCards.openMealPlan'),
     },
     {
       key: 'kcalGoalFollowsWeight',

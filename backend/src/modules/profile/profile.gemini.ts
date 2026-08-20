@@ -1,6 +1,7 @@
 /**
  * Gemini: napi kalória + makró célok számítása személyes adatokból.
  */
+import { geminiModelChain } from '../../utils/geminiModels';
 
 export type MacroGoalsResult = {
   dailyKcalGoal: number;
@@ -235,14 +236,13 @@ Fehérje ~1,6–2,2 g/kg (fogyás/tömegelésnél magasabb); zsír ~kcal 25–30
 
   const user = JSON.stringify(userPayload);
 
-  const primary = process.env.GEMINI_MODEL?.trim() || 'gemini-3.6-flash';
-  const secondary = process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-3.5-flash-lite';
+  const models = geminiModelChain();
 
   try {
-    const first = await callGemini(apiKey, primary, system, user);
-    if (first) return first;
-    const second = await callGemini(apiKey, secondary, system, user);
-    if (second) return second;
+    for (const model of models) {
+      const r = await callGemini(apiKey, model, system, user);
+      if (r) return r;
+    }
   } catch {
     /* fallback */
   }

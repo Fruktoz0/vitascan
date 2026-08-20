@@ -1,5 +1,6 @@
 import { RecipeDraftSchema, normalizeDietTags } from './recipes.schema';
 import { httpError, type RecipeDraft } from './recipes.types';
+import { geminiModelChain } from '../../utils/geminiModels';
 
 const ATTEMPT_TIMEOUT_MS = 28_000;
 const TOTAL_BUDGET_MS = 55_000;
@@ -282,9 +283,7 @@ export async function extractRecipeFromImage(opts: {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) throw httpError(503, 'Gemini API kulcs nincs beállítva.');
 
-  const primary = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
-  const fallback = process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-2.0-flash';
-  const models = fallback && fallback !== primary ? [primary, fallback] : [primary];
+  const models = geminiModelChain();
 
   const startedAt = Date.now();
   let lastFailure: Failure | null = null;
@@ -320,9 +319,7 @@ async function generateRecipeFromParts(
 ): Promise<RecipeDraft> {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) throw httpError(503, 'Gemini API kulcs nincs beállítva.');
-  const primary = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
-  const fallback = process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-2.0-flash';
-  const models = fallback && fallback !== primary ? [primary, fallback] : [primary];
+  const models = geminiModelChain();
   const startedAt = Date.now();
   let lastFailure: Failure | null = null;
 

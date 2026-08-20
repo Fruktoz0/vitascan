@@ -41,6 +41,7 @@ type Props = {
   totals: Totals;
   goals: Goals;
   byMealType: Record<string, unknown[] | undefined>;
+  occupiedMealTypes?: MealType[];
 };
 
 function emptyMealsFromLog(byMealType: Record<string, unknown[] | undefined>): MealType[] {
@@ -59,6 +60,7 @@ export default function MealSuggestStories({
   totals,
   goals,
   byMealType,
+  occupiedMealTypes = [],
 }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -84,7 +86,10 @@ export default function MealSuggestStories({
     return { kcal };
   }, [goals, totals]);
 
-  const emptyMeals = useMemo(() => emptyMealsFromLog(byMealType), [byMealType]);
+  const emptyMeals = useMemo(
+    () => emptyMealsFromLog(byMealType).filter((m) => !occupiedMealTypes.includes(m)),
+    [byMealType, occupiedMealTypes],
+  );
 
   const upcomingEmpty = useMemo(
     () => emptyMeals.filter((m) => isMealSuggestRelevant(m, nowHour)),

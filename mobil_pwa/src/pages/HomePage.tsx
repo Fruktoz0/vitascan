@@ -19,6 +19,7 @@ import KcalGoalSuggestionCard from '../components/food/KcalGoalSuggestionCard';
 import WeeklyInsightsSheet from '../components/food/WeeklyInsightsSheet';
 import StreakCard from '../components/food/StreakCard';
 import FastingCard from '../components/food/FastingCard';
+import MealPlanCard from '../components/food/MealPlanCard';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import DoodleMascot from '../components/ui/DoodleMascot';
 import { IconAddCircle, IconCalendarToday, IconShoppingBasket, IconWeight } from '../components/ui/Icons';
@@ -31,14 +32,18 @@ import {
   weightApi,
   fastingApi,
   profileApi,
+  mealPlanApi,
   type DailyAnalysisResult,
   type FastingCurrent,
   type Food,
   type KcalGoalSuggestion,
+  type MealPlanSlot,
   type WeeklyStatsResult,
 } from '../services/api';
 import { toLocalDateStr, useDateStore } from '../stores/dateStore';
 import { useProfileStore } from '../stores/profileStore';
+import { useFastingLogGuard } from '../hooks/useFastingLogGuard';
+import { PLAN_MEALS } from '../utils/mealPlan';
 import { doodleMoodForDay } from '../utils/doodleMood';
 import { parseMealType, type MealType } from '../utils/mealMeta';
 import type { MealAvgEntry } from '../utils/mealInsights';
@@ -58,12 +63,17 @@ export default function HomePage() {
   const showHomeWaterCard = useProfileStore((s) => s.showHomeWaterCard);
   const showHomeStreakCard = useProfileStore((s) => s.showHomeStreakCard);
   const showHomeFastingCard = useProfileStore((s) => s.showHomeFastingCard);
+  const showHomeMealPlanCard = useProfileStore((s) => s.showHomeMealPlanCard);
   const kcalGoalFollowsWeight = useProfileStore((s) => s.kcalGoalFollowsWeight);
   const [data, setData] = useState<any>(null);
   const [water, setWater] = useState<any>(null);
   const [weight, setWeight] = useState<any>(null);
   const [fasting, setFasting] = useState<FastingCurrent | null>(null);
   const [fastingBusy, setFastingBusy] = useState(false);
+  const [mealPlanSlot, setMealPlanSlot] = useState<MealPlanSlot | null>(null);
+  const [mealPlanBusy, setMealPlanBusy] = useState(false);
+  const [occupiedByPlan, setOccupiedByPlan] = useState<MealType[]>([]);
+  const { confirmIfActive, dialog: fastingLogDialog } = useFastingLogGuard();
   const [weeklyDays, setWeeklyDays] = useState<WeeklyDay[]>([]);
   const [weekAvgKcal, setWeekAvgKcal] = useState<number | null>(null);
   const [weeklyStats, setWeeklyStats] = useState<WeeklyStatsResult | null>(null);
@@ -146,7 +156,7 @@ export default function HomePage() {
       const todayStr = toLocalDateStr(new Date());
       const loadSuggestion = kcalGoalFollowsWeight && dateStr === todayStr;
 
-      const [summary, waterData, weightData, weekly, streakData, fastingData, suggestion] = await Promise.all([
+      const [summary, waterData, weightData, weekly, streakData, fastingData, suggestion, planWeek] = await Promise.all([
         statsApi.day(dateStr),
         showHomeWaterCard ? waterApi.getByDate(dateStr) : Promise.resolve(null),
         weightApi.getByDate(dateStr),
@@ -154,6 +164,7 @@ export default function HomePage() {
         showHomeStreakCard ? statsApi.streak().catch(() => null) : Promise.resolve(null),
         showHomeFastingCard ? fastingApi.current().catch(() => null) : Promise.resolve(null),
         loadSuggestion ? profileApi.getKcalGoalSuggestion().catch(() => null) : Promise.resolve(null),
+        showHomeMealPlanCard ? mealPlanApi.get().catch(() => null) : Promise.resolve(null),
       ]);
       setData(summary);
       setWater(waterData);
@@ -184,9 +195,14 @@ export default function HomePage() {
         setWeeklyAnalysis(null);
       }
       setStreak(typeof streakData?.streak === 'number' ? streakData.streak : 0);
+      const todaySlots = (planWeek?.slots ?? []).filter(
+        (s) => s.slotDate === dateStr && s.source !== 'SKIPPED' && PLAN_MEALS.includes(s.mealType as MealType),
+      );
+      setOccupiedByPlan(todaySlots.map((s) => s.mealType as MealType));
+      setMealPlanSlot(todaySlots.find((s) => !s.logged) ?? todaySlots[0] ?? null);
     } catch {}
     setLoading(false);
-  }, [selectedDate, showHomeWaterCard, showHomeStreakCard, showHomeFastingCard, kcalGoalFollowsWeight]);
+  }, [selectedDate, showHomeWaterCard, showHomeStreakCard, showHomeFastingCard, showHomeMealPlanCard, kcalGoalFollowsWeight]);
 
   useEffect(() => {
     fetchData();
@@ -371,12 +387,35 @@ export default function HomePage() {
           onAddMeal={openAddFood}
         />
 
+        {showHomeMealPlanCard ? (
+          <MealPlanCard
+            slot={mealPlanSlot}
+            busy={mealPlanBusy}
+            onOpen={() => navigate('/meal-plan')}
+            onPush={(slot) => {
+              void (async () => {
+                setMealPlanBusy(true);
+                try {
+                  await confirmIfActive();
+                  await mealPlanApi.logSlot(slot.id, { date: slot.slotDate, servings: slot.servings });
+                  await fetchData();
+                } catch {
+                  /* keep card */
+                } finally {
+                  setMealPlanBusy(false);
+                }
+              })();
+            }}
+          />
+        ) : null}
+
         <MealSuggestStories
           dateStr={selectedDateStr}
           isToday={isToday}
           totals={totals}
           goals={goals}
           byMealType={byMealType}
+          occupiedMealTypes={showHomeMealPlanCard ? occupiedByPlan : []}
         />
 
         {weeklyDays.length > 0 && (
@@ -532,6 +571,7 @@ export default function HomePage() {
           onAnalysisChange={setWeeklyAnalysis}
         />
       )}
+      {fastingLogDialog}
       <ConfirmDialog
         visible={!!notFoundDialog}
         title={t('scannerScreen.notFoundTitle')}

@@ -38,6 +38,10 @@ function emptyDraft(): RecipeDraft {
     ingredients: [{ name: '', amount: null, unit: 'g', sortOrder: 0 }],
     instructions: [''],
     sourceType: 'MANUAL',
+    prepMinutes: null,
+    leftoverDays: 0,
+    effort: 'NORMAL',
+    seasonMonths: [],
   };
 }
 
@@ -49,7 +53,7 @@ function matchTone(ing: RecipeIngredientDraft): 'ok' | 'maybe' | 'miss' | null {
 }
 
 export default function RecipeReviewPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -84,6 +88,10 @@ export default function RecipeReviewPage() {
             sourceType: recipe.sourceType,
             sourceUrl: recipe.sourceUrl,
             sourceExternalId: recipe.sourceExternalId,
+            prepMinutes: recipe.prepMinutes ?? null,
+            leftoverDays: recipe.leftoverDays ?? 0,
+            effort: recipe.effort ?? 'NORMAL',
+            seasonMonths: recipe.seasonMonths ?? [],
           });
           setNutrition(recipe.nutrition ?? null);
           setHasExistingImage(recipe.hasImage);
@@ -434,6 +442,92 @@ export default function RecipeReviewPage() {
                   <Icon size={16} color={Colors.dashboard.stroke} />
                 </span>
                 {t(meta.labelKey)}
+              </button>
+            );
+          })}
+        </div>
+
+        <span className={styles.label}>{t('recipes.prepMinutes')}</span>
+        <div className={styles.stepper}>
+          <button
+            type="button"
+            onClick={() =>
+              setDraft({ ...draft, prepMinutes: Math.max(0, (draft.prepMinutes ?? 0) - 5) })
+            }
+          >
+            −
+          </button>
+          <span>{draft.prepMinutes ?? 0}</span>
+          <button
+            type="button"
+            onClick={() =>
+              setDraft({ ...draft, prepMinutes: Math.min(600, (draft.prepMinutes ?? 0) + 5) })
+            }
+          >
+            +
+          </button>
+        </div>
+
+        <span className={styles.label}>{t('recipes.effort')}</span>
+        <div className={styles.catChips}>
+          {(['QUICK', 'NORMAL', 'PROJECT'] as const).map((effort) => (
+            <button
+              key={effort}
+              type="button"
+              className={`${styles.catChip} ${draft.effort === effort ? styles.catChipOn : ''}`}
+              onClick={() => setDraft({ ...draft, effort })}
+            >
+              {t(
+                effort === 'QUICK'
+                  ? 'recipes.effortQuick'
+                  : effort === 'PROJECT'
+                    ? 'recipes.effortProject'
+                    : 'recipes.effortNormal',
+              )}
+            </button>
+          ))}
+        </div>
+
+        <span className={styles.label}>{t('recipes.leftoverDays')}</span>
+        <div className={styles.stepper}>
+          <button
+            type="button"
+            onClick={() => setDraft({ ...draft, leftoverDays: Math.max(0, (draft.leftoverDays ?? 0) - 1) })}
+          >
+            −
+          </button>
+          <span>{draft.leftoverDays ?? 0}</span>
+          <button
+            type="button"
+            onClick={() => setDraft({ ...draft, leftoverDays: Math.min(7, (draft.leftoverDays ?? 0) + 1) })}
+          >
+            +
+          </button>
+        </div>
+
+        <span className={styles.label}>{t('recipes.seasonMonths')}</span>
+        <div className={styles.catChips}>
+          {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => {
+            const selected = (draft.seasonMonths ?? []).includes(month);
+            return (
+              <button
+                key={month}
+                type="button"
+                className={`${styles.catChip} ${selected ? styles.catChipOn : ''}`}
+                onClick={() => {
+                  const current = draft.seasonMonths ?? [];
+                  setDraft({
+                    ...draft,
+                    seasonMonths: selected
+                      ? current.filter((x) => x !== month)
+                      : [...current, month].sort((a, b) => a - b),
+                  });
+                }}
+              >
+                {new Date(2026, month - 1, 1).toLocaleDateString(
+                  i18n.language?.startsWith('en') ? 'en-US' : 'hu-HU',
+                  { month: 'short' },
+                )}
               </button>
             );
           })}

@@ -77,6 +77,11 @@ export const RecipeDraftSchema = z.object({
     }),
   sourceType: RecipeSourceTypeSchema.default('MANUAL'),
   sourceExternalId: z.string().trim().max(200).nullable().optional(),
+  prepMinutes: z.number().int().min(0).max(600).nullable().optional(),
+  cookMinutes: z.number().int().min(0).max(600).nullable().optional(),
+  effort: z.enum(['QUICK', 'NORMAL', 'PROJECT']).nullable().optional(),
+  seasonMonths: z.array(z.number().int().min(1).max(12)).max(12).optional(),
+  leftoverDays: z.number().int().min(0).max(7).optional(),
 });
 
 export const CreateRecipeSchema = RecipeDraftSchema.extend({
@@ -116,6 +121,11 @@ export const UpdateRecipeSchema = z
       .string()
       .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.webp$/i)
       .optional(),
+    prepMinutes: z.number().int().min(0).max(600).nullable().optional(),
+    cookMinutes: z.number().int().min(0).max(600).nullable().optional(),
+    effort: z.enum(['QUICK', 'NORMAL', 'PROJECT']).nullable().optional(),
+    seasonMonths: z.array(z.number().int().min(1).max(12)).max(12).optional(),
+    leftoverDays: z.number().int().min(0).max(7).optional(),
   })
   .refine((d) => Object.keys(d).length > 0, { message: 'Legalább egy mezőt meg kell adni.' });
 

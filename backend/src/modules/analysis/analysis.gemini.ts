@@ -1,3 +1,5 @@
+import { geminiModelChain } from '../../utils/geminiModels';
+
 const MEAL_ORDER = ['BREAKFAST', 'TIZORAI', 'LUNCH', 'UZSONNA', 'DINNER', 'SNACK'] as const;
 
 export type MealTypeKey = (typeof MEAL_ORDER)[number];
@@ -502,10 +504,6 @@ export async function generateCoachNudge(payload: CoachNudgePayload): Promise<st
     throw Object.assign(new Error('Gemini API kulcs nincs beállítva.'), { statusCode: 503 });
   }
 
-  const primary = process.env.GEMINI_MODEL?.trim() || 'gemini-3.6-flash';
-  const fallback =
-    process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-3.5-flash-lite';
-
   const system =
     payload.locale === 'en'
       ? `You are VitaScan's friendly nutrition coach on the home screen.
@@ -523,7 +521,7 @@ Szabályok: egy rövid mondat (max ~20 szó). Konkrét tipp mit egyen / mire fig
       : 'Csak a coach nudge JSON.',
   ].join('\n');
 
-  const models = [primary, fallback].filter((m, i, arr) => m && arr.indexOf(m) === i);
+  const models = geminiModelChain();
   let lastError = payload.locale === 'en' ? 'Gemini request failed.' : 'A Gemini kérés sikertelen.';
 
   for (const model of models) {
@@ -652,10 +650,6 @@ export async function generateMealSuggestions(payload: MealSuggestPayload): Prom
     throw Object.assign(new Error('Gemini API kulcs nincs beállítva.'), { statusCode: 503 });
   }
 
-  const primary = process.env.GEMINI_MODEL?.trim() || 'gemini-3.6-flash';
-  const fallback =
-    process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-3.5-flash-lite';
-
   const targetSet = new Set(
     payload.targetMeal
       ? [payload.targetMeal]
@@ -691,7 +685,7 @@ Szabályok:
       : 'Csak a kért slotokra vonatkozó ételjavaslat JSON.',
   ].join('\n');
 
-  const models = [primary, fallback].filter((m, i, arr) => m && arr.indexOf(m) === i);
+  const models = geminiModelChain();
   let lastError = payload.locale === 'en' ? 'Gemini request failed.' : 'A Gemini kérés sikertelen.';
 
   for (const model of models) {
@@ -736,9 +730,7 @@ export async function generateDailyAnalysis(payload: GeminiUserPayload): Promise
     throw Object.assign(new Error('Gemini API kulcs nincs beállítva.'), { statusCode: 503 });
   }
 
-  const primary = process.env.GEMINI_MODEL?.trim() || 'gemini-3.6-flash';
-  const fallback =
-    process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-3.5-flash-lite';
+  const models = geminiModelChain();
 
   const isFitness = payload.analysisKind === 'fitness';
   const kind = isFitness ? 'fitness' : 'nutrition';
@@ -762,20 +754,10 @@ export async function generateDailyAnalysis(payload: GeminiUserPayload): Promise
         : 'Csak rövid értékelő JSON. Használd a célokat, deltas-t, étkezéseket és a fitness (edzés/lépés) adatot, ha van. Nincs regény. Ne említs időt.',
   ].join('\n');
 
-  const primaryResult = await callGeminiModel(
-    primary,
-    apiKey,
-    system,
-    userText,
-    payload.locale,
-    payload.filledMeals,
-    kind,
-  );
-  if (primaryResult.ok) return primaryResult.content;
-
-  if (primaryResult.rateLimited && fallback && fallback !== primary) {
-    const fallbackResult = await callGeminiModel(
-      fallback,
+  let lastError = 'Gemini request failed.';
+  for (const model of models) {
+    const result = await callGeminiModel(
+      model,
       apiKey,
       system,
       userText,
@@ -783,11 +765,12 @@ export async function generateDailyAnalysis(payload: GeminiUserPayload): Promise
       payload.filledMeals,
       kind,
     );
-    if (fallbackResult.ok) return fallbackResult.content;
-    throw Object.assign(new Error(fallbackResult.error), { statusCode: 502 });
+    if (result.ok) return result.content;
+    lastError = result.error;
+    if (!result.rateLimited) break;
   }
 
-  throw Object.assign(new Error(primaryResult.error), { statusCode: 502 });
+  throw Object.assign(new Error(lastError), { statusCode: 502 });
 }
 
 export type WeeklyNutritionGeminiPayload = {
@@ -864,9 +847,7 @@ export async function generateWeeklyNutritionAnalysis(
     throw Object.assign(new Error('Gemini API kulcs nincs beállítva.'), { statusCode: 503 });
   }
 
-  const primary = process.env.GEMINI_MODEL?.trim() || 'gemini-3.6-flash';
-  const fallback =
-    process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-3.5-flash-lite';
+  const models = geminiModelChain();
 
   const system =
     payload.locale === 'en' ? WEEKLY_NUTRITION_PROMPT_EN : WEEKLY_NUTRITION_PROMPT_HU;
@@ -879,32 +860,15 @@ export async function generateWeeklyNutritionAnalysis(
       : 'Csak heti összkép JSON. meals MINDIG []. Értékeld a tervhez, az előző héthez és a test/súly adatokhoz képest, ha van.',
   ].join('\n');
 
-  const primaryResult = await callGeminiModel(
-    primary,
-    apiKey,
-    system,
-    userText,
-    payload.locale,
-    [],
-    'fitness',
-  );
-  if (primaryResult.ok) return primaryResult.content;
-
-  if (primaryResult.rateLimited && fallback && fallback !== primary) {
-    const fallbackResult = await callGeminiModel(
-      fallback,
-      apiKey,
-      system,
-      userText,
-      payload.locale,
-      [],
-      'fitness',
-    );
-    if (fallbackResult.ok) return fallbackResult.content;
-    throw Object.assign(new Error(fallbackResult.error), { statusCode: 502 });
+  let lastError = 'Gemini request failed.';
+  for (const model of models) {
+    const result = await callGeminiModel(model, apiKey, system, userText, payload.locale, [], 'fitness');
+    if (result.ok) return result.content;
+    lastError = result.error;
+    if (!result.rateLimited) break;
   }
 
-  throw Object.assign(new Error(primaryResult.error), { statusCode: 502 });
+  throw Object.assign(new Error(lastError), { statusCode: 502 });
 }
 
 /** @deprecated use generateDailyAnalysis */

@@ -2,6 +2,7 @@
  * Gemini: étel / étkezés felismerés fotóból vagy szövegből.
  * A képet NEM tároljuk — csak a requestben megy a Geminihez.
  */
+import { geminiModelChain } from '../../utils/geminiModels';
 
 export type RecognizedIngredient = {
   name: string;
@@ -460,9 +461,7 @@ export async function recognizeFoodWithGemini(
     throw httpError(400, 'Hiányzik a kép.');
   }
 
-  const primary = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
-  const fallback = process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-2.0-flash';
-  const models = fallback && fallback !== primary ? [primary, fallback] : [primary];
+  const models = geminiModelChain();
 
   const startedAt = Date.now();
   let lastFailure: Failure | null = null;

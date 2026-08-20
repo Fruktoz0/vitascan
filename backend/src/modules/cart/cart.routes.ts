@@ -450,6 +450,18 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
         checked: parsed.data.checked,
       },
     });
+    if (parsed.data.checked === true && !item.checked) {
+      try {
+        const { addFromCartChecked } = await import('../pantry/pantry.service');
+        await addFromCartChecked(fastify.prisma, item.list.ownerId, {
+          name: parsed.data.name ?? item.name,
+          qtyLabel: parsed.data.qtyLabel === undefined ? item.qtyLabel : parsed.data.qtyLabel,
+          foodId: item.foodId,
+        });
+      } catch {
+        /* kamra nem blokkolja a pipát */
+      }
+    }
     const updated = await fastify.prisma.shoppingList.findUniqueOrThrow({
       where: { id: item.listId },
       include: listInclude,

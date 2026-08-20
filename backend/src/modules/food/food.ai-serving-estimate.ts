@@ -3,6 +3,8 @@
  * a megadott /100g makrók alapján (manuális termékfelvitel).
  */
 
+import { geminiModelChain } from '../../utils/geminiModels';
+
 export const SERVING_UNITS = ['g', 'db', 'adag', 'ek', 'szelet'] as const;
 export type ServingUnit = (typeof SERVING_UNITS)[number];
 
@@ -205,12 +207,11 @@ export async function estimateServingWithGemini(
     }
   }
 
-  const primary = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
-  const fallback = process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-2.0-flash';
+  const models = geminiModelChain();
 
-  let result = await callGemini(apiKey, primary, input);
-  if (!result && fallback && fallback !== primary) {
-    result = await callGemini(apiKey, fallback, input);
+  let result = await callGemini(apiKey, models[0], input);
+  for (let i = 1; i < models.length && !result; i += 1) {
+    result = await callGemini(apiKey, models[i], input);
   }
 
   if (!result) {

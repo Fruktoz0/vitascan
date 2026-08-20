@@ -2,6 +2,7 @@
  * Gemini: termékcímke / adatlap fotóból űrlap-kitöltés (per 100g).
  * A képet NEM tároljuk — csak a requestben megy a Geminihez.
  */
+import { geminiModelChain } from '../../utils/geminiModels';
 
 export type LabelFillResult = {
   name: string;
@@ -229,12 +230,11 @@ export async function fillFoodLabelWithGemini(input: LabelFillInput): Promise<La
     throw Object.assign(new Error('Hiányzik a kép.'), { statusCode: 400 });
   }
 
-  const primary = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
-  const fallback = process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-2.0-flash';
+  const models = geminiModelChain();
 
-  let result = await callGemini(apiKey, primary, input);
-  if (!result && fallback && fallback !== primary) {
-    result = await callGemini(apiKey, fallback, input);
+  let result = await callGemini(apiKey, models[0], input);
+  for (let i = 1; i < models.length && !result; i += 1) {
+    result = await callGemini(apiKey, models[i], input);
   }
 
   if (!result) {

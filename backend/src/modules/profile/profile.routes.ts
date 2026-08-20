@@ -30,6 +30,7 @@ const UpsertProfileSchema = z.object({
   showHomeWaterCard: z.boolean().optional(),
   showHomeStreakCard: z.boolean().optional(),
   showHomeFastingCard: z.boolean().optional(),
+  showHomeMealPlanCard: z.boolean().optional(),
   kcalGoalFollowsWeight: z.boolean().optional(),
   fastingProtocol: z.enum(['16:8', '18:6', '20:4', 'OMAD', 'CUSTOM']).optional(),
   fastingGoalMinutes: z.number().int().min(60).max(1439).optional(),
