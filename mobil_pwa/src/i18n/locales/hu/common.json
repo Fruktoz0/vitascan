@@ -33,7 +33,7 @@
     "sharing": "Adatok megosztása",
     "sharingHint": "Élő megosztás másik felhasználóval",
     "homeCards": "Főoldal kártyái",
-    "homeCardsHint": "Víz, streak és böjt megjelenítése"
+    "homeCardsHint": "Víz, streak, böjt és kcal-cél megjelenítése"
   },
   "recipes": {
     "title": "Receptek",
@@ -893,6 +893,15 @@
     "weeklyKcal": "Heti kcal",
     "weeklyAvg": "Átlag {{kcal}} kcal",
     "weeklyEvalTitle": "Heti kalória értékelés",
+    "kcalGoalSuggestTitle": "Cél a testsúlyod alapján",
+    "kcalGoalSuggestWeightRange": "Testsúlyod {{from}} → {{to}} kg.",
+    "kcalGoalSuggestWeightNow": "Jelenlegi testsúly {{kg}} kg.",
+    "kcalGoalSuggestReached": "Elérted a célsúlyt — szintentartást javaslunk.",
+    "kcalGoalSuggestNow": "Mostani cél",
+    "kcalGoalSuggestNew": "Javasolt kcal",
+    "kcalGoalSuggestApply": "Frissítem",
+    "kcalGoalSuggestLater": "Később",
+    "kcalGoalSuggestError": "A javaslat mentése nem sikerült.",
     "weeklyEvalDetails": "Részletek",
     "weeklyEvalAvg": "Átlag kcal",
     "weeklyEvalVsGoal": "Célhoz képest",
@@ -1415,7 +1424,10 @@
     "fasting": "Böjt",
     "fastingHint": "Böjt számláló a főoldalon",
     "openWater": "Víz naplója",
-    "openFasting": "Böjt számláló"
+    "openFasting": "Böjt számláló",
+    "followWeight": "Cél követi a testsúlyt",
+    "followWeightHint": "Heti javaslat a főoldalon, ha a súlyod alapján új kcal- és makrócél indokolt",
+    "openGoals": "Célok beállítása"
   },
   "fasting": {
     "title": "Böjt",

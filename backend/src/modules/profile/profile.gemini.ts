@@ -22,6 +22,8 @@ export type MacroGoalsInput = {
   targetWeightKg?: number | null;
   /** Hány hét alatt szeretné elérni; null/undefined = átlagos tempó */
   goalWeeks?: number | null;
+  /** Ütem horgonya: (cél − start) / hetek. TDEE/fehérje/víz továbbra is weightKg. */
+  startWeightKg?: number | null;
 };
 
 const RESPONSE_SCHEMA = {
@@ -84,13 +86,30 @@ function maintenanceKcal(input: MacroGoalsInput): number {
   return bmr * (mult[input.activityLevel] ?? 1.55);
 }
 
+export function isWeightTargetReached(opts: {
+  trendKg: number;
+  targetKg?: number | null;
+  goal: 'LOSE' | 'MAINTAIN' | 'GAIN';
+}): boolean {
+  const target = opts.targetKg;
+  if (target == null || !Number.isFinite(target)) return false;
+  if (Math.abs(opts.trendKg - target) <= 0.5) return true;
+  if (opts.goal === 'LOSE' && opts.trendKg <= target) return true;
+  if (opts.goal === 'GAIN' && opts.trendKg >= target) return true;
+  return false;
+}
+
 /** ~7700 kcal ≈ 1 kg testtömeg */
 function dailyKcalFromTarget(input: MacroGoalsInput, tdee: number): number {
   const target = input.targetWeightKg;
   const weeks = input.goalWeeks;
+  const paceWeight =
+    input.startWeightKg != null && Number.isFinite(input.startWeightKg)
+      ? input.startWeightKg
+      : input.weightKg;
 
   if (target != null && Number.isFinite(target) && weeks != null && weeks > 0) {
-    const deltaKg = target - input.weightKg;
+    const deltaKg = target - paceWeight;
     const kgPerWeek = deltaKg / weeks;
     // Max ~1 kg/hét veszteség, ~0.5 kg/hét növekedés biztonságosan
     const safeKgPerWeek = clamp(kgPerWeek, -1.0, 0.5);
@@ -205,8 +224,13 @@ Fehérje ~1,6–2,2 g/kg (fogyás/tömegelésnél magasabb); zsír ~kcal 25–30
   if (hasTarget) userPayload.targetWeightKg = input.targetWeightKg;
   if (hasWeeks) userPayload.goalWeeks = input.goalWeeks;
   if (hasTarget && hasWeeks && input.targetWeightKg != null && input.goalWeeks != null) {
-    userPayload.kgDelta = round1(input.targetWeightKg - input.weightKg);
-    userPayload.kgPerWeek = round1((input.targetWeightKg - input.weightKg) / input.goalWeeks);
+    const paceWeight =
+      input.startWeightKg != null && Number.isFinite(input.startWeightKg)
+        ? input.startWeightKg
+        : input.weightKg;
+    userPayload.startWeightKg = round1(paceWeight);
+    userPayload.kgDelta = round1(input.targetWeightKg - paceWeight);
+    userPayload.kgPerWeek = round1((input.targetWeightKg - paceWeight) / input.goalWeeks);
   }
 
   const user = JSON.stringify(userPayload);

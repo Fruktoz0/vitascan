@@ -18,7 +18,7 @@
     "sharing": "Share data",
     "sharingHint": "Live sharing with another user",
     "homeCards": "Home cards",
-    "homeCardsHint": "Show water, streak and fasting"
+    "homeCardsHint": "Show water, streak, fasting and calorie goal"
   },
   "recipes": {
     "title": "Recipes",
@@ -877,6 +877,15 @@
     "weeklyKcal": "Weekly kcal",
     "weeklyAvg": "Avg {{kcal}} kcal",
     "weeklyEvalTitle": "Weekly calorie review",
+    "kcalGoalSuggestTitle": "Goal from your weight",
+    "kcalGoalSuggestWeightRange": "Your weight {{from}} → {{to}} kg.",
+    "kcalGoalSuggestWeightNow": "Current weight {{kg}} kg.",
+    "kcalGoalSuggestReached": "You've reached your target weight — we suggest maintenance.",
+    "kcalGoalSuggestNow": "Current goal",
+    "kcalGoalSuggestNew": "Suggested kcal",
+    "kcalGoalSuggestApply": "Update",
+    "kcalGoalSuggestLater": "Later",
+    "kcalGoalSuggestError": "Could not save the suggestion.",
     "weeklyEvalDetails": "Details",
     "weeklyEvalAvg": "Avg kcal",
     "weeklyEvalVsGoal": "Vs goal",
@@ -1414,7 +1423,10 @@
     "fasting": "Fasting",
     "fastingHint": "Fasting timer on the home screen",
     "openWater": "Water log",
-    "openFasting": "Fasting timer"
+    "openFasting": "Fasting timer",
+    "followWeight": "Goal follows weight",
+    "followWeightHint": "Weekly home suggestion when your weight calls for a new calorie and macro target",
+    "openGoals": "Set goals"
   },
   "fasting": {
     "title": "Fasting",

@@ -3,6 +3,13 @@ import { z } from 'zod';
 import { authenticate } from '../../middleware/authenticate';
 import { calculateTDEE, calculateWaterGoal } from '../../utils/tdee';
 import { calculateMacroGoalsWithGemini } from './profile.gemini';
+import {
+  applyKcalGoalSuggestion,
+  dismissKcalGoalSuggestion,
+  getKcalGoalSuggestion,
+  goalAnchorChanged,
+  resolveGoalAnchor,
+} from './kcalGoalSuggestion.service';
 
 const UpsertProfileSchema = z.object({
   birthYear: z.number().int().min(1920).max(new Date().getFullYear() - 10).optional(),
@@ -23,6 +30,7 @@ const UpsertProfileSchema = z.object({
   showHomeWaterCard: z.boolean().optional(),
   showHomeStreakCard: z.boolean().optional(),
   showHomeFastingCard: z.boolean().optional(),
+  kcalGoalFollowsWeight: z.boolean().optional(),
   fastingProtocol: z.enum(['16:8', '18:6', '20:4', 'OMAD', 'CUSTOM']).optional(),
   fastingGoalMinutes: z.number().int().min(60).max(1439).optional(),
 });
@@ -73,6 +81,46 @@ const profileRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
 
+    const existing = await fastify.prisma.userProfile.findUnique({ where: { userId } });
+
+    let kcalGoalSource: string | undefined;
+    if (
+      data.dailyKcalGoal !== undefined &&
+      existing?.dailyKcalGoal != null &&
+      Math.abs(data.dailyKcalGoal - existing.dailyKcalGoal) >= 1
+    ) {
+      kcalGoalSource = 'MANUAL';
+    }
+
+    let anchor: { startWeightKg: number; goalStartedAt: Date } | undefined;
+    if (
+      existing &&
+      goalAnchorChanged({
+        prev: {
+          goal: existing.goal,
+          targetWeightKg: existing.targetWeightKg,
+          goalWeeks: existing.goalWeeks,
+        },
+        next: {
+          goal: data.goal,
+          targetWeightKg: data.targetWeightKg,
+          goalWeeks: data.goalWeeks,
+        },
+      })
+    ) {
+      try {
+        anchor = await resolveGoalAnchor(
+          fastify.prisma,
+          userId,
+          data.weightKg ?? existing.weightKg,
+        );
+      } catch {
+        /* nincs súly — horgony később backfill */
+      }
+    } else if (!existing && data.weightKg != null) {
+      anchor = { startWeightKg: data.weightKg, goalStartedAt: new Date() };
+    }
+
     const profile = await fastify.prisma.userProfile.upsert({
       where: { userId },
       create: {
@@ -80,6 +128,8 @@ const profileRoutes: FastifyPluginAsync = async (fastify) => {
         ...data,
         dailyKcalGoal: data.dailyKcalGoal ?? calculatedKcalGoal,
         dailyWaterGoalMl: data.dailyWaterGoalMl ?? (data.weightKg ? calculateWaterGoal(data.weightKg) : undefined),
+        ...(anchor ?? {}),
+        ...(kcalGoalSource ? { kcalGoalSource } : {}),
       },
       update: {
         ...data,
@@ -93,6 +143,8 @@ const profileRoutes: FastifyPluginAsync = async (fastify) => {
           : data.weightKg
             ? { dailyWaterGoalMl: calculateWaterGoal(data.weightKg) }
             : {}),
+        ...(kcalGoalSource ? { kcalGoalSource } : {}),
+        ...(anchor ?? {}),
       },
     });
 
@@ -171,6 +223,28 @@ const profileRoutes: FastifyPluginAsync = async (fastify) => {
     const goalWeeks =
       parsed.data.goalWeeks !== undefined ? parsed.data.goalWeeks : profile.goalWeeks;
 
+    const resetAnchor = goalAnchorChanged({
+      prev: {
+        goal: profile.goal,
+        targetWeightKg: profile.targetWeightKg,
+        goalWeeks: profile.goalWeeks,
+      },
+      next: { goal, targetWeightKg, goalWeeks },
+    });
+
+    let startWeightKg = profile.startWeightKg;
+    let goalStartedAt = profile.goalStartedAt;
+    if (resetAnchor || startWeightKg == null) {
+      try {
+        const a = await resolveGoalAnchor(fastify.prisma, userId, weightKg);
+        startWeightKg = a.startWeightKg;
+        goalStartedAt = a.goalStartedAt;
+      } catch {
+        startWeightKg = weightKg;
+        goalStartedAt = new Date();
+      }
+    }
+
     const goals = await calculateMacroGoalsWithGemini({
       locale: parsed.data.locale ?? 'hu',
       weightKg,
@@ -181,6 +255,7 @@ const profileRoutes: FastifyPluginAsync = async (fastify) => {
       goal,
       targetWeightKg,
       goalWeeks,
+      startWeightKg,
     });
 
     const updated = await fastify.prisma.userProfile.update({
@@ -196,10 +271,38 @@ const profileRoutes: FastifyPluginAsync = async (fastify) => {
         dailyCarbsGoal: goals.dailyCarbsGoal,
         dailyFatGoal: goals.dailyFatGoal,
         dailyWaterGoalMl: goals.dailyWaterGoalMl,
+        kcalGoalSource: 'AUTO',
+        startWeightKg,
+        goalStartedAt,
       },
     });
 
     return reply.send({ profile: updated, goals });
+  });
+
+  fastify.get('/kcal-goal-suggestion', { preHandler: authenticate }, async (request, reply) => {
+    const result = await getKcalGoalSuggestion(fastify.prisma, request.user.userId);
+    return reply.send(result);
+  });
+
+  fastify.post('/kcal-goal-suggestion/apply', { preHandler: authenticate }, async (request, reply) => {
+    const result = await applyKcalGoalSuggestion(fastify.prisma, request.user.userId);
+    if (!result.suggested) {
+      return reply.status(400).send({ error: 'Nincs elfogadható javaslat.', ...result });
+    }
+    return reply.send(result);
+  });
+
+  fastify.post('/kcal-goal-suggestion/dismiss', { preHandler: authenticate }, async (request, reply) => {
+    const profile = await fastify.prisma.userProfile.findUnique({
+      where: { userId: request.user.userId },
+      select: { userId: true },
+    });
+    if (!profile) {
+      return reply.status(400).send({ error: 'Előbb töltsd ki a személyes adatokat.' });
+    }
+    const result = await dismissKcalGoalSuggestion(fastify.prisma, request.user.userId);
+    return reply.send(result);
   });
 
   // DELETE /profile — soft delete user (GDPR)

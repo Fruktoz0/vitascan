@@ -15,6 +15,7 @@ import MealInsightsCard from '../components/food/MealInsightsCard';
 import MealSuggestStories from '../components/food/MealSuggestStories';
 import WeeklyKcalChart, { type WeeklyDay } from '../components/food/WeeklyKcalChart';
 import WeeklyCalorieEvalCard from '../components/food/WeeklyCalorieEvalCard';
+import KcalGoalSuggestionCard from '../components/food/KcalGoalSuggestionCard';
 import WeeklyInsightsSheet from '../components/food/WeeklyInsightsSheet';
 import StreakCard from '../components/food/StreakCard';
 import FastingCard from '../components/food/FastingCard';
@@ -29,9 +30,11 @@ import {
   waterApi,
   weightApi,
   fastingApi,
+  profileApi,
   type DailyAnalysisResult,
   type FastingCurrent,
   type Food,
+  type KcalGoalSuggestion,
   type WeeklyStatsResult,
 } from '../services/api';
 import { toLocalDateStr, useDateStore } from '../stores/dateStore';
@@ -55,6 +58,7 @@ export default function HomePage() {
   const showHomeWaterCard = useProfileStore((s) => s.showHomeWaterCard);
   const showHomeStreakCard = useProfileStore((s) => s.showHomeStreakCard);
   const showHomeFastingCard = useProfileStore((s) => s.showHomeFastingCard);
+  const kcalGoalFollowsWeight = useProfileStore((s) => s.kcalGoalFollowsWeight);
   const [data, setData] = useState<any>(null);
   const [water, setWater] = useState<any>(null);
   const [weight, setWeight] = useState<any>(null);
@@ -66,6 +70,7 @@ export default function HomePage() {
   const [weeklyAnalysis, setWeeklyAnalysis] = useState<DailyAnalysisResult | null>(null);
   const [weeklyAnalysisLoading, setWeeklyAnalysisLoading] = useState(false);
   const [weeklySheetOpen, setWeeklySheetOpen] = useState(false);
+  const [kcalGoalSuggestion, setKcalGoalSuggestion] = useState<KcalGoalSuggestion | null>(null);
   const [mealAvg, setMealAvg] = useState<Record<string, MealAvgEntry> | null>(null);
   const [streak, setStreak] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -138,19 +143,23 @@ export default function HomePage() {
     setLoading(true);
     try {
       const dateStr = toLocalDateStr(selectedDate);
+      const todayStr = toLocalDateStr(new Date());
+      const loadSuggestion = kcalGoalFollowsWeight && dateStr === todayStr;
 
-      const [summary, waterData, weightData, weekly, streakData, fastingData] = await Promise.all([
+      const [summary, waterData, weightData, weekly, streakData, fastingData, suggestion] = await Promise.all([
         statsApi.day(dateStr),
         showHomeWaterCard ? waterApi.getByDate(dateStr) : Promise.resolve(null),
         weightApi.getByDate(dateStr),
         statsApi.weekly().catch(() => null),
         showHomeStreakCard ? statsApi.streak().catch(() => null) : Promise.resolve(null),
         showHomeFastingCard ? fastingApi.current().catch(() => null) : Promise.resolve(null),
+        loadSuggestion ? profileApi.getKcalGoalSuggestion().catch(() => null) : Promise.resolve(null),
       ]);
       setData(summary);
       setWater(waterData);
       setWeight(weightData);
       setFasting(fastingData);
+      setKcalGoalSuggestion(suggestion?.show ? suggestion : null);
       if (weekly?.days) {
         setWeeklyDays(weekly.days);
         setWeekAvgKcal(typeof weekly.avg?.kcal === 'number' ? weekly.avg.kcal : null);
@@ -177,7 +186,7 @@ export default function HomePage() {
       setStreak(typeof streakData?.streak === 'number' ? streakData.streak : 0);
     } catch {}
     setLoading(false);
-  }, [selectedDate, showHomeWaterCard, showHomeStreakCard, showHomeFastingCard]);
+  }, [selectedDate, showHomeWaterCard, showHomeStreakCard, showHomeFastingCard, kcalGoalFollowsWeight]);
 
   useEffect(() => {
     fetchData();
@@ -378,6 +387,14 @@ export default function HomePage() {
             onSelectDate={setDate}
           />
         )}
+
+        {isToday && kcalGoalSuggestion?.show && kcalGoalSuggestion.suggested ? (
+          <KcalGoalSuggestionCard
+            suggestion={kcalGoalSuggestion}
+            onApplied={() => void fetchData()}
+            onDismissed={() => setKcalGoalSuggestion(null)}
+          />
+        ) : null}
 
         {weeklyStats?.summary && weeklyStats.goals && (
           <WeeklyCalorieEvalCard

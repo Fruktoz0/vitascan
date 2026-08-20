@@ -1053,6 +1053,27 @@ export const fitnessApi = {
     }),
 };
 
+export type GoalSnapshot = {
+  dailyKcalGoal: number;
+  dailyProteinGoal: number;
+  dailyCarbsGoal: number;
+  dailyFatGoal: number;
+  dailyWaterGoalMl: number;
+};
+
+export type KcalGoalSuggestion = {
+  show: boolean;
+  reason?: 'disabled' | 'insufficient_logs' | 'below_threshold' | 'dismissed' | 'missing_profile';
+  weekKey: string;
+  trendWeightKg: number | null;
+  startWeightKg: number | null;
+  current: GoalSnapshot | null;
+  suggested: GoalSnapshot | null;
+  deltaKcal: number | null;
+  deltaProtein: number | null;
+  reachedTarget: boolean;
+};
+
 export const profileApi = {
   getMe: () => request<any>('/profile/me'),
   update: (data: unknown) => request('/profile', { method: 'PUT', body: JSON.stringify(data) }),
@@ -1066,6 +1087,11 @@ export const profileApi = {
       method: 'POST',
       body: JSON.stringify(data ?? {}),
     }),
+  getKcalGoalSuggestion: () => request<KcalGoalSuggestion>('/profile/kcal-goal-suggestion'),
+  applyKcalGoalSuggestion: () =>
+    request<KcalGoalSuggestion>('/profile/kcal-goal-suggestion/apply', { method: 'POST' }),
+  dismissKcalGoalSuggestion: () =>
+    request<{ weekKey: string }>('/profile/kcal-goal-suggestion/dismiss', { method: 'POST' }),
 };
 
 export const premiumApi = {

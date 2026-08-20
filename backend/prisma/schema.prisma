@@ -81,6 +81,15 @@ model UserProfile {
   fastingProtocol     String  @default("16:8") // 16:8 | 18:6 | 20:4 | OMAD | CUSTOM
   fastingGoalMinutes  Int     @default(960)
 
+  /** Heti kcal-javaslat a főoldalon (Menü → Főoldal kártyái). */
+  kcalGoalFollowsWeight Boolean @default(true)
+  /** AUTO = számított / elfogadott javaslat; MANUAL = kézzel átírt kcal. */
+  kcalGoalSource String @default("AUTO")
+  goalStartedAt  DateTime?
+  startWeightKg  Float?
+  /** ISO hét kulcs, pl. 2026-W34 — a „Később” erre a hétre elrejti a kártyát. */
+  kcalGoalSuggestionDismissedWeek String?
+
   // FitnessSyncer OAuth (per-user Personal Application credentials + tokens)
   fsClientId             String?
   fsClientSecretEnc      String? // AES-GCM

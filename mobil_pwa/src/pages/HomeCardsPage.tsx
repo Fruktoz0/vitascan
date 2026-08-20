@@ -6,6 +6,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import {
   IconArrowBack,
   IconChevronRight,
+  IconScaleOutline,
   IconTimer,
   IconTrophy,
   IconWaterDrop,
@@ -22,14 +23,17 @@ export default function HomeCardsPage() {
   const showHomeWaterCard = useProfileStore((s) => s.showHomeWaterCard);
   const showHomeStreakCard = useProfileStore((s) => s.showHomeStreakCard);
   const showHomeFastingCard = useProfileStore((s) => s.showHomeFastingCard);
+  const kcalGoalFollowsWeight = useProfileStore((s) => s.kcalGoalFollowsWeight);
   const setHomeCard = useProfileStore((s) => s.setHomeCard);
+  const setKcalGoalFollowsWeight = useProfileStore((s) => s.setKcalGoalFollowsWeight);
   const [saving, setSaving] = useState(false);
   const [dialog, setDialog] = useState<{ title: string; message: string } | null>(null);
 
-  const toggle = async (key: CardKey, value: boolean) => {
+  const toggle = async (key: CardKey | 'kcalGoalFollowsWeight', value: boolean) => {
     setSaving(true);
     try {
-      await setHomeCard(key, value);
+      if (key === 'kcalGoalFollowsWeight') await setKcalGoalFollowsWeight(value);
+      else await setHomeCard(key, value);
     } catch (e) {
       setDialog({
         title: t('food.errorTitle'),
@@ -41,7 +45,7 @@ export default function HomeCardsPage() {
   };
 
   const rows: Array<{
-    key: CardKey;
+    key: CardKey | 'kcalGoalFollowsWeight';
     on: boolean;
     title: string;
     hint: string;
@@ -49,6 +53,7 @@ export default function HomeCardsPage() {
     iconColor: string;
     iconBg: string;
     href?: string;
+    openLabel?: string;
   }> = [
     {
       key: 'showHomeWaterCard',
@@ -59,6 +64,7 @@ export default function HomeCardsPage() {
       iconColor: '#0277BD',
       iconBg: '#e1f5fe',
       href: '/water',
+      openLabel: t('homeCards.openWater'),
     },
     {
       key: 'showHomeStreakCard',
@@ -78,6 +84,18 @@ export default function HomeCardsPage() {
       iconColor: '#5D4037',
       iconBg: '#f6efe6',
       href: '/fasting',
+      openLabel: t('homeCards.openFasting'),
+    },
+    {
+      key: 'kcalGoalFollowsWeight',
+      on: kcalGoalFollowsWeight,
+      title: t('homeCards.followWeight'),
+      hint: t('homeCards.followWeightHint'),
+      Icon: IconScaleOutline,
+      iconColor: '#2E7D32',
+      iconBg: '#e8f5e9',
+      href: '/goals',
+      openLabel: t('homeCards.openGoals'),
     },
   ];
 
@@ -121,9 +139,7 @@ export default function HomeCardsPage() {
             </div>
             {row.href ? (
               <button type="button" className={styles.openRow} onClick={() => navigate(row.href!)}>
-                <span>
-                  {row.key === 'showHomeWaterCard' ? t('homeCards.openWater') : t('homeCards.openFasting')}
-                </span>
+                <span>{row.openLabel}</span>
                 <IconChevronRight size={18} color="#B0BEC5" />
               </button>
             ) : null}

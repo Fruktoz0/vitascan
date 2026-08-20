@@ -10,9 +10,11 @@ interface ProfileState {
   showHomeWaterCard: boolean;
   showHomeStreakCard: boolean;
   showHomeFastingCard: boolean;
+  kcalGoalFollowsWeight: boolean;
   load: () => Promise<void>;
   setAvatarKey: (key: string) => Promise<void>;
   setHomeCard: (key: HomeCardKey, value: boolean) => Promise<void>;
+  setKcalGoalFollowsWeight: (value: boolean) => Promise<void>;
 }
 
 function flagsFromProfile(profile: any) {
@@ -20,6 +22,7 @@ function flagsFromProfile(profile: any) {
     showHomeWaterCard: profile?.showHomeWaterCard !== false,
     showHomeStreakCard: profile?.showHomeStreakCard !== false,
     showHomeFastingCard: profile?.showHomeFastingCard === true,
+    kcalGoalFollowsWeight: profile?.kcalGoalFollowsWeight !== false,
   };
 }
 
@@ -29,6 +32,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   showHomeWaterCard: true,
   showHomeStreakCard: true,
   showHomeFastingCard: false,
+  kcalGoalFollowsWeight: true,
 
   load: async () => {
     try {
@@ -61,6 +65,17 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       await profileApi.update({ [key]: value });
     } catch {
       set({ [key]: prev } as Pick<ProfileState, HomeCardKey>);
+      throw new Error('Mentés sikertelen.');
+    }
+  },
+
+  setKcalGoalFollowsWeight: async (value) => {
+    const prev = get().kcalGoalFollowsWeight;
+    set({ kcalGoalFollowsWeight: value });
+    try {
+      await profileApi.update({ kcalGoalFollowsWeight: value });
+    } catch {
+      set({ kcalGoalFollowsWeight: prev });
       throw new Error('Mentés sikertelen.');
     }
   },
