@@ -2,7 +2,16 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { GlassCardSimple } from '../ui/GlassCard';
-import { IconAdd, IconBrain, IconDelete, IconKitchen, IconQrCodeScanner, IconSearch } from '../ui/Icons';
+import {
+  IconAdd,
+  IconBrain,
+  IconClose,
+  IconDelete,
+  IconKitchen,
+  IconQrCodeScanner,
+  IconRemove,
+  IconSearch,
+} from '../ui/Icons';
 import { Colors } from '../../design/tokens';
 import { foodApi, getErrorMessage, pantryApi, type Food, type PantryItem } from '../../services/api';
 import styles from '../../pages/MealPlanPage.module.css';
@@ -10,6 +19,8 @@ import styles from '../../pages/MealPlanPage.module.css';
 type Props = {
   ownerId?: string;
 };
+
+type Unit = 'g' | 'ml' | 'db';
 
 export default function MealPlanPantry({ ownerId }: Props) {
   const { t } = useTranslation();
@@ -19,10 +30,14 @@ export default function MealPlanPantry({ ownerId }: Props) {
   const [error, setError] = useState('');
   const [name, setName] = useState('');
   const [qty, setQty] = useState('1');
-  const [unit, setUnit] = useState<'g' | 'ml' | 'db'>('db');
+  const [unit, setUnit] = useState<Unit>('db');
   const [hits, setHits] = useState<Food[]>([]);
   const [picked, setPicked] = useState<Food | null>(null);
   const [searching, setSearching] = useState(false);
+  const [edit, setEdit] = useState<PantryItem | null>(null);
+  const [editQty, setEditQty] = useState('1');
+  const [editUnit, setEditUnit] = useState<Unit>('db');
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -56,6 +71,34 @@ export default function MealPlanPantry({ ownerId }: Props) {
     return () => window.clearTimeout(handle);
   }, [name]);
 
+  useEffect(() => {
+    if (!edit) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setEdit(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [edit]);
+
+  const openEdit = (item: PantryItem) => {
+    setEdit(item);
+    setEditQty(String(item.quantity));
+    setEditUnit((item.unit as Unit) || 'g');
+  };
+
+  const bumpEditQty = (delta: number) => {
+    const n = Number(String(editQty).replace(',', '.'));
+    const base = Number.isFinite(n) && n > 0 ? n : 0;
+    const step = editUnit === 'db' ? 1 : base >= 100 ? 50 : 10;
+    const next = Math.max(0, Math.round((base + delta * step) * 10) / 10);
+    setEditQty(String(next));
+  };
+
   const add = async () => {
     const quantity = Number(qty.replace(',', '.'));
     if (!name.trim() || !Number.isFinite(quantity) || quantity <= 0) return;
@@ -80,10 +123,32 @@ export default function MealPlanPantry({ ownerId }: Props) {
     }
   };
 
+  const saveEdit = async () => {
+    if (!edit) return;
+    const quantity = Number(String(editQty).replace(',', '.'));
+    if (!Number.isFinite(quantity) || quantity < 0) return;
+    setSaving(true);
+    setError('');
+    try {
+      const res = await pantryApi.patch(edit.id, { quantity, unit: editUnit });
+      if (res.deleted || quantity === 0) {
+        setItems((prev) => prev.filter((i) => i.id !== edit.id));
+      } else if (res.item) {
+        setItems((prev) => prev.map((i) => (i.id === edit.id ? res.item! : i)));
+      }
+      setEdit(null);
+    } catch (err) {
+      setError(getErrorMessage(err, t('mealPlan.pantrySaveError')));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const remove = async (id: string) => {
     try {
       await pantryApi.remove(id);
       setItems((prev) => prev.filter((i) => i.id !== id));
+      if (edit?.id === id) setEdit(null);
     } catch (err) {
       setError(getErrorMessage(err, t('mealPlan.pantrySaveError')));
     }
@@ -93,10 +158,25 @@ export default function MealPlanPantry({ ownerId }: Props) {
     ? `/meal-plan?tab=pantry&ownerId=${encodeURIComponent(ownerId)}`
     : '/meal-plan?tab=pantry';
 
+  const unitButtons = (value: Unit, onChange: (u: Unit) => void) => (
+    <div className={styles.unitSeg} role="group" aria-label={t('mealPlan.pantryQty')}>
+      {(['g', 'ml', 'db'] as const).map((u) => (
+        <button
+          key={u}
+          type="button"
+          className={`${styles.unitSegBtn} ${value === u ? styles.unitSegOn : ''}`}
+          onClick={() => onChange(u)}
+        >
+          {u}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <div className={styles.content}>
       <GlassCardSimple
-        backgroundColor="#eadecc"
+        backgroundColor="#e8f5e9"
         padding={16}
         customRadius={{
           borderTopLeftRadius: 24,
@@ -120,9 +200,7 @@ export default function MealPlanPantry({ ownerId }: Props) {
         <button
           type="button"
           className={styles.hardBtn}
-          onClick={() =>
-            navigate('/scanner', { state: { returnPath, pantry: true } })
-          }
+          onClick={() => navigate('/scanner', { state: { returnPath, pantry: true } })}
         >
           <span className={styles.btnShadow} />
           <span className={styles.hardFace}>
@@ -134,9 +212,7 @@ export default function MealPlanPantry({ ownerId }: Props) {
           type="button"
           className={styles.aiAddBtn}
           aria-label={t('aiRecognize.entryTitle')}
-          onClick={() =>
-            navigate('/ai-recognize', { state: { returnPath, pantry: true } })
-          }
+          onClick={() => navigate('/ai-recognize', { state: { returnPath, pantry: true } })}
         >
           <span className={styles.btnShadow} />
           <span className={styles.aiAddFace}>
@@ -171,7 +247,7 @@ export default function MealPlanPantry({ ownerId }: Props) {
           />
         </div>
         {searching && hits.length > 0 && !picked ? (
-          <div className={styles.hitList} style={{ marginTop: 8 }}>
+          <div className={styles.hitList}>
             {hits.map((food) => {
               const label = food.nameHu ?? food.nameEn ?? food.displayName ?? food.name;
               return (
@@ -192,7 +268,7 @@ export default function MealPlanPantry({ ownerId }: Props) {
             })}
           </div>
         ) : null}
-        <div className={styles.pantryQtyRow} style={{ marginTop: 10 }}>
+        <div className={styles.pantryQtyRow}>
           <input
             className={styles.pantryQty}
             inputMode="decimal"
@@ -200,17 +276,12 @@ export default function MealPlanPantry({ ownerId }: Props) {
             onChange={(e) => setQty(e.target.value)}
             aria-label={t('mealPlan.pantryQty')}
           />
-          {(['g', 'ml', 'db'] as const).map((u) => (
-            <button
-              key={u}
-              type="button"
-              className={`${styles.unitChip} ${unit === u ? styles.chipOn : ''}`}
-              onClick={() => setUnit(u)}
-            >
-              {u}
-            </button>
-          ))}
-          <button type="button" className={`${styles.hardBtn} ${styles.hardBtnMint}`} style={{ flex: '0 0 auto', width: 120 }} onClick={() => void add()}>
+          {unitButtons(unit, setUnit)}
+          <button
+            type="button"
+            className={`${styles.pantryAddBtn} ${styles.hardBtnMint}`}
+            onClick={() => void add()}
+          >
             <span className={styles.btnShadow} />
             <span className={styles.hardFace}>
               <IconAdd size={16} color={Colors.dashboard.stroke} />
@@ -226,59 +297,127 @@ export default function MealPlanPantry({ ownerId }: Props) {
         <div className={styles.center}>
           <div className="spinner" />
         </div>
-      ) : items.length === 0 ? (
-        <div className={styles.shelf}>
-          <div className={styles.shelfBay}>
-            <div className={styles.shelfItem}>
-              <p className={styles.empty} style={{ margin: 0 }}>
-                {t('mealPlan.pantryEmpty')}
-              </p>
-            </div>
-            <div className={styles.shelfPlank} />
-          </div>
-        </div>
       ) : (
-        <div className={styles.shelf}>
-          {items.map((item, i) => {
-            const jarFill = ['#f3e0c2', '#e8f5e9', '#ffdad6', '#efe8ff', '#eadecc'][i % 5];
-            return (
-              <div key={item.id} className={styles.shelfBay}>
-                <div className={styles.shelfItem}>
-                  <div className={styles.jar}>
-                    <span className={styles.jarMark} style={{ background: `linear-gradient(180deg, #fff8ef 0%, ${jarFill} 100%)` }}>
-                      <span className={styles.jarLid} />
-                      <span className={styles.jarQty}>{item.qtyLabel}</span>
-                    </span>
-                    <span className={styles.jarBody}>
-                      <strong className={styles.jarName}>{item.name}</strong>
-                      <span className={styles.jarMacros}>
-                        {item.macros
-                          ? `${item.macros.kcal} kcal · F ${item.macros.protein}g · Sz ${item.macros.carbs}g · Zs ${item.macros.fat}g`
-                          : item.expiresOn
-                            ? item.expiresOn
-                            : t('mealPlan.pantryNoMacros')}
-                        {item.expiresOn && item.macros ? ` · ${item.expiresOn}` : ''}
-                      </span>
-                    </span>
-                    <button
-                      type="button"
-                      className={styles.back}
-                      aria-label={t('mealPlan.delete')}
-                      onClick={() => void remove(item.id)}
-                    >
-                      <span className={styles.backShadow} />
-                      <span className={styles.backInner}>
-                        <IconDelete size={18} color={Colors.dashboard.stroke} />
-                      </span>
-                    </button>
-                  </div>
-                </div>
-                <div className={styles.shelfPlank} />
-              </div>
-            );
-          })}
+        <div className={styles.pantryBoard}>
+          <div className={styles.pantryBoardHead}>
+            <span className={styles.pantryBoardTitle}>{t('mealPlan.pantryShelf')}</span>
+            <span className={styles.pantryBoardCount}>
+              {t('mealPlan.pantryCount', { count: items.length })}
+            </span>
+          </div>
+
+          {items.length === 0 ? (
+            <p className={styles.pantryBoardEmpty}>{t('mealPlan.pantryEmpty')}</p>
+          ) : (
+            <div className={styles.pantryGrid}>
+              {items.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={styles.pantryTile}
+                  onClick={() => openEdit(item)}
+                >
+                  <span className={styles.pantryTileQty}>{item.qtyLabel}</span>
+                  <span className={styles.pantryTileName}>{item.name}</span>
+                  {item.macros ? (
+                    <span className={styles.pantryTileMeta}>{item.macros.kcal} kcal</span>
+                  ) : item.expiresOn ? (
+                    <span className={styles.pantryTileMeta}>{item.expiresOn}</span>
+                  ) : (
+                    <span className={styles.pantryTileMeta}>{t('mealPlan.pantryTapEdit')}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
+
+      {edit ? (
+        <div className={styles.editOverlay} onClick={() => setEdit(null)}>
+          <div
+            className={styles.editSheet}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pantry-edit-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={styles.editTop}>
+              <div>
+                <h2 id="pantry-edit-title" className={styles.editTitle}>
+                  {edit.name}
+                </h2>
+                <p className={styles.editHint}>{t('mealPlan.pantryOnShelf')}</p>
+              </div>
+              <button
+                type="button"
+                className={styles.editClose}
+                aria-label={t('common.close')}
+                onClick={() => setEdit(null)}
+              >
+                <IconClose size={18} color={Colors.dashboard.stroke} />
+              </button>
+            </div>
+
+            <div className={styles.editStepper}>
+              <button
+                type="button"
+                className={styles.stepBtn}
+                aria-label="-"
+                onClick={() => bumpEditQty(-1)}
+              >
+                <IconRemove size={20} color={Colors.dashboard.stroke} />
+              </button>
+              <input
+                className={styles.editQtyInput}
+                inputMode="decimal"
+                value={editQty}
+                onChange={(e) => setEditQty(e.target.value)}
+                aria-label={t('mealPlan.pantryQty')}
+              />
+              <button
+                type="button"
+                className={styles.stepBtn}
+                aria-label="+"
+                onClick={() => bumpEditQty(1)}
+              >
+                <IconAdd size={20} color={Colors.dashboard.stroke} />
+              </button>
+            </div>
+
+            {unitButtons(editUnit, setEditUnit)}
+
+            {edit.macros ? (
+              <p className={styles.editMacros}>
+                {edit.macros.kcal} kcal · F {edit.macros.protein}g · Sz {edit.macros.carbs}g · Zs{' '}
+                {edit.macros.fat}g
+              </p>
+            ) : null}
+
+            <div className={styles.editActions}>
+              <button
+                type="button"
+                className={styles.editDelete}
+                onClick={() => void remove(edit.id)}
+              >
+                <IconDelete size={16} color={Colors.dashboard.stroke} />
+                {t('mealPlan.delete')}
+              </button>
+              <button
+                type="button"
+                className={`${styles.hardBtn} ${styles.hardBtnMint} ${styles.editSave}`}
+                disabled={saving}
+                onClick={() => void saveEdit()}
+              >
+                <span className={styles.btnShadow} />
+                <span className={styles.hardFace}>
+                  {saving ? t('mealPlan.pantrySaving') : t('mealPlan.pantrySaveQty')}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

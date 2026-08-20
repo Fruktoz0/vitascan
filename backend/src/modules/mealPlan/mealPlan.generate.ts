@@ -1,20 +1,19 @@
-import { MealPlanSlotSource, MealType, PrismaClient, type RecipeCategory } from '@prisma/client';
-import { computeNutrition } from '../recipes/recipes.match.service';
+import { MealPlanSlotSource, MealType, PrismaClient } from '@prisma/client';
 import {
   formatQtyLabel,
   mergeNeeds,
   missingAgainstPantry,
   normalizeQty,
-  pantryCoverage,
   type PantryUnit,
 } from '../pantry/pantry.service';
-import { assignMealPlanIds, type CatalogItem, type GenerateSlotPick } from './mealPlan.gemini';
+import { inventMealPlanSlots } from './mealPlan.gemini';
 import { bumpGenerateQuota, getGenerateQuota } from './mealPlan.quota';
 import type { GeneratePlanInput, MissingCartInput } from './mealPlan.schema';
 import { getWeekPlan, startOfIsoWeek, upsertSlot } from './mealPlan.service';
 import { parseLocalDate, toDateKey } from '../log/log.service';
 import { canAccessMealPlan, canAccessShoppingList } from '../shares/shareAccess';
 import { notifyCartListAudience } from '../cart/cartEvents';
+import { createRecipe } from '../recipes/recipes.service';
 
 const PLAN_MEALS: Array<'BREAKFAST' | 'LUNCH' | 'DINNER'> = ['BREAKFAST', 'LUNCH', 'DINNER'];
 
@@ -39,21 +38,6 @@ export function slotMaxMinutes(date: Date, meal: MealType): number {
   if (meal === 'LUNCH' || meal === 'UZSONNA') return weekend ? 30 : 15;
   if (meal === 'DINNER') return weekend ? 60 : 35;
   return 20;
-}
-
-function recipeMinutes(row: { prepMinutes: number | null; cookMinutes: number | null; effort: string | null }) {
-  const sum = (row.prepMinutes ?? 0) + (row.cookMinutes ?? 0);
-  if (sum > 0) return sum;
-  if (row.effort === 'QUICK') return 15;
-  if (row.effort === 'PROJECT') return 60;
-  return 30;
-}
-
-function recipeMeals(category: RecipeCategory | null): Array<'BREAKFAST' | 'LUNCH' | 'DINNER'> {
-  if (category === 'BREAKFAST') return ['BREAKFAST'];
-  if (category === 'LUNCH') return ['LUNCH'];
-  if (category === 'DINNER') return ['DINNER'];
-  return ['BREAKFAST', 'LUNCH', 'DINNER'];
 }
 
 type NeedLine = { key: string; foodId: string | null; name: string; quantity: number; unit: PantryUnit };
@@ -82,58 +66,21 @@ function ingredientNeeds(
   return mergeNeeds(lines);
 }
 
-function greedyFill(
-  empty: Array<{ date: string; mealType: 'BREAKFAST' | 'LUNCH' | 'DINNER'; maxMinutes: number; kcalHint: number | null }>,
-  catalog: CatalogItem[],
-  existing: GenerateSlotPick[],
-  matchKcal: boolean,
-): GenerateSlotPick[] {
-  const assigned = [...existing];
-  const used = new Map<string, number>();
-  for (const p of assigned) {
-    const k = `${p.source}:${p.id}`;
-    used.set(k, (used.get(k) ?? 0) + 1);
-  }
-  const taken = new Set(assigned.map((p) => `${p.date}:${p.mealType}`));
+function recipeKey(title: string, mealType: string) {
+  return `${mealType}::${title.trim().toLowerCase().replace(/\s+/g, ' ')}`;
+}
 
-  for (const slot of empty) {
-    if (taken.has(`${slot.date}:${slot.mealType}`)) continue;
-    const kcalDist = (c: CatalogItem) =>
-      matchKcal && slot.kcalHint && c.kcal != null ? Math.abs(c.kcal - slot.kcalHint) : 0;
-    const ranked = catalog
-      .filter((c) => c.minutes <= slot.maxMinutes)
-      .filter((c) => c.meals.includes(slot.mealType) || c.meals.length === 3)
-      .sort((a, b) => {
-        const ua = used.get(`${a.source}:${a.id}`) ?? 0;
-        const ub = used.get(`${b.source}:${b.id}`) ?? 0;
-        if (ua !== ub) return ua - ub;
-        if (matchKcal) {
-          const da = kcalDist(a);
-          const db = kcalDist(b);
-          if (da !== db) return da - db;
-        }
-        if (b.pantryScore !== a.pantryScore) return b.pantryScore - a.pantryScore;
-        return a.minutes - b.minutes;
-      });
-    const pick = ranked[0];
-    if (!pick) continue;
-    assigned.push({ date: slot.date, mealType: slot.mealType, source: pick.source, id: pick.id });
-    taken.add(`${slot.date}:${slot.mealType}`);
-    used.set(`${pick.source}:${pick.id}`, (used.get(`${pick.source}:${pick.id}`) ?? 0) + 1);
+function categoryFor(meal: MealType): 'BREAKFAST' | 'LUNCH' | 'DINNER' {
+  if (meal === 'BREAKFAST' || meal === 'LUNCH' || meal === 'DINNER') return meal;
+  if (meal === 'TIZORAI') return 'BREAKFAST';
+  if (meal === 'UZSONNA' || meal === 'SNACK') return 'LUNCH';
+  return 'DINNER';
+}
 
-    if (slot.mealType === 'DINNER' && pick.leftoverDays > 0) {
-      for (let i = 1; i <= pick.leftoverDays; i += 1) {
-        const nextDate = toDateKey(addDays(parseLocalDate(slot.date) ?? new Date(), i));
-        const key = `${nextDate}:DINNER`;
-        if (taken.has(key)) continue;
-        if (!empty.some((e) => e.date === nextDate && e.mealType === 'DINNER')) continue;
-        assigned.push({ date: nextDate, mealType: 'DINNER', source: pick.source, id: pick.id });
-        taken.add(key);
-        used.set(`${pick.source}:${pick.id}`, (used.get(`${pick.source}:${pick.id}`) ?? 0) + 1);
-      }
-    }
-  }
-  return assigned;
+function effortFor(minutes: number): 'QUICK' | 'NORMAL' | 'PROJECT' {
+  if (minutes <= 20) return 'QUICK';
+  if (minutes >= 50) return 'PROJECT';
+  return 'NORMAL';
 }
 
 export async function generateWeekPlan(
@@ -161,108 +108,19 @@ export async function generateWeekPlan(
   const seasonal = data.seasonal !== false;
   const matchKcal = data.matchKcal === true;
   const diet = data.diet ?? [];
-  const SUGAR_FREE_MAX = 5;
+  const locale = data.locale ?? 'hu';
 
-  const [plan, pantryRows, recipes, templates, profile] = await Promise.all([
+  const [plan, pantryRows, profile] = await Promise.all([
     prisma.mealPlan.findUnique({
       where: { userId_weekStart: { userId: ownerId, weekStart } },
       include: { slots: true },
     }),
-    usePantry
-      ? prisma.pantryItem.findMany({ where: { userId: ownerId } })
-      : Promise.resolve([]),
-    prisma.recipe.findMany({
-      where: {
-        OR: [
-          { createdBy: ownerId },
-          { createdBy: actorId },
-          { favorites: { some: { userId: { in: [ownerId, actorId] } } } },
-          { status: 'PUBLISHED' },
-        ],
-      },
-      take: 80,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        ingredients: { select: { name: true, foodId: true, amountG: true, amount: true, unit: true, food: { select: { id: true, kcal: true, protein: true, carbs: true, fat: true, fiber: true, sugar: true } } } },
-        favorites: { where: { userId: { in: [ownerId, actorId] } }, select: { id: true }, take: 1 },
-      },
-    }),
-    prisma.mealTemplate.findMany({
-      where: { userId: { in: [ownerId, actorId] } },
-      take: 40,
-      include: { items: { select: { kcal: true, foodName: true, amount: true, foodId: true } } },
-    }),
+    usePantry ? prisma.pantryItem.findMany({ where: { userId: ownerId } }) : Promise.resolve([]),
     prisma.userProfile.findUnique({
       where: { userId: ownerId },
       select: { dailyKcalGoal: true },
     }),
   ]);
-
-  const pantryStock = pantryRows.map((p) => ({
-    foodId: p.foodId,
-    name: p.name,
-    quantity: p.quantity,
-    unit: p.unit,
-  }));
-
-  const tagDiet = diet.filter((d) => d !== 'SUGAR_FREE');
-  const sugarFree = diet.includes('SUGAR_FREE');
-
-  const catalog: CatalogItem[] = [];
-  for (const recipe of recipes) {
-    const foods = recipe.ingredients.map((i) => i.food).filter((f): f is NonNullable<typeof f> => Boolean(f));
-    const nutrition = computeNutrition(recipe.ingredients, foods, recipe.servings || 1);
-    if (!nutrition || nutrition.matchedCount <= 0) continue;
-    if (seasonal && recipe.seasonMonths.length > 0 && !recipe.seasonMonths.includes(month)) continue;
-    if (tagDiet.length > 0 && !tagDiet.every((d) => (recipe.dietTags as string[]).includes(d))) continue;
-    if (sugarFree && nutrition.sugar > SUGAR_FREE_MAX) continue;
-    const needs = ingredientNeeds(recipe.ingredients, 1);
-    const minutes = recipeMinutes(recipe);
-    catalog.push({
-      id: recipe.id,
-      source: 'RECIPE',
-      title: recipe.title,
-      minutes,
-      leftoverDays: recipe.leftoverDays ?? 0,
-      pantryScore: usePantry ? pantryCoverage(needs, pantryStock) : 0.5,
-      kcal: nutrition.kcal,
-      meals: recipeMeals(recipe.category),
-    });
-  }
-
-  for (const tpl of templates) {
-    if (tpl.items.length === 0) continue;
-    if (diet.length > 0) continue;
-    const kcal = tpl.items.reduce((s, i) => s + i.kcal, 0);
-    const needs = mergeNeeds(
-      tpl.items.map((i) => ({
-        key: '',
-        foodId: i.foodId,
-        name: i.foodName,
-        quantity: i.amount || 1,
-        unit: 'g' as const,
-      })),
-    );
-    catalog.push({
-      id: tpl.id,
-      source: 'TEMPLATE',
-      title: tpl.name,
-      minutes: 20,
-      leftoverDays: 0,
-      pantryScore: usePantry ? pantryCoverage(needs, pantryStock) : 0.5,
-      kcal,
-      meals: ['BREAKFAST', 'LUNCH', 'DINNER'],
-    });
-  }
-
-  catalog.sort((a, b) => b.pantryScore - a.pantryScore);
-  const trimmed = catalog.slice(0, 60);
-  if (trimmed.length === 0) {
-    if (diet.length > 0) {
-      throw httpError(400, 'Nincs a kiválasztott diétához illő recept. Jelölj meg recepteket diétacímkével, vagy lazíts a szűrőn.');
-    }
-    throw httpError(400, 'Nincs elég párosított recept vagy sablon a generáláshoz.');
-  }
 
   const existingSlots = plan?.slots ?? [];
   const occupied = new Set(
@@ -291,64 +149,123 @@ export async function generateWeekPlan(
         date,
         mealType: meal,
         maxMinutes: slotMaxMinutes(d, meal),
-        kcalHint: kcalSplit[meal] ?? null,
+        kcalHint: matchKcal || dailyKcal ? kcalSplit[meal] ?? null : kcalSplit[meal] ?? null,
       }));
   });
 
   if (empty.length === 0) {
-    throw httpError(400, 'Ezen a héten minden slot ki van töltve.');
+    throw httpError(
+      400,
+      data.scope === 'day'
+        ? 'Ezen a napon minden slot ki van töltve.'
+        : 'Ezen a héten minden slot ki van töltve.',
+    );
   }
 
-  const valid = new Set(trimmed.map((c) => `${c.source}:${c.id}`));
-  let picks: GenerateSlotPick[] = [];
+  let invented;
   try {
-    picks = await assignMealPlanIds({
-      locale: data.locale ?? 'hu',
+    invented = await inventMealPlanSlots({
+      locale,
       weekStart: toDateKey(weekStart),
       dates,
       meals,
       slotCaps: empty,
-      catalog: trimmed,
+      diet,
       matchKcal,
+      seasonal,
+      month,
+      usePantry,
+      pantry: pantryRows.map((p) => ({
+        name: p.name,
+        quantity: p.quantity,
+        unit: p.unit,
+      })),
+      dailyKcalGoal: dailyKcal,
     });
-  } catch {
-    picks = [];
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '';
+    throw httpError(
+      (err as { statusCode?: number })?.statusCode && (err as { statusCode: number }).statusCode >= 400
+        ? (err as { statusCode: number }).statusCode
+        : 502,
+      msg || (locale === 'en' ? 'Could not invent meal plan recipes.' : 'Nem sikerült receptet generálni.'),
+    );
   }
 
-  picks = picks.filter((p) => {
-    if (!valid.has(`${p.source}:${p.id}`)) return false;
-    if (occupied.has(`${p.date}:${p.mealType}`)) return false;
-    const item = trimmed.find((c) => c.id === p.id && c.source === p.source);
-    const cap = empty.find((e) => e.date === p.date && e.mealType === p.mealType);
-    if (!item || !cap) return false;
-    return item.minutes <= cap.maxMinutes + 5;
+  invented = invented.filter((slot) => {
+    if (occupied.has(`${slot.date}:${slot.mealType}`)) return false;
+    return empty.some((e) => e.date === slot.date && e.mealType === slot.mealType);
   });
 
-  picks = greedyFill(
-    empty.map((e) => ({ date: e.date, mealType: e.mealType, maxMinutes: e.maxMinutes, kcalHint: e.kcalHint })),
-    trimmed,
-    picks,
-    matchKcal,
-  );
+  if (invented.length === 0) {
+    throw httpError(400, locale === 'en' ? 'AI returned no usable meals.' : 'Az AI nem adott használható étkezést.');
+  }
 
+  const recipeIds = new Map<string, string>();
   let filled = 0;
-  for (const pick of picks) {
-    if (occupied.has(`${pick.date}:${pick.mealType}`)) continue;
+
+  for (const slot of invented) {
+    const key = recipeKey(slot.title, slot.mealType);
+    let recipeId = recipeIds.get(key);
+    if (!recipeId) {
+      const minutes = slot.prepMinutes + slot.cookMinutes;
+      try {
+        const created = await createRecipe(
+          prisma,
+          ownerId,
+          {
+            title: slot.title,
+            description: slot.description || null,
+            servings: slot.servings,
+            category: categoryFor(slot.mealType),
+            dietTags: slot.dietTags,
+            ingredients: slot.ingredients.map((ing, i) => ({
+              name: ing.name,
+              amount: ing.amount,
+              unit: ing.unit,
+              sortOrder: i,
+            })),
+            instructions: slot.instructions,
+            sourceType: 'MANUAL',
+            sourceUrl: null,
+            sourceExternalId: null,
+            prepMinutes: slot.prepMinutes,
+            cookMinutes: slot.cookMinutes,
+            effort: effortFor(minutes),
+            seasonMonths: seasonal ? [month] : [],
+            leftoverDays: 0,
+          },
+          role,
+        );
+        recipeId = created.id;
+        recipeIds.set(key, recipeId);
+      } catch (err) {
+        // Skip this slot if recipe create fails; continue others.
+        console.warn('[meal-plan generate] recipe create failed', err);
+        continue;
+      }
+    }
+
     await upsertSlot(prisma, actorId, {
       weekStart: toDateKey(weekStart),
       ownerId,
-      slotDate: pick.date,
-      mealType: pick.mealType,
-      source: pick.source as MealPlanSlotSource,
-      recipeId: pick.source === 'RECIPE' ? pick.id : null,
-      templateId: pick.source === 'TEMPLATE' ? pick.id : null,
+      slotDate: slot.date,
+      mealType: slot.mealType,
+      source: 'RECIPE' as MealPlanSlotSource,
+      recipeId,
+      servings: 1,
     });
-    occupied.add(`${pick.date}:${pick.mealType}`);
+    occupied.add(`${slot.date}:${slot.mealType}`);
     filled += 1;
   }
 
   if (filled === 0) {
-    throw httpError(400, 'Nem sikerült étkezést kiosztani a katalógusból.');
+    throw httpError(
+      400,
+      locale === 'en'
+        ? 'Could not create recipes for the plan.'
+        : 'Nem sikerült receptet létrehozni a tervhez.',
+    );
   }
 
   const used = await bumpGenerateQuota(prisma, actorId, weekStart);

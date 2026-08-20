@@ -14,10 +14,14 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconClose,
+  IconDelete,
+  IconEdit,
   IconKitchen,
   IconRestaurant,
   IconShoppingBasket,
 } from '../components/ui/Icons';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { SwipeDeleteRow } from '../components/ui/SwipeDeleteRow';
 import { Colors } from '../design/tokens';
 import { useFastingLogGuard } from '../hooks/useFastingLogGuard';
 import { useTierStore } from '../stores/tierStore';
@@ -101,6 +105,8 @@ export default function MealPlanPage() {
   const [diet, setDiet] = useState<DietTag[]>([]);
   const [matchKcal, setMatchKcal] = useState(false);
   const [calOpen, setCalOpen] = useState(false);
+  const [clearConfirm, setClearConfirm] = useState<'day' | 'week' | null>(null);
+  const [slotDelete, setSlotDelete] = useState<MealPlanSlot | null>(null);
   const [calMonth, setCalMonth] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -252,9 +258,31 @@ export default function MealPlanPage() {
   };
 
   const handleClearDay = async () => {
-    if (!window.confirm(t('mealPlan.clearDayMessage'))) return;
     try {
       await mealPlanApi.deleteDay(selectedDate, { ownerId });
+      await load();
+    } catch (err) {
+      setError(getErrorMessage(err, t('mealPlan.saveError')));
+    }
+  };
+
+  const handleClearWeek = async () => {
+    try {
+      for (const d of days) {
+        await mealPlanApi.deleteDay(d, { ownerId });
+      }
+      await load();
+    } catch (err) {
+      setError(getErrorMessage(err, t('mealPlan.saveError')));
+    }
+  };
+
+  const handleDeleteSlot = async (alsoDiary: boolean) => {
+    if (!slotDelete) return;
+    const id = slotDelete.id;
+    setSlotDelete(null);
+    try {
+      await mealPlanApi.deleteSlot(id, alsoDiary);
       await load();
     } catch (err) {
       setError(getErrorMessage(err, t('mealPlan.saveError')));
@@ -309,58 +337,70 @@ export default function MealPlanPage() {
     const slot = slotsByDayMeal.get(`${date}:${meal}`);
     const meta = MEAL_META[meal];
     const Icon = meta.Icon;
+    const filled = Boolean(slot && slot.source !== 'SKIPPED');
+
     return (
-      <button
-        type="button"
-        className={compact ? styles.weekSlot : styles.slot}
-        onClick={() => setPicker({ date, meal })}
-      >
-          <span className={styles.slotIcon} style={{ background: meta.bg }}>
-            {slot?.hasImage && slot.recipeId ? (
-              <AuthedImage recipeId={slot.recipeId} alt="" revision={slot.imageRevision} />
-            ) : (
-              <Icon size={compact ? 16 : 18} color={Colors.dashboard.stroke} />
-            )}
-          </span>
-          <span className={styles.slotText}>
-            <span className={styles.slotMeal}>{t(MEAL_I18N[meal])}</span>
-            <span className={styles.slotTitle}>
-              {slot?.source === 'SKIPPED'
-                ? t('mealPlan.skip')
-                : slot?.title || t('mealPlan.emptySlot')}
-            </span>
-            <span className={styles.slotMeta}>
-              {slot?.logged
-                ? t('mealPlan.logged')
-                : slot?.kcal != null
-                  ? t('mealPlan.kcal', { kcal: slot.kcal })
-                  : slot
-                    ? t('mealPlan.planned')
-                    : t('mealPlan.addSlot')}
-            </span>
-          </span>
-          {!slot || slot.source === 'SKIPPED' ? (
-            <IconAdd size={20} color={Colors.dashboard.stroke} />
-          ) : slot.loggable && !slot.logged ? (
-            <span
-              className={styles.logBtn}
-              role="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                void handleLog(slot);
-              }}
+      <div className={compact ? styles.weekSlot : styles.slotRow}>
+        <SwipeDeleteRow
+          enabled={filled}
+          deleteLabel={t('mealPlan.delete')}
+          onDelete={() => {
+            if (slot) setSlotDelete(slot);
+          }}
+          editAction={{
+            label: t('mealPlan.edit'),
+            icon: <IconEdit size={22} color="#E65100" />,
+            onClick: () => setPicker({ date, meal }),
+          }}
+        >
+          <div className={styles.slotFace}>
+            <button
+              type="button"
+              className={styles.slot}
+              onClick={() => setPicker({ date, meal })}
             >
-              <span className={styles.btnShadow} />
-              <span className={styles.logFace}>
-                {busyId === slot.id ? t('mealPlan.pushing') : t('mealPlan.push')}
+              <span className={styles.slotIcon} style={{ background: meta.bg }}>
+                {slot?.hasImage && slot.recipeId ? (
+                  <AuthedImage recipeId={slot.recipeId} alt="" revision={slot.imageRevision} />
+                ) : (
+                  <Icon size={compact ? 16 : 18} color={Colors.dashboard.stroke} />
+                )}
               </span>
-            </span>
-          ) : !slot.loggable && slot.source === 'RECIPE' ? (
-            <span className={styles.slotMeta}>{t('mealPlan.notLoggable')}</span>
-          ) : (
-            <IconRestaurant size={18} color={Colors.dashboard.stroke} />
-          )}
-        </button>
+              <span className={styles.slotText}>
+                <span className={styles.slotMeal}>{t(MEAL_I18N[meal])}</span>
+                <span className={styles.slotTitle}>
+                  {slot?.source === 'SKIPPED'
+                    ? t('mealPlan.skip')
+                    : slot?.title || t('mealPlan.emptySlot')}
+                </span>
+                <span className={styles.slotMeta}>
+                  {slot?.logged
+                    ? t('mealPlan.logged')
+                    : slot?.kcal != null
+                      ? t('mealPlan.kcal', { kcal: slot.kcal })
+                      : slot
+                        ? t('mealPlan.planned')
+                        : t('mealPlan.addSlot')}
+                </span>
+              </span>
+              {!filled ? <IconAdd size={20} color={Colors.dashboard.stroke} /> : null}
+            </button>
+            {filled && slot?.loggable && !slot.logged ? (
+              <button
+                type="button"
+                className={styles.logBtn}
+                disabled={busyId === slot.id}
+                onClick={() => void handleLog(slot)}
+              >
+                <span className={styles.btnShadow} />
+                <span className={styles.logFace}>
+                  {busyId === slot.id ? t('mealPlan.pushing') : t('mealPlan.push')}
+                </span>
+              </button>
+            ) : null}
+          </div>
+        </SwipeDeleteRow>
+      </div>
     );
   };
 
@@ -650,6 +690,7 @@ export default function MealPlanPage() {
                 <div className="spinner" />
               </div>
             ) : view === 'week' ? (
+              <>
               <GlassCardSimple
                 padding={12}
                 customRadius={{
@@ -689,6 +730,18 @@ export default function MealPlanPage() {
                   })}
                 </div>
               </GlassCardSimple>
+              <button
+                type="button"
+                className={styles.clearBtn}
+                onClick={() => setClearConfirm('week')}
+              >
+                <span className={styles.btnShadow} />
+                <span className={styles.clearFace}>
+                  <IconDelete size={16} color={Colors.dashboard.stroke} />
+                  {t('mealPlan.clearWeek')}
+                </span>
+              </button>
+              </>
             ) : (
               <>
                 {PLAN_MEALS.map((meal) => (
@@ -705,8 +758,16 @@ export default function MealPlanPage() {
                     {renderSlot(selectedDate, meal)}
                   </GlassCardSimple>
                 ))}
-                <button type="button" className={styles.ghost} onClick={() => void handleClearDay()}>
-                  {t('mealPlan.clearDay')}
+                <button
+                  type="button"
+                  className={styles.clearBtn}
+                  onClick={() => setClearConfirm('day')}
+                >
+                  <span className={styles.btnShadow} />
+                  <span className={styles.clearFace}>
+                    <IconDelete size={16} color={Colors.dashboard.stroke} />
+                    {t('mealPlan.clearDay')}
+                  </span>
                 </button>
               </>
             )}
@@ -792,6 +853,75 @@ export default function MealPlanPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      ) : null}
+
+      {clearConfirm ? (
+        <ConfirmDialog
+          visible
+          title={clearConfirm === 'week' ? t('mealPlan.clearWeekTitle') : t('mealPlan.clearDayTitle')}
+          message={clearConfirm === 'week' ? t('mealPlan.clearWeekMessage') : t('mealPlan.clearDayMessage')}
+          confirmLabel={t('mealPlan.clearConfirm')}
+          cancelLabel={t('common.cancel')}
+          destructive
+          onClose={() => setClearConfirm(null)}
+          onConfirm={() => {
+            if (clearConfirm === 'week') void handleClearWeek();
+            else void handleClearDay();
+          }}
+        />
+      ) : null}
+
+      {slotDelete ? (
+        <div className={styles.editOverlay} onClick={() => setSlotDelete(null)}>
+          <div
+            className={styles.editSheet}
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={styles.editTop}>
+              <div>
+                <h2 className={styles.editTitle}>{t('mealPlan.deleteTitle')}</h2>
+                <p className={styles.editHint}>
+                  {slotDelete.title
+                    ? t('mealPlan.deleteNamed', { name: slotDelete.title })
+                    : t('mealPlan.deleteMessage')}
+                </p>
+              </div>
+              <button
+                type="button"
+                className={styles.editClose}
+                aria-label={t('common.close')}
+                onClick={() => setSlotDelete(null)}
+              >
+                <IconClose size={18} color={Colors.dashboard.stroke} />
+              </button>
+            </div>
+            <div className={styles.deleteActions}>
+              <button
+                type="button"
+                className={`${styles.hardBtn} ${styles.hardBtnMint}`}
+                onClick={() => void handleDeleteSlot(false)}
+              >
+                <span className={styles.btnShadow} />
+                <span className={styles.hardFace}>{t('mealPlan.deletePlanOnly')}</span>
+              </button>
+              {slotDelete.logged ? (
+                <button
+                  type="button"
+                  className={styles.clearBtn}
+                  onClick={() => void handleDeleteSlot(true)}
+                >
+                  <span className={styles.btnShadow} />
+                  <span className={styles.clearFace}>{t('mealPlan.deleteWithDiary')}</span>
+                </button>
+              ) : null}
+              <button type="button" className={styles.ghost} onClick={() => setSlotDelete(null)}>
+                {t('common.cancel')}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
